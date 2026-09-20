@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'scan', 'result.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="${task.taskName} ?: '(untitled)'">Scan Result</h2>
+        <p>
+            <span class="badge badge-mute" th:text="#{|source.${task.sourceType}|}">ZIP</span>
+            <span class="muted" th:if="${task.projectName}"> · <span th:text="${task.projectName}">project</span></span>
+            <span class="muted"> · </span>
+            <span class="scan-status" id="status-badge" th:classappend="'is-' + ${#strings.toLowerCase(task.status)}">
+                <span class="dot"></span>
+                <span id="status-text" th:text="#{|status.${task.status}|}">Status</span>
+            </span>
+        </p>
+    </div>
+    <div class="page-actions" id="result-actions" th:style="${task.status == 'SUCCESS'} ? '' : 'display:none;'">
+        <a class="btn btn-ghost btn-sm" th:href="@{/api/reports/{id}/preview(id=${task.id})}" target="_blank">
+            <svg class="ico"><use href="#eye"/></svg>
+            <span th:text="#{result.export.preview}">Preview</span>
+        </a>
+        <a class="btn btn-ghost btn-sm" th:href="@{/api/reports/{id}/download(id=${task.id},format='html')}">
+            <svg class="ico"><use href="#code-square"/></svg>
+            <span th:text="#{result.export.html}">HTML</span>
+        </a>
+        <a class="btn btn-primary btn-sm" th:href="@{/api/reports/{id}/download(id=${task.id},format='pdf')}">
+            <svg class="ico"><use href="#box-arrow-in-down-left"/></svg>
+            <span th:text="#{result.export.pdf}">Export PDF</span>
+        </a>
+    </div>
+</div>
+
+<!-- 顶部概览 -->
+<div class="split-3" id="summary-section" th:if="${task.status == 'SUCCESS' or task.status == 'FAILED'}">
+    <!-- 质量分 -->
+    <div class="card" th:if="${quality != null}">
+        <div class="card-head">
+            <h3 th:text="#{result.scoreTitle}">Quality score</h3>
+            <span class="badge"
+                  th:classappend="${quality.passed} ? 'badge-ok' : 'badge-danger'"
+                  th:text="${quality.passed ? #messages.msg('quality.pass') : #messages.msg('quality.fail')}">Pass</span>
+        </div>
+        <div class="card-body score-card-body">
+            <div class="score-top">
+                <!-- 注意：svg 不可加 viewBox，否则 CSS 几何属性(cx/r)会随 viewBox 缩放导致圆环与数字错位 -->
+                <div class="score-ring score-ring-sm"
+                     th:classappend="'is-' + ${#strings.toLowerCase(quality?.level != null ? quality.level : 'POOR')}"
+                     th:style="'--score:' + ${quality.score} + ';'">
+                    <svg>
+                        <circle class="ring-bg" cx="46" cy="46" r="38"/>
+                        <circle class="ring-fg" cx="46" cy="46" r="38"/>
+                    </svg>
+                    <div class="score-ring-text">
+                        <div class="num" th:text="${quality.score}">92</div>
+                        <div class="lbl" th:text="${#messages.msg('quality.' + quality.level)}">Excellent</div>
+                    </div>
+                </div>
+                <div class="score-meta">
+                    <div class="score-deduct-row">
+                        <span class="dot-badge lv-blocker"></span>
+                        <span th:text="#{level.BLOCKER}">阻断</span>
+                        <span class="muted small">×<span th:text="${quality.blockerCount}">0</span></span>
+                        <span class="score-deduct" th:text="'−' + ${quality.blockerDeduct}">−0</span>
+                    </div>
+                    <div class="score-deduct-row">
+                        <span class="dot-badge lv-critical"></span>
+                        <span th:text="#{level.CRITICAL}">严重</span>
+                        <span class="muted small">×<span th:text="${quality.criticalCount}">0</span></span>
+                        <span class="score-deduct" th:text="'−' + ${quality.criticalDeduct}">−0</span>
+                    </div>
+                    <div class="score-deduct-row">
+                        <span class="dot-badge lv-major"></span>
+                        <span th:text="#{level.MAJOR}">主要</span>
+                        <span class="muted small">×<span th:text="${quality.majorCount}">0</span></span>
+                        <span class="score-deduct" th:text="'−' + ${quality.majorDeduct}">−0</span>
+                    </div>
+                    <div class="score-deduct-row">
+                        <span class="dot-badge lv-minor"></span>
+                        <span th:text="#{level.MINOR}">次要</span>
+                        <span class="muted small">×<span th:text="${quality.minorCount}">0</span></span>
+                        <span class="score-deduct" th:text="'−' + ${quality.minorDeduct}">−0</span>
+                    </div>
+                    <div class="score-deduct-row">
+                        <span class="dot-badge lv-info"></span>
+                        <span th:text="#{level.INFO}">提示</span>
+                        <span class="muted small">×<span th:text="${quality.infoCount}">0</span></span>
+                        <span class="score-deduct muted" th:text="#{result.infoNoDeduct}">不扣分</span>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="score-gate" th:if="${gateSettings != null}">
+                        <span class="muted small score-gate-title" th:text="#{result.gateCriteria}">门禁条件</span>
+                        <div class="score-gate-row"
+                             th:classappend="${quality.score >= gateSettings.passScore} ? 'is-ok' : 'is-bad'">
+                            <span class="g-mark">
+                                <svg class="ico" th:if="${quality.score >= gateSettings.passScore}"><use href="#check-lg"/></svg>
+                                <svg class="ico" th:unless="${quality.score >= gateSettings.passScore}"><use href="#x-lg"/></svg>
+                            </span>
+                            <span th:text="#{result.gateScore}">评分</span>
+                            <span class="g-expr">
+                                <span th:text="${quality.score}">57</span>
+                                <span class="g-req" th:text="' / ≥' + ${gateSettings.passScore}"> / ≥80</span>
+                            </span>
+                        </div>
+                        <div class="score-gate-row"
+                             th:classappend="${quality.blockerCount <= gateSettings.blockerLimit} ? 'is-ok' : 'is-bad'">
+                            <span class="g-mark">
+                                <svg class="ico" th:if="${quality.blockerCount <= gateSettings.blockerLimit}"><use href="#check-lg"/></svg>
+                                <svg class="ico" th:unless="${quality.blockerCount <= gateSettings.blockerLimit}"><use href="#x-lg"/></svg>
+                            </span>
+                            <span th:text="#{result.gateBlockers}">阻断</span>
+                            <span class="g-expr">
+                                <span th:text="${quality.blockerCount}">0</span>
+                                <span class="g-req" th:text="' / ≤' + ${gateSettings.blockerLimit}"> / ≤0</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <th:block th:if="${gateSettings != null}" th:with="
+                    blockerDeduct=${quality.blockerDeduct},
+                    criticalDeduct=${quality.criticalDeduct},
+                    majorDeduct=${quality.majorDeduct},
+                    minorDeduct=${quality.minorDeduct},
+                    projected=${T(java.lang.Math).min(100, quality.score + quality.blockerDeduct)},
+                    scoreGap=${gateSettings.passScore - quality.score}">
+                <!-- 得分构成：保留分 / 五级扣分（INFO 恒为 0 不渲染） -->
+                <div class="score-composition">
+                    <div class="score-comp-bar">
+                        <span class="seg seg-keep" th:if="${quality.score > 0}"
+                              th:style="'flex:' + ${quality.score}"></span>
+                        <span class="seg seg-blocker" th:if="${blockerDeduct > 0}"
+                              th:style="'flex:' + ${blockerDeduct}"></span>
+                        <span class="seg seg-critical" th:if="${criticalDeduct > 0}"
+                              th:style="'flex:' + ${criticalDeduct}"></span>
+                        <span class="seg seg-major" th:if="${majorDeduct > 0}"
+                              th:style="'flex:' + ${majorDeduct}"></span>
+                        <span class="seg seg-minor" th:if="${minorDeduct > 0}"
+                              th:style="'flex:' + ${minorDeduct}"></span>
+                    </div>
+                    <div class="score-comp-legend">
+                        <span><i style="background:var(--brand);"></i><span th:text="#{result.compKeep}">得分</span>&nbsp;<b th:text="${quality.score}">57</b></span>
+                        <span th:if="${blockerDeduct > 0}"><i class="lv-blocker"></i><span th:text="#{level.BLOCKER}">阻断</span>&nbsp;<b th:text="${blockerDeduct}">25</b></span>
+                        <span th:if="${criticalDeduct > 0}"><i class="lv-critical"></i><span th:text="#{level.CRITICAL}">严重</span>&nbsp;<b th:text="${criticalDeduct}">15</b></span>
+                        <span th:if="${majorDeduct > 0}"><i class="lv-major"></i><span th:text="#{level.MAJOR}">主要</span>&nbsp;<b th:text="${majorDeduct}">5</b></span>
+                        <span th:if="${minorDeduct > 0}"><i class="lv-minor"></i><span th:text="#{level.MINOR}">次要</span>&nbsp;<b th:text="${minorDeduct}">1</b></span>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+                <div class="muted small score-formula"
+                     th:text="#{result.scoreFormula(${quality.blockerCount},${gateSettings.blockerWeight},${quality.criticalCount},${gateSettings.criticalWeight},${quality.majorCount},${gateSettings.majorWeight},${quality.minorCount},${gateSettings.minorWeight},${quality.infoCount},${quality.score})}">
+                    得分 = 100 − 阻断 0×25 − 严重 0×15 − 主要 0×5 − 次要 0×1（提示 0 个不扣分） = 100
+                </div>
+
+                <!-- 达标预测（阻断为一票否决项，预测口径=修完全部阻断后的分数） -->
+                <div class="score-forecast is-ok" th:if="${quality.passed}">
+                    <svg class="ico"><use href="#check-lg"/></svg>
+                    <span th:text="#{result.forecastPass}">已通过门禁，保持当前质量</span>
+                </div>
+                <div class="score-forecast is-ok"
+                     th:if="${!quality.passed and quality.blockerCount > 0 and projected >= gateSettings.passScore}">
+                    <svg class="ico"><use href="#graph-up"/></svg>
+                    <span th:text="#{result.forecastOk(${quality.blockerCount},${projected})}">修复全部 N 个阻断后预计 X 分，可通过门禁</span>
+                </div>
+                <div class="score-forecast is-warn"
+                     th:if="${!quality.passed and quality.blockerCount > 0 and projected &lt; gateSettings.passScore}">
+                    <svg class="ico"><use href="#info-circle-fill"/></svg>
+                    <span th:text="#{result.forecastBad(${quality.blockerCount},${projected},${scoreGap})}">即使修复全部阻断仍不足，还需处理严重/主要/次要问题</span>
+                </div>
+                <div class="score-forecast is-warn"
+                     th:if="${!quality.passed and quality.blockerCount == 0}">
+                    <svg class="ico"><use href="#info-circle-fill"/></svg>
+                    <span th:text="#{result.forecastDebt(${scoreGap})}">阻断已清零，还需修复其他级别问题</span>
+                </div>
+
+                <div class="score-foot">
+                    <div class="divider"></div>
+                    <div class="score-bands">
+                        <span><i class="b-dot" style="background:#10b981;"></i>
+                            <span th:text="#{quality.EXCELLENT}">优秀</span>&nbsp;≥<span th:text="${gateSettings.excellent}">90</span></span>
+                        <span><i class="b-dot" style="background:#22c55e;"></i>
+                            <span th:text="#{quality.GOOD}">良好</span>&nbsp;≥<span th:text="${gateSettings.good}">75</span></span>
+                        <span><i class="b-dot" style="background:var(--warn);"></i>
+                            <span th:text="#{quality.FAIR}">一般</span>&nbsp;≥<span th:text="${gateSettings.fair}">60</span></span>
+                        <span th:if="${quality.ignoredCount > 0}">·&nbsp;<span th:text="#{result.ignoredCount}">已忽略</span>&nbsp;<span th:text="${quality.ignoredCount}">2</span></span>
+                    </div>
+                </div>
+            </th:block>
+        </div>
+    </div>
+
+    <!-- 统计 -->
+    <div class="card" th:if="${quality != null or task.status == 'FAILED'}">
+        <div class="card-head">
+            <h3 th:text="#{result.summary}">Summary</h3>
+        </div>
+        <div class="card-body">
+            <div class="distrib-row">
+                <div class="distrib-label"><span class="dot-badge lv-blocker"></span><span th:text="#{level.BLOCKER}">阻断</span></div>
+                <div class="distrib-bar">
+                    <div class="distrib-fill lv-blocker"
+                         th:style="'width:' + ${(task.totalIssues != null and task.totalIssues > 0) ? (task.blockerCount ?: 0) * 100.0 / task.totalIssues : 0} + '%'"></div>
+                </div>
+                <div class="distrib-num" th:text="${task.blockerCount ?: 0}">0</div>
+            </div>
+            <div class="distrib-row">
+                <div class="distrib-label"><span class="dot-badge lv-critical"></span><span th:text="#{level.CRITICAL}">严重</span></div>
+                <div class="distrib-bar">
+                    <div class="distrib-fill lv-critical"
+                         th:style="'width:' + ${(task.totalIssues != null and task.totalIssues > 0) ? (task.criticalCount ?: 0) * 100.0 / task.totalIssues : 0} + '%'"></div>
+                </div>
+                <div class="distrib-num" th:text="${task.criticalCount ?: 0}">0</div>
+            </div>
+            <div class="distrib-row">
+                <div class="distrib-label"><span class="dot-badge lv-major"></span><span th:text="#{level.MAJOR}">主要</span></div>
+                <div class="distrib-bar">
+                    <div class="distrib-fill lv-major"
+                         th:style="'width:' + ${(task.totalIssues != null and task.totalIssues > 0) ? (task.majorCount ?: 0) * 100.0 / task.totalIssues : 0} + '%'"></div>
+                </div>
+                <div class="distrib-num" th:text="${task.majorCount ?: 0}">0</div>
+            </div>
+            <div class="distrib-row">
+                <div class="distrib-label"><span class="dot-badge lv-minor"></span><span th:text="#{level.MINOR}">次要</span></div>
+                <div class="distrib-bar">
+                    <div class="distrib-fill lv-minor"
+                         th:style="'width:' + ${(task.totalIssues != null and task.totalIssues > 0) ? (task.minorCount ?: 0) * 100.0 / task.totalIssues : 0} + '%'"></div>
+                </div>
+                <div class="distrib-num" th:text="${task.minorCount ?: 0}">0</div>
+            </div>
+            <div class="distrib-row">
+                <div class="distrib-label"><span class="dot-badge lv-info"></span><span th:text="#{level.INFO}">提示</span></div>
+                <div class="distrib-bar">
+                    <div class="distrib-fill lv-info"
+                         th:style="'width:' + ${(task.totalIssues != null and task.totalIssues > 0) ? (task.infoCount ?: 0) * 100.0 / task.totalIssues : 0} + '%'"></div>
+                </div>
+                <div class="distrib-num" th:text="${task.infoCount ?: 0}">0</div>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{result.files}">Files</dt>
+                <dd th:text="${task.totalFiles ?: 0}">0</dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{result.lines}">LOC</dt>
+                <dd th:text="${task.totalLines ?: 0}">0</dd>
+            </div>
+            <div class="divider" th:if="${task.aiIssueCount != null}"></div>
+            <div class="dl-row" th:if="${task.aiIssueCount != null}">
+                <dt th:text="#{result.aiIssues}">AI findings</dt>
+                <dd th:text="${task.aiIssueCount}">0</dd>
+            </div>
+            <div class="divider" th:if="${quality != null and quality.debtMinutes > 0}"></div>
+            <div class="dl-row" th:if="${quality != null and quality.debtMinutes > 0}">
+                <dt th:text="#{result.debt}">Technical debt</dt>
+                <dd th:text="${quality.debtText}">1h25m</dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{result.duration}">Duration</dt>
+                <dd>
+                    <span th:if="${task.durationSeconds != null}"
+                          th:text="${task.durationSeconds < 60 ? task.durationSeconds + 's' : (task.durationSeconds / 60) + 'min'}">12s</span>
+                    <span th:unless="${task.durationSeconds != null}">—</span>
+                </dd>
+            </div>
+        </div>
+    </div>
+
+    <!-- 环境 -->
+    <div class="card" th:if="${env != null}">
+        <div class="card-head">
+            <h3 th:text="#{result.env}">Environment</h3>
+        </div>
+        <div class="card-body">
+            <div class="dl-row">
+                <dt th:text="#{result.jdk}">JDK</dt>
+                <dd th:text="${task.jdkVersion != null ? task.jdkVersion : (env.jdkVersion != null ? env.jdkVersion : '—')}">17</dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{result.buildTool}">Build tool</dt>
+                <dd th:text="${env.buildTool} ?: '—'">Maven</dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{result.frameworks}">Frameworks</dt>
+                <dd th:text="${env.detectedFrameworks != null and !env.detectedFrameworks.isEmpty() ? #strings.listJoin(env.detectedFrameworks, ', ') : '—'}">Spring Boot</dd>
+            </div>
+            <div class="divider" th:if="${env.springBootVersion != null}"></div>
+            <div class="dl-row" th:if="${env.springBootVersion != null}">
+                <dt>Spring Boot</dt>
+                <dd th:text="${env.springBootVersion}">3.2</dd>
+            </div>
+            <div class="divider" th:if="${env.rootPackage != null and !env.rootPackage.isEmpty()}"></div>
+            <div class="dl-row" th:if="${env.rootPackage != null and !env.rootPackage.isEmpty()}">
+                <dt th:text="#{result.rootPackage}">Root package</dt>
+                <dd class="mono small text-ellipsis" th:text="${env.rootPackage}" th:title="${env.rootPackage}">com.x</dd>
+            </div>
+            <div class="divider" th:if="${env.classCount > 0 or env.methodCount > 0}"></div>
+            <div class="dl-row" th:if="${env.classCount > 0 or env.methodCount > 0}">
+                <dt th:text="#{result.classMethod}">Classes/Methods</dt>
+                <dd><span th:text="${env.classCount}">0</span> / <span th:text="${env.methodCount}">0</span></dd>
+            </div>
+            <div class="divider" th:if="${runtimeDeps != null and !runtimeDeps.isEmpty()}"></div>
+            <div class="dl-row dl-row-stack" th:if="${runtimeDeps != null and !runtimeDeps.isEmpty()}">
+                <dt th:text="#{result.deps(${#lists.size(runtimeDeps)})}">Dependencies</dt>
+                <dd>
+                    <div class="dep-chips" style="margin-top:-2px;">
+                        <th:block th:each="d, st : ${runtimeDeps}">
+                            <span class="dep-chip"
+                                  th:if="${st.index < 4}"
+                                  th:text="${d.artifactId} + (${d.version != null and !d.version.isEmpty()} ? ' ' + ${d.version} : '')"
+                                  th:title="${d.groupId} + ':' + ${d.artifactId}">spring-core</span>
+                        </th:block>
+                    </div>
+                </dd>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 进行中提示 -->
+<div class="alert alert-info" id="running-alert" th:style="${task.status == 'PENDING' or task.status == 'RUNNING'} ? '' : 'display:none;'">
+    <svg class="ico"><use href="#hourglass"/></svg>
+    <div class="alert-body" th:text="#{scan.running}">Analyzing…</div>
+</div>
+
+<!-- 失败提示 -->
+<div class="alert alert-danger" id="failed-alert" th:style="${task.status == 'FAILED'} ? '' : 'display:none;'">
+    <svg class="ico"><use href="#x-circle-fill"/></svg>
+    <div class="alert-body" th:text="${task.errorMessage} ?: 'Scan failed'">error</div>
+</div>
+
+<!-- 问题列表 -->
+<div class="card" id="issues-card" th:style="${task.status == 'SUCCESS'} ? '' : 'display:none;'">
+    <div class="card-body">
+        <div class="toolbar">
+            <select class="select" id="filter-level" style="max-width:140px;">
+                <option value="ALL" th:text="#{common.all}">All</option>
+                <option value="BLOCKER" th:text="#{level.BLOCKER}">阻断</option>
+                <option value="CRITICAL" th:text="#{level.CRITICAL}">严重</option>
+                <option value="MAJOR" th:text="#{level.MAJOR}">主要</option>
+                <option value="MINOR" th:text="#{level.MINOR}">次要</option>
+                <option value="INFO" th:text="#{level.INFO}">提示</option>
+            </select>
+            <select class="select" id="filter-checker" style="max-width:180px;">
+                <option value="ALL" th:text="#{common.all}">All checkers</option>
+            </select>
+            <input type="text" class="input" id="filter-keyword"
+                   th:placeholder="#{issues.search.ph}" style="flex:1;max-width:300px;">
+            <label class="switch">
+                <input type="checkbox" id="filter-ignored">
+                <span class="track"></span>
+                <span class="switch-text" th:text="#{issues.includeIgnored}">Include ignored</span>
+            </label>
+            <button class="btn btn-ghost" id="search-btn">
+                <svg class="ico"><use href="#search"/></svg>
+                <span th:text="#{common.search}">Search</span>
+            </button>
+            <div class="spacer"></div>
+            <button class="btn btn-warn btn-sm" id="deep-review-btn" th:if="${isAdmin}" style="display:none;">
+                <svg class="ico"><use href="#stars"/></svg>
+                <span th:text="#{issues.deepReview}">AI deep review</span>
+            </button>
+            <span class="muted small" id="issues-total">0</span>
+        </div>
+
+        <!-- AI 深度评审进度 -->
+        <div class="deep-progress" id="deep-progress" style="display:none;">
+            <div class="deep-progress-head">
+                <span class="spin"></span>
+                <span id="deep-progress-text">AI…</span>
+            </div>
+            <div class="deep-progress-bar"><div id="deep-progress-fill"></div></div>
+        </div>
+
+        <div class="tbl-wrap">
+            <table class="tbl dense" id="issues-table">
+                <thead>
+                <tr>
+                    <th style="width:60px;" th:text="#{issues.filter.level}">Lv</th>
+                    <th th:text="#{issues.rule}">Rule</th>
+                    <th th:text="#{checkers.name}">Checker</th>
+                    <th th:text="#{history.col.files}+' / '+#{common.name}">File / Title</th>
+                    <th style="width:104px;" class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="issues-tbody">
+                <tr><td colspan="5">
+                    <div class="empty-state">
+                        <div class="empty-ico"><svg class="ico"><use href="#hourglass"/></svg></div>
+                        <p th:text="#{common.loading}">Loading…</p>
+                    </div>
+                </td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination" id="issues-pagination">
+            <div class="pagination-info" id="issues-page-info"></div>
+            <div class="pagination-nav" id="issues-page-nav"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 代码上下文弹窗 -->
+<div class="modal" id="context-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="context-modal"></div>
+    <div class="modal-dialog modal-xl">
+        <button type="button" class="modal-close" data-close-modal="context-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" th:text="#{issues.preview}">Context</span>
+            <h3 id="context-title">file.java</h3>
+            <p id="context-sub">line 42</p>
+        </div>
+        <div class="ctx-suggestion" id="context-suggestion" style="display:none;">
+            <strong>💡 <span th:text="#{issues.suggestion}">Fix suggestion</span>：</strong>
+            <span id="context-suggestion-text"></span>
+        </div>
+        <div class="ctx-ai" id="context-ai" style="display:none;">
+            <div class="ctx-ai-head">
+                <strong>✨ <span th:text="#{issues.aiSuggestion}">AI enhanced suggestion</span></strong>
+                <span class="muted small" id="context-ai-at"></span>
+            </div>
+            <div class="ctx-ai-body" id="context-ai-text"></div>
+        </div>
+        <div class="codeview" id="context-code">
+            <table><tbody><tr><td class="ln">1</td><td class="code-line">// code</td></tr></tbody></table>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-ghost" data-close-modal="context-modal" th:text="#{common.close}">Close</button>
+            <button type="button" class="btn btn-warn" id="ai-enhance-btn" th:if="${isAdmin}" style="display:none;">
+                <svg class="ico"><use href="#stars"/></svg>
+                <span th:text="#{issues.aiEnhance}">AI enhance</span>
+            </button>
+            <button type="button" class="btn btn-warn" id="ignore-btn">
+                <svg class="ico"><use href="#eye-slash"/></svg>
+                <span th:text="#{issues.ignore}">Ignore</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 忽略弹窗 -->
+<div class="modal" id="ignore-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="ignore-modal"></div>
+    <div class="modal-dialog modal-sm">
+        <button type="button" class="modal-close" data-close-modal="ignore-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" th:text="#{issues.ignore}">Ignore</span>
+            <h3 th:text="#{issues.ignore}">Ignore issue</h3>
+        </div>
+        <form id="ignore-form">
+            <div class="field">
+                <label th:text="#{issues.ignoreType.SINGLE}+' / '+#{issues.ignoreType.RULE}">Type</label>
+                <div class="role-group">
+                    <label class="role-pick">
+                        <input type="radio" name="ignoreType" value="SINGLE" checked>
+                        <span th:text="#{issues.ignoreType.SINGLE}">This occurrence</span>
+                    </label>
+                    <label class="role-pick">
+                        <input type="radio" name="ignoreType" value="RULE">
+                        <span th:text="#{issues.ignoreType.RULE}">Create rule</span>
+                    </label>
+                </div>
+            </div>
+            <div class="field">
+                <label for="ignore-reason" th:text="#{issues.reason}">Reason (optional)</label>
+                <input type="text" class="input" id="ignore-reason" maxlength="200">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="ignore-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="submit" class="btn btn-warn" th:text="#{issues.ignore}">Ignore</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var UI = window.AicrUI;
+        var MSG_RECORDS = /*[[#{common.records}]]*/ 'records';
+        var MSG_CTX_ABOVE = /*[[#{issues.ctxHiddenBefore}]]*/ '… {0} line(s) hidden above …';
+        var MSG_CTX_BELOW = /*[[#{issues.ctxHiddenAfter}]]*/ '… {0} line(s) hidden below …';
+        var MSG_CTX_BETWEEN = /*[[#{issues.ctxHiddenBetween}]]*/ '… {0} line(s) hidden in between …';
+        var MSG_CTX_LINES = /*[[#{issues.ctxLines}]]*/ 'lines';
+        var MSG_OCC = /*[[#{issues.occurrence}]]*/ '{0} occurrences';
+        var LEVEL_LABELS = {
+            BLOCKER: /*[[#{level.BLOCKER}]]*/ '阻断',
+            CRITICAL: /*[[#{level.CRITICAL}]]*/ '严重',
+            MAJOR: /*[[#{level.MAJOR}]]*/ '主要',
+            MINOR: /*[[#{level.MINOR}]]*/ '次要',
+            INFO: /*[[#{level.INFO}]]*/ '提示'
+        };
+        var LEVEL_CLASSES = {
+            BLOCKER: 'badge-blocker',
+            CRITICAL: 'badge-critical',
+            MAJOR: 'badge-major',
+            MINOR: 'badge-minor',
+            INFO: 'badge-info-grade'
+        };
+        var taskId = /*[[${task.id}]]*/ 0;
+        var status = /*[[${task.status}]]*/ 'PENDING';
+        var currentPage = 1;
+        var pageSize = 20;
+        var currentContextId = null;
+        var issueCache = {};   // issueId → 列表行数据（含 aiSuggestion，供上下文弹窗直接展示）
+        var aiAvailable = false;
+        var deepPollTimer = null;
+
+        // 极简 Markdown 渲染：转义后保护 ``` 代码块，其余换行转 <br>
+        function renderAiMd(text) {
+            var blocks = [];
+            var esc = UI.esc(text || '');
+            esc = esc.replace(/```(\w*)\n?([\s\S]*?)```/g, function (m, lang, code) {
+                var i = blocks.length;
+                blocks.push('<pre class="ai-code' + (lang ? ' lang-' + UI.esc(lang) : '') + '">' +
+                    code.replace(/\n$/, '') + '</pre>');
+                return '@@AIBLOCK' + i + '@@';
+            });
+            esc = esc.replace(/\n/g, '<br>').replace(/@@AIBLOCK(\d+)@@/g, function (m, i) {
+                return blocks[parseInt(i, 10)];
+            });
+            return esc;
+        }
+
+        // 轮询状态
+        function pollStatus() {
+            if (status !== 'PENDING' && status !== 'RUNNING') return;
+            fetch('/api/scans/' + taskId + '/status', {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + UI.token.get() }
+            }).then(function (r) { return r.json(); }).then(function (json) {
+                if (json.code === 200 && json.data) {
+                    var s = json.data.status;
+                    if (s && s !== status) {
+                        status = s;
+                        if (s === 'SUCCESS' || s === 'FAILED') {
+                            location.reload();
+                            return;
+                        }
+                        document.getElementById('status-text').textContent = s;
+                    }
+                }
+                setTimeout(pollStatus, 3000);
+            }).catch(function () {
+                setTimeout(pollStatus, 5000);
+            });
+        }
+        if (status === 'PENDING' || status === 'RUNNING') {
+            setTimeout(pollStatus, 2000);
+        }
+
+        // 加载问题列表
+        function loadIssues() {
+            var level = document.getElementById('filter-level').value;
+            var checker = document.getElementById('filter-checker').value;
+            var kw = document.getElementById('filter-keyword').value.trim();
+            var ignored = document.getElementById('filter-ignored').checked;
+            var params = new URLSearchParams({
+                taskId: taskId, level: level, checkerType: checker,
+                keyword: kw, includeIgnored: ignored, page: currentPage, size: pageSize
+            });
+            UI.api.get('/api/issues?' + params.toString()).then(function (data) {
+                renderIssues(data);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        }
+
+        function renderIssues(page) {
+            var tbody = document.getElementById('issues-tbody');
+            var total = page.total || 0;
+            document.getElementById('issues-total').textContent = total + ' ' + MSG_RECORDS;
+            document.getElementById('issues-page-info').textContent =
+                'Page ' + page.current + ' / ' + page.pages;
+
+            if (!page.records || !page.records.length) {
+                tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">' +
+                    '<div class="empty-ico"><svg class="ico"><use href="#check-circle-fill"/></svg></div>' +
+                    '<p>' + (/*[[#{issues.empty}]]*/ 'No issues') + '</p></div></td></tr>';
+                document.getElementById('issues-page-nav').innerHTML = '';
+                return;
+            }
+
+            var html = '';
+            issueCache = {};
+            page.records.forEach(function (iss) {
+                issueCache[iss.id] = iss;
+                var lvClass = LEVEL_CLASSES[iss.issueLevel] || 'badge-info';
+                var lvLabel = LEVEL_LABELS[iss.issueLevel] || iss.issueLevel;
+                var ignored = iss.isIgnored ? ' style="opacity:.55;"' : '';
+                html += '<tr' + ignored + '>' +
+                    '<td><span class="badge ' + lvClass + '">' + lvLabel + '</span></td>' +
+                    '<td><span class="mono">' + UI.esc(iss.ruleCode || '') + '</span></td>' +
+                    '<td>' + UI.esc(iss.checkerName || '') + '</td>' +
+                    '<td>' +
+                        '<div class="soft">' + UI.esc(iss.title || '') +
+                            (iss.isAiGenerated ? ' <span class="badge badge-brand ai-found" title="AI">AI</span>' : '') +
+                        '</div>' +
+                        '<div class="muted small">' + UI.esc(iss.fileName || iss.filePath || '') +
+                            (iss.lineLabel ? ':' + UI.esc(iss.lineLabel)
+                                : (iss.lineStart ? ':' + iss.lineStart : '')) +
+                            (iss.occurrenceCount > 1
+                                ? ' <span class="occ-badge">' + MSG_OCC.replace('{0}', iss.occurrenceCount) + '</span>'
+                                : '') + '</div>' +
+                        (iss.suggestion ?
+                            '<div class="muted small issue-sug" title="' + UI.esc(iss.suggestion) + '">💡 ' +
+                            UI.esc(iss.suggestion) + '</div>' : '') +
+                        (iss.aiSuggestion ?
+                            '<div class="small issue-ai-sug" title="' + UI.esc(iss.aiSuggestion) + '">✨ ' +
+                            UI.t('issues.aiSuggestion') + '</div>' : '') +
+                    '</td>' +
+                    '<td class="num"><div class="row-actions">' +
+                        '<button class="btn btn-icon" data-ctx="' + iss.id + '" title="' + (/*[[#{issues.preview}]]*/ 'Context') + '">' +
+                            '<svg class="ico"><use href="#code-square"/></svg></button>' +
+                        (iss.isIgnored ? '' :
+                        '<button class="btn btn-icon is-warn" data-ign="' + iss.id + '" title="' + (/*[[#{issues.ignore}]]*/ 'Ignore') + '">' +
+                            '<svg class="ico"><use href="#eye-slash"/></svg></button>') +
+                    '</div></td>' +
+                '</tr>';
+            });
+            tbody.innerHTML = html;
+
+            // 绑定按钮
+            tbody.querySelectorAll('[data-ctx]').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    openContext(parseInt(b.dataset.ctx));
+                });
+            });
+            tbody.querySelectorAll('[data-ign]').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    currentContextId = parseInt(b.dataset.ign);
+                    UI.openModal('ignore-modal');
+                });
+            });
+
+            // 分页
+            renderPagination(page);
+        }
+
+        function renderPagination(page) {
+            var nav = document.getElementById('issues-page-nav');
+            if (page.pages <= 1) { nav.innerHTML = ''; return; }
+            var html = '';
+            html += page.current > 1
+                ? '<a href="javascript:;" data-p="' + (page.current - 1) + '">‹</a>'
+                : '<span class="disabled">‹</span>';
+            for (var i = 1; i <= page.pages; i++) {
+                if (i === 1 || i === page.pages || (i >= page.current - 2 && i <= page.current + 2)) {
+                    html += '<a href="javascript:;" data-p="' + i + '"' + (i === page.current ? ' class="current"' : '') + '>' + i + '</a>';
+                } else if (i === 2 && page.current > 4) {
+                    html += '<span class="dots">…</span>';
+                } else if (i === page.pages - 1 && page.current < page.pages - 3) {
+                    html += '<span class="dots">…</span>';
+                }
+            }
+            html += page.current < page.pages
+                ? '<a href="javascript:;" data-p="' + (page.current + 1) + '">›</a>'
+                : '<span class="disabled">›</span>';
+            nav.innerHTML = html;
+            nav.querySelectorAll('[data-p]').forEach(function (a) {
+                a.addEventListener('click', function () {
+                    currentPage = parseInt(a.dataset.p);
+                    loadIssues();
+                });
+            });
+        }
+
+        // 代码上下文
+        function openContext(id) {
+            currentContextId = id;
+            UI.openModal('context-modal');
+            document.getElementById('context-suggestion').style.display = 'none';
+            document.getElementById('context-ai').style.display = 'none';
+            resetEnhanceBtn();
+            document.getElementById('context-code').innerHTML =
+                '<div style="padding:20px;text-align:center;color:var(--ink-mute);">' +
+                (/*[[#{common.loading}]]*/ 'Loading…') + '</div>';
+            // 仅取问题行上下各 10 行，行号与源文件保持一致，窗口外用省略占位
+            UI.api.get('/api/issues/' + id + '/context?contextLines=10').then(function (data) {
+                document.getElementById('context-title').textContent = data.filePath || '';
+                var label = data.lineLabel || (data.issueLineStart + '-' + data.issueLineEnd);
+                document.getElementById('context-sub').textContent =
+                    (data.title ? data.title + ' · ' : '') + MSG_CTX_LINES + ' ' + label +
+                    (data.occurrenceCount > 1 ? '（' + MSG_OCC.replace('{0}', data.occurrenceCount) + '）' : '');
+                // 修复建议与报告保持一致，直接放在代码上下文上方
+                var sugBox = document.getElementById('context-suggestion');
+                if (data.suggestion) {
+                    document.getElementById('context-suggestion-text').textContent = data.suggestion;
+                    sugBox.style.display = '';
+                } else {
+                    sugBox.style.display = 'none';
+                }
+                // AI 增强建议直接读列表缓存（已随分页数据一起返回）
+                renderContextAi(id);
+                var lines = data.lines || [];
+                var skipRow = function (n, kind) {
+                    var tpl = kind === 'above' ? MSG_CTX_ABOVE
+                        : kind === 'between' ? MSG_CTX_BETWEEN : MSG_CTX_BELOW;
+                    return '<tr class="ctx-skip"><td colspan="2"><span class="ctx-skip-mark">' +
+                        UI.esc(tpl.replace('{0}', n)) + '</span></td></tr>';
+                };
+                var html = '<table><tbody>';
+                if (data.hiddenBefore > 0) html += skipRow(data.hiddenBefore, 'above');
+                lines.forEach(function (l) {
+                    if (l.gapBefore > 0) html += skipRow(l.gapBefore, 'between');
+                    var cls = '';
+                    if (l.issueLine) {
+                        cls = (l.issueMarker === 'start' ? 'issue-start' : 'issue-line')
+                            + ' lv-' + (data.issueLevel || 'INFO').toLowerCase();
+                    }
+                    html += '<tr class="' + cls + '"><td class="ln">' + l.lineNumber +
+                            '</td><td class="code-line">' + UI.esc(l.content || '') + '</td></tr>';
+                });
+                if (data.hiddenAfter > 0) html += skipRow(data.hiddenAfter, 'below');
+                html += '</tbody></table>';
+                var box = document.getElementById('context-code');
+                box.innerHTML = html;
+            }).catch(function (err) {
+                document.getElementById('context-code').innerHTML =
+                    '<div class="alert alert-danger" style="margin:16px;">' + UI.esc(String(err.message || err)) + '</div>';
+            });
+        }
+
+        document.getElementById('ignore-btn').addEventListener('click', function () {
+            UI.closeModal('context-modal');
+            UI.openModal('ignore-modal');
+        });
+
+        // 忽略表单
+        document.getElementById('ignore-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var type = document.querySelector('input[name="ignoreType"]:checked').value;
+            var reason = document.getElementById('ignore-reason').value.trim();
+            UI.api.post('/api/issues/' + currentContextId + '/ignore', {
+                ignoreType: type, reason: reason || null
+            }).then(function () {
+                UI.toast(UI.t('common.done'), 'ok');
+                UI.closeModal('ignore-modal');
+                loadIssues();
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+
+        // 过滤
+        document.getElementById('search-btn').addEventListener('click', function () {
+            currentPage = 1; loadIssues();
+        });
+        document.getElementById('filter-keyword').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { currentPage = 1; loadIssues(); }
+        });
+        document.getElementById('filter-level').addEventListener('change', function () { currentPage = 1; loadIssues(); });
+        document.getElementById('filter-checker').addEventListener('change', function () { currentPage = 1; loadIssues(); });
+        document.getElementById('filter-ignored').addEventListener('change', function () { currentPage = 1; loadIssues(); });
+
+        // 加载 checker 类型下拉（用 byChecker 聚合填充）
+        UI.api.get('/api/issues/stats?taskId=' + taskId).then(function (stats) {
+            var sel = document.getElementById('filter-checker');
+            if (!stats || !stats.byChecker || !sel) return;
+            var seen = {};
+            stats.byChecker.forEach(function (row) {
+                var type = row.checkerType;
+                if (!type || seen[type]) return;
+                seen[type] = true;
+                var opt = document.createElement('option');
+                opt.value = type;
+                opt.textContent = row.checkerName || type;
+                sel.appendChild(opt);
+            });
+        }).catch(function () {});
+
+        // ── AI 建议增强 / 深度评审 ──────────────────────────────
+
+        function fmtTime(v) {
+            return v ? String(v).replace('T', ' ').substring(0, 19) : '';
+        }
+        function nowText() {
+            var d = new Date();
+            function p(n) { return String(n).padStart(2, '0'); }
+            return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+                ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+        }
+
+        // 上下文弹窗中的 AI 增强建议面板（数据来自 issueCache）
+        function renderContextAi(id) {
+            var box = document.getElementById('context-ai');
+            var btn = document.getElementById('ai-enhance-btn');
+            var iss = issueCache[id];
+            if (btn) btn.style.display = aiAvailable ? '' : 'none';
+            if (iss && iss.aiSuggestion) {
+                document.getElementById('context-ai-text').innerHTML = renderAiMd(iss.aiSuggestion);
+                document.getElementById('context-ai-at').textContent = fmtTime(iss.aiSuggestionAt);
+                box.style.display = '';
+            } else {
+                box.style.display = 'none';
+            }
+        }
+
+        var enhanceBtn = document.getElementById('ai-enhance-btn');
+        var enhanceBtnHtml = enhanceBtn ? enhanceBtn.innerHTML : '';
+        function resetEnhanceBtn() {
+            if (!enhanceBtn) return;
+            enhanceBtn.disabled = false;
+            enhanceBtn.innerHTML = enhanceBtnHtml;
+        }
+        if (enhanceBtn) {
+            enhanceBtn.addEventListener('click', function () {
+                var id = currentContextId;
+                if (!aiAvailable || id == null) return;
+                enhanceBtn.disabled = true;
+                enhanceBtn.innerHTML = '<span class="spin"></span>';
+                UI.api.post('/api/issues/' + id + '/ai-suggestion', {}).then(function (text) {
+                    if (!issueCache[id]) issueCache[id] = {};
+                    issueCache[id].aiSuggestion = text;
+                    issueCache[id].aiSuggestionAt = nowText();
+                    renderContextAi(id);
+                    // 列表行同步出现 ✨ 标记（不重新分页，避免丢掉当前页码/筛选）
+                    syncRowAiBadge(id);
+                    UI.toast(UI.t('issues.aiEnhanceOk'), 'ok');
+                }).catch(function (err) {
+                    resetEnhanceBtn();
+                    UI.toast(String(err.message || err), 'danger');
+                });
+            });
+        }
+
+        // 列表行补「✨ AI 增强建议」预览（不重新分页，避免丢掉当前页码/筛选）
+        function syncRowAiBadge(id) {
+            var btn = document.querySelector('[data-ctx="' + id + '"]');
+            if (!btn) return;
+            var row = btn.closest('tr');
+            if (!row || row.querySelector('.issue-ai-sug')) return;
+            var iss = issueCache[id];
+            if (!iss || !iss.aiSuggestion) return;
+            var titleCell = row.querySelectorAll('td')[3];
+            if (!titleCell) return;
+            var div = document.createElement('div');
+            div.className = 'small issue-ai-sug';
+            div.title = iss.aiSuggestion;
+            div.textContent = '✨ ' + UI.t('issues.aiSuggestion');
+            titleCell.appendChild(div);
+        }
+
+        // 深度评审
+        var deepBtn = document.getElementById('deep-review-btn');
+        var deepBox = document.getElementById('deep-progress');
+        var deepFill = document.getElementById('deep-progress-fill');
+        var deepText = document.getElementById('deep-progress-text');
+        var deepBusy = false;
+
+        function setDeepUi(p) {
+            deepBox.style.display = '';
+            var total = p.total || 0;
+            var pct = total > 0 ? Math.round((p.done || 0) * 100 / total) :
+                (p.running ? 0 : 100);
+            deepFill.style.width = pct + '%';
+            deepText.textContent =
+                UI.t('issues.aiProgress') + ' ' + (p.done || 0) + '/' + total +
+                (p.failed > 0 ? ' · ✗ ' + p.failed : '') +
+                (p.skipped > 0 ? ' · ' + UI.t('issues.aiSkipped') + ' ' + p.skipped : '');
+        }
+
+        function pollDeepReview() {
+            UI.api.get('/api/scans/' + taskId + '/ai-deep-review').then(function (p) {
+                if (!p) return;
+                setDeepUi(p);
+                if (p.running) {
+                    deepPollTimer = setTimeout(pollDeepReview, 2000);
+                } else {
+                    deepBusy = false;
+                    deepBtn.disabled = false;
+                    var msg = (p.total === 0) ? UI.t('issues.deepAllDone') :
+                        UI.t('issues.deepDone') +
+                        (p.failed > 0 ? '（' + p.failed + ' ✗）' : '');
+                    UI.toast(msg, p.failed > 0 ? 'warn' : 'ok');
+                    loadIssues();
+                }
+            }).catch(function () {
+                deepPollTimer = setTimeout(pollDeepReview, 4000);
+            });
+        }
+
+        if (deepBtn) {
+            deepBtn.addEventListener('click', function () {
+                if (deepBusy) return;
+                if (!window.confirm(UI.t('issues.aiDeepReviewConfirm'))) return;
+                deepBusy = true;
+                deepBtn.disabled = true;
+                setDeepUi({ running: true, total: 0, done: 0 });
+                UI.api.post('/api/scans/' + taskId + '/ai-deep-review', {}).then(function (p) {
+                    if (p) setDeepUi(p);
+                    clearTimeout(deepPollTimer);
+                    deepPollTimer = setTimeout(pollDeepReview, 1500);
+                }).catch(function (err) {
+                    deepBusy = false;
+                    deepBtn.disabled = false;
+                    deepBox.style.display = 'none';
+                    UI.toast(String(err.message || err), 'danger');
+                });
+            });
+
+            // 进入页面时若上一次评审仍在跑（如刷新后），自动接续进度
+            UI.api.get('/api/scans/' + taskId + '/ai-deep-review').then(function (p) {
+                if (p && p.running) {
+                    deepBusy = true;
+                    deepBtn.disabled = true;
+                    setDeepUi(p);
+                    deepPollTimer = setTimeout(pollDeepReview, 2000);
+                }
+            }).catch(function () {});
+        }
+
+        // AI 厂商是否可用（可用才展示增强入口；管理员操作按钮在服务端也有角色校验）
+        if (status === 'SUCCESS') {
+            UI.api.get('/api/issues/ai/available').then(function (res) {
+                aiAvailable = !!(res && res.available);
+                if (aiAvailable && deepBtn) deepBtn.style.display = '';
+            }).catch(function () {});
+        }
+
+        // 初始化
+        if (status === 'SUCCESS') loadIssues();
+    })();
+</script>
+</th:block>
+</html>

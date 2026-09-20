@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <!-- aicr-report-cache-v3 -->
+    <title>AI 代码评审报告</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                         "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #1f2937;
+            background: #f3f4f6;
+            padding: 20px;
+        }
+        .report-container {
+            max-width: 960px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        .report-header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: #fff;
+            padding: 40px 48px;
+        }
+        .report-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .report-header .subtitle {
+            font-size: 14px;
+            opacity: 0.85;
+        }
+        .report-body { padding: 32px 48px; }
+        .section { margin-bottom: 32px; }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e3a8a;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .info-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            border-right: 1px solid #f3f4f6;
+        }
+        .info-item:nth-child(4n) { border-right: none; }
+        .info-item .label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        .info-item .value {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1f2937;
+        }
+
+        /* 质量评分 */
+        .quality-box {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            padding: 24px;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-radius: 8px;
+        }
+        .score-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .score-circle .score-num {
+            font-size: 36px;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .score-circle .score-label {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        .score-excellent { background: #10b981; color: #fff; }
+        .score-good { background: #3b82f6; color: #fff; }
+        .score-fair { background: #f59e0b; color: #fff; }
+        .score-poor { background: #ef4444; color: #fff; }
+        .quality-details { flex: 1; }
+        .quality-details .gate-status {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .gate-pass { color: #059669; }
+        .gate-fail { color: #dc2626; }
+        .quality-stats {
+            display: grid;
+            /* 技术债列按内容自适应（"2小时30分"等文案不换行），其余六列均分 */
+            grid-template-columns: repeat(6, 1fr) auto;
+            gap: 8px;
+        }
+        .stat-item {
+            background: rgba(255,255,255,0.7);
+            padding: 10px 6px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-item .stat-num {
+            font-size: 17px;
+            font-weight: 700;
+        }
+        .stat-item .stat-label {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+        .stat-blocker .stat-num { color: #b91c1c; }
+        .stat-critical .stat-num { color: #ef4444; }
+        .stat-major .stat-num { color: #d97706; }
+        .stat-minor .stat-num { color: #0284c7; }
+        .stat-info .stat-num { color: #6b7280; }
+        .stat-total .stat-num { color: #374151; }
+        .stat-debt .stat-num { color: #7c3aed; white-space: nowrap; }
+
+        /* 分类统计表格 */
+        .category-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .category-table th {
+            background: #1e3a8a;
+            color: #fff;
+            padding: 10px 16px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .category-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .category-table tr:last-child td { border-bottom: none; }
+        .category-table tr:hover { background: #f9fafb; }
+
+        /* 问题列表 */
+        .issue-list { list-style: none; }
+        .issue-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .issue-header {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #f9fafb;
+        }
+        .issue-level {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .level-BLOCKER { background: #b91c1c; }
+        .level-CRITICAL { background: #ef4444; }
+        .level-MAJOR { background: #d97706; }
+        .level-MINOR { background: #0284c7; }
+        .level-INFO { background: #6b7280; }
+        .issue-title {
+            font-weight: 600;
+            flex: 1;
+        }
+        .issue-index {
+            font-size: 13px;
+            color: #6b7280;
+            flex-shrink: 0;
+        }
+        .issue-body { padding: 16px; }
+        .issue-meta {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+        .issue-description {
+            margin-bottom: 12px;
+            color: #374151;
+        }
+        .issue-code {
+            background: #1f2937;
+            color: #e5e7eb;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-family: "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre;
+            margin-bottom: 12px;
+        }
+        .issue-suggestion {
+            background: #ecfdf5;
+            border-left: 3px solid #10b981;
+            padding: 10px 14px;
+            border-radius: 0 6px 6px 0;
+            color: #065f46;
+        }
+        .issue-ai {
+            background: #f5f3ff;
+            border: 1px solid #ddd6fe;
+            border-left: 3px solid #7c3aed;
+            padding: 10px 14px;
+            border-radius: 0 6px 6px 0;
+            color: #4c1d95;
+            margin-top: 10px;
+            font-size: 12.5px;
+            line-height: 1.7;
+        }
+        .issue-ai > strong { display: block; margin-bottom: 4px; }
+        .issue-ai .ai-code {
+            background: #1f2430;
+            color: #e6e6e6;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-family: "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+            font-size: 11.5px;
+            line-height: 1.55;
+            white-space: pre;
+            overflow-x: auto;
+            margin: 6px 0;
+        }
+        .issue-tags {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .issue-tag {
+            font-size: 11px;
+            padding: 2px 8px;
+            background: #e5e7eb;
+            color: #4b5563;
+            border-radius: 4px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+        .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+        .report-footer {
+            text-align: center;
+            padding: 24px;
+            color: #9ca3af;
+            font-size: 12px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        @media print {
+            body { background: #fff; padding: 0; }
+            .report-container { box-shadow: none; border-radius: 0; }
+        }
+    </style>
+</head>
+<body>
+<div class="report-container">
+    <!-- 头部 -->
+    <div class="report-header">
+        <h1>AI 代码评审报告</h1>
+        <div class="subtitle">AI Code Review Report</div>
+    </div>
+
+    <div class="report-body">
+        <!-- 一、概览 -->
+        <div class="section">
+            <div class="section-title">一、评审概览</div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="label">任务名称</div>
+                    <div class="value" th:text="${task.taskName}">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">项目名称</div>
+                    <div class="value" th:text="${task.projectName} ?: '-'">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">来源类型</div>
+                    <div class="value" th:text="${task.sourceType}">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">评审状态</div>
+                    <div class="value" th:text="${task.status}">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">文件数量</div>
+                    <div class="value" th:text="${task.totalFiles} ?: 0">0</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">代码行数</div>
+                    <div class="value" th:text="${task.totalLines} ?: 0">0</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">开始时间</div>
+                    <div class="value" th:text="${task.startedAt != null ? #temporals.format(task.startedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">完成时间</div>
+                    <div class="value" th:text="${task.completedAt != null ? #temporals.format(task.completedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">JDK 版本</div>
+                    <div class="value" th:text="${task.jdkVersion} ?: '-'">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">Spring Boot</div>
+                    <div class="value" th:text="${task.springBootVersion} ?: '-'">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">AI 评审</div>
+                    <div class="value" th:text="${aiReviewStatus}">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">耗时</div>
+                    <div class="value" th:text="(${task.durationSeconds} ?: 0) + ' 秒'">0 秒</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 二、质量评分 -->
+        <div class="section">
+            <div class="section-title">二、质量评分</div>
+            <div class="quality-box">
+                <div class="score-circle"
+                     th:class="'score-circle score-' + ${#strings.toLowerCase(quality.level)}">
+                    <div class="score-num" th:text="${quality.score}">0</div>
+                    <div class="score-label" th:text="${levelText}">-</div>
+                </div>
+                <div class="quality-details">
+                    <div class="gate-status"
+                         th:class="${quality.passed} ? 'gate-status gate-pass' : 'gate-status gate-fail'"
+                         th:text="${quality.passed} ? '✓ 质量门禁通过' : '✗ 质量门禁未通过'">-
+                    </div>
+                    <div class="quality-stats">
+                        <div class="stat-item stat-blocker">
+                            <div class="stat-num" th:text="${quality.blockerCount}">0</div>
+                            <div class="stat-label">阻断</div>
+                        </div>
+                        <div class="stat-item stat-critical">
+                            <div class="stat-num" th:text="${quality.criticalCount}">0</div>
+                            <div class="stat-label">严重</div>
+                        </div>
+                        <div class="stat-item stat-major">
+                            <div class="stat-num" th:text="${quality.majorCount}">0</div>
+                            <div class="stat-label">主要</div>
+                        </div>
+                        <div class="stat-item stat-minor">
+                            <div class="stat-num" th:text="${quality.minorCount}">0</div>
+                            <div class="stat-label">次要</div>
+                        </div>
+                        <div class="stat-item stat-info">
+                            <div class="stat-num" th:text="${quality.infoCount}">0</div>
+                            <div class="stat-label">提示</div>
+                        </div>
+                        <div class="stat-item stat-total">
+                            <div class="stat-num" th:text="${quality.totalIssues}">0</div>
+                            <div class="stat-label">总计</div>
+                        </div>
+                        <div class="stat-item stat-debt">
+                            <div class="stat-num" th:text="${quality.debtText} ?: '0分'">0分</div>
+                            <div class="stat-label">技术债</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 14px; color: #6b7280;"
+                         th:if="${quality.detail != null and quality.detail != ''}"
+                         th:text="'说明：' + ${quality.detail}">
+                    </div>
+                    <div style="margin-top: 4px; font-size: 13px; color: #9ca3af;"
+                         th:if="${quality.ignoredCount > 0}"
+                         th:text="'已忽略 ' + ${quality.ignoredCount} + ' 个问题（未计入统计）'">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 三、分类统计 -->
+        <div class="section">
+            <div class="section-title">三、问题分类统计</div>
+            <table class="category-table">
+                <thead>
+                <tr>
+                    <th>检查器</th>
+                    <th style="width: 72px; text-align: center;">阻断</th>
+                    <th style="width: 72px; text-align: center;">严重</th>
+                    <th style="width: 72px; text-align: center;">主要</th>
+                    <th style="width: 72px; text-align: center;">次要</th>
+                    <th style="width: 72px; text-align: center;">提示</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="entry : ${byChecker}">
+                    <td th:text="${entry.key}">-</td>
+                    <td style="text-align: center; color: #b91c1c;"
+                        th:text="${entry.value['BLOCKER'] ?: 0}">0</td>
+                    <td style="text-align: center; color: #ef4444;"
+                        th:text="${entry.value['CRITICAL'] ?: 0}">0</td>
+                    <td style="text-align: center; color: #d97706;"
+                        th:text="${entry.value['MAJOR'] ?: 0}">0</td>
+                    <td style="text-align: center; color: #0284c7;"
+                        th:text="${entry.value['MINOR'] ?: 0}">0</td>
+                    <td style="text-align: center; color: #6b7280;"
+                        th:text="${entry.value['INFO'] ?: 0}">0</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 四、问题详情 -->
+        <div class="section">
+            <div class="section-title">四、问题详情</div>
+            <div th:if="${#lists.isEmpty(issues)}" class="empty-state">
+                <div class="icon">🎉</div>
+                <div>未发现代码问题</div>
+            </div>
+            <ul th:unless="${#lists.isEmpty(issues)}" class="issue-list">
+                <li th:each="issue, iter : ${issues}" class="issue-item">
+                    <div class="issue-header">
+                        <span class="issue-index" th:text="'#' + ${iter.count}">#1</span>
+                        <span class="issue-level"
+                              th:class="'issue-level level-' + ${issue.issueLevel}"
+                              th:text="${levelLabelMap[issue.issueLevel]} ?: issue.issueLevel">-
+                        </span>
+                        <span class="issue-title" th:text="${issue.title}">-</span>
+                    </div>
+                    <div class="issue-body">
+                        <div class="issue-meta">
+                            文件：<span th:text="${issue.filePath}">-</span>
+                            &nbsp;|&nbsp;
+                            第 <span th:text="${issue.lineLabel}">0</span> 行
+                            <span th:if="${issue.occurrenceCount != null and issue.occurrenceCount > 1}"
+                                  th:text="'（共 ' + ${issue.occurrenceCount} + ' 处）'"></span>
+                        </div>
+                        <div class="issue-description" th:if="${issue.description != null and issue.description != ''}"
+                             th:text="${issue.description}">
+                        </div>
+                        <div class="issue-code" th:if="${issue.codeSnippet != null and issue.codeSnippet != ''}"
+                             th:text="${issue.codeSnippet}">
+                        </div>
+                        <div class="issue-suggestion" th:if="${issue.suggestion != null and issue.suggestion != ''}">
+                            <strong>💡 修复建议：</strong><span th:text="${issue.suggestion}"></span>
+                        </div>
+                        <div class="issue-ai" th:if="${issue.aiSuggestion != null and issue.aiSuggestion != ''}">
+                            <strong>✨ AI 增强建议</strong>
+                            <div class="issue-ai-raw" th:text="${issue.aiSuggestion}"></div>
+                        </div>
+                        <div class="issue-tags">
+                            <span class="issue-tag"
+                                  th:if="${issue.checkerName != null}"
+                                  th:text="'检查器：' + ${issue.checkerName}">-
+                            </span>
+                            <span class="issue-tag"
+                                  th:if="${issue.ruleCode != null}"
+                                  th:text="'规则：' + ${issue.ruleCode}">-
+                            </span>
+                            <span class="issue-tag" th:if="${issue.isAiGenerated}"
+                                  style="background: #ede9fe; color: #6d28d9;">
+                                AI 生成
+                            </span>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="report-footer">
+        报告由 AI Code Reviewer 自动生成 &nbsp;|&nbsp;
+        <span th:text="${#temporals.format(task.completedAt != null ? task.completedAt : task.createdAt, 'yyyy-MM-dd HH:mm:ss')}">-</span>
+    </div>
+</div>
+<script>
+/* AI 增强建议是 Markdown 文本：转义后提取 ``` 代码块，其余换行转 <br> */
+(function () {
+    function esc(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    document.querySelectorAll('.issue-ai-raw').forEach(function (el) {
+        var blocks = [];
+        var html = esc(el.textContent || '');
+        html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, function (m, lang, code) {
+            var i = blocks.length;
+            blocks.push('<div class="ai-code">' + code.replace(/\n$/, '') + '</div>');
+            return '@@AIBLOCK' + i + '@@';
+        });
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                   .replace(/^###?\s*/gm, '')
+                   .replace(/\n/g, '<br>')
+                   .replace(/@@AIBLOCK(\d+)@@/g, function (m, i) {
+                       return blocks[parseInt(i, 10)];
+                   });
+        el.innerHTML = html;
+    });
+})();
+</script>
+</body>
+</html>

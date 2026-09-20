@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'ignore', 'ignore.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{ignore.title}">Ignore Rules</h2>
+        <p th:text="#{ignore.subtitle}">Suppress false positives</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-primary" data-open-modal="ignore-modal" onclick="openIgnoreForm(null)">
+            <svg class="ico"><use href="#plus-lg"/></svg>
+            <span th:text="#{ignore.new}">New rule</span>
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form class="toolbar" method="get" th:action="@{/ignore-rules}">
+            <input type="text" class="input" name="keyword"
+                   th:value="${keyword}" th:placeholder="#{common.keywordPlaceholder}">
+            <button type="submit" class="btn btn-ghost">
+                <svg class="ico"><use href="#search"/></svg>
+                <span th:text="#{common.search}">Search</span>
+            </button>
+            <div class="spacer"></div>
+            <span class="muted small" th:text="#{common.total(${pageData.total})}">total</span>
+        </form>
+
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                <tr>
+                    <th th:text="#{ignore.col.type}">Match type</th>
+                    <th th:text="#{ignore.col.target}">Pattern</th>
+                    <th th:text="#{ignore.col.reason}">Reason</th>
+                    <th th:text="#{ignore.col.enabled}">Status</th>
+                    <th th:text="#{ignore.col.time}">Created</th>
+                    <th class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="r : ${pageData.records}">
+                    <td>
+                        <span class="badge"
+                              th:classappend="${r.ruleType == 'RULE_CODE'} ? 'badge-brand' : (r.ruleType == 'FILE_PATH' ? 'badge-info' : (r.ruleType == 'FILE_PATTERN' ? 'badge-ok' : 'badge-warn'))"
+                              th:text="#{|ignore.type.${r.ruleType}|}">Type</span>
+                    </td>
+                    <td class="mono" th:text="${r.ruleCode ?: r.filePath ?: r.filePattern ?: (r.lineNumber + '')}">pattern</td>
+                    <td th:text="${r.reason} ?: '—'" class="muted">reason</td>
+                    <td>
+                        <div class="cell-switch">
+                            <label class="switch">
+                                <input type="checkbox" th:checked="${r.isEnabled}"
+                                       data-api-role="action"
+                                       th:data-api="@{/api/ignore-rules/{id}/toggle(id=${r.id})}"
+                                       data-method="PUT">
+                                <span class="track"></span>
+                            </label>
+                        </div>
+                    </td>
+                    <td class="muted small"
+                        th:text="${r.createdAt != null} ? ${#temporals.format(r.createdAt, 'yyyy-MM-dd HH:mm')} : '—'">time</td>
+                    <td class="num">
+                        <div class="row-actions">
+                            <button class="btn btn-icon is-danger"
+                                    data-api-role="action"
+                                    th:data-api="@{/api/ignore-rules/{id}(id=${r.id})}"
+                                    data-method="DELETE"
+                                    th:data-confirm="#{common.deleteConfirm}"
+                                    data-reload="true"
+                                    th:title="#{common.delete}">
+                                <svg class="ico"><use href="#trash"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${pageData.records.isEmpty()}">
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <div class="empty-ico"><svg class="ico"><use href="#list-check"/></svg></div>
+                            <p th:text="#{common.empty}">No data</p>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination" th:if="${pageData.pages > 1}">
+            <div class="pagination-info" th:text="#{common.total(${pageData.total})}">total</div>
+            <div class="pagination-nav">
+                <a th:if="${pageData.current > 1}"
+                   th:href="@{|${baseQuery}page=${pageData.current - 1}&size=${pageData.size}|}">
+                    <svg class="ico"><use href="#chevron-left"/></svg>
+                </a>
+                <span th:if="${pageData.current == 1}" class="disabled">
+                    <svg class="ico"><use href="#chevron-left"/></svg>
+                </span>
+                <th:block th:each="i : ${#numbers.sequence(1, pageData.pages)}">
+                    <a th:if="${i == 1 or i == pageData.pages or (i >= pageData.current - 2 and i <= pageData.current + 2)}"
+                       th:classappend="${i == pageData.current} ? 'current' : ''"
+                       th:href="@{|${baseQuery}page=${i}&size=${pageData.size}|}"
+                       th:text="${i}">1</a>
+                    <span th:if="${(i == 2 and pageData.current > 4) or (i == pageData.pages - 1 and pageData.current < pageData.pages - 3)}"
+                          class="dots">…</span>
+                </th:block>
+                <a th:if="${pageData.current < pageData.pages}"
+                   th:href="@{|${baseQuery}page=${pageData.current + 1}&size=${pageData.size}|}">
+                    <svg class="ico"><use href="#chevron-right"/></svg>
+                </a>
+                <span th:if="${pageData.current == pageData.pages}" class="disabled">
+                    <svg class="ico"><use href="#chevron-right"/></svg>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑弹窗 -->
+<div class="modal" id="ignore-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="ignore-modal"></div>
+    <div class="modal-dialog">
+        <button type="button" class="modal-close" data-close-modal="ignore-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" id="ign-modal-tag">New</span>
+            <h3 id="ign-modal-title" th:text="#{ignore.new}">New rule</h3>
+        </div>
+        <form id="ignore-rule-form" autocomplete="off">
+            <input type="hidden" id="ign-id">
+            <div class="field">
+                <label for="ign-type" th:text="#{ignore.ruleType}">Match type</label>
+                <div class="role-group">
+                    <label class="role-pick">
+                        <input type="radio" name="ruleType" value="RULE_CODE" checked>
+                        <span th:text="#{ignore.type.RULE_CODE}">Rule code</span>
+                    </label>
+                    <label class="role-pick">
+                        <input type="radio" name="ruleType" value="FILE_PATH">
+                        <span th:text="#{ignore.type.FILE_PATH}">File path</span>
+                    </label>
+                    <label class="role-pick">
+                        <input type="radio" name="ruleType" value="FILE_PATTERN">
+                        <span th:text="#{ignore.type.FILE_PATTERN}">File glob</span>
+                    </label>
+                    <label class="role-pick">
+                        <input type="radio" name="ruleType" value="LINE_NUMBER">
+                        <span th:text="#{ignore.type.LINE_NUMBER}">Line number</span>
+                    </label>
+                </div>
+            </div>
+            <div class="field" id="f-ruleCode">
+                <label for="ign-ruleCode" th:text="#{ignore.ruleCode}">Rule code</label>
+                <input type="text" class="input" id="ign-ruleCode" maxlength="128">
+                <div class="field-hint" th:text="#{ignore.hint.ruleCode}">e.g. NP_NULL_PARAM</div>
+            </div>
+            <div class="field" id="f-filePath" style="display:none;">
+                <label for="ign-filePath" th:text="#{ignore.filePath}">File path</label>
+                <input type="text" class="input" id="ign-filePath" maxlength="512">
+                <div class="field-hint" th:text="#{ignore.hint.filePath}">Relative to project root</div>
+            </div>
+            <div class="field" id="f-filePattern" style="display:none;">
+                <label for="ign-filePattern" th:text="#{ignore.filePattern}">Glob pattern</label>
+                <input type="text" class="input" id="ign-filePattern" maxlength="256">
+                <div class="field-hint" th:text="#{ignore.hint.filePattern}">e.g. **/*Test.java</div>
+            </div>
+            <div class="field" id="f-lineNumber" style="display:none;">
+                <label for="ign-lineNumber" th:text="#{ignore.lineNumber}">Line number</label>
+                <input type="number" class="input" id="ign-lineNumber" min="1">
+                <div class="field-hint" th:text="#{ignore.hint.lineNumber}">Used with file path</div>
+            </div>
+            <div class="field">
+                <label for="ign-reason" th:text="#{ignore.reason}">Reason</label>
+                <input type="text" class="input" id="ign-reason" maxlength="200">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="ignore-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="submit" class="btn btn-primary" th:text="#{common.save}">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var UI = window.AicrUI;
+        /* 内联表达式只能整句赋值，三元里写会被吃掉分隔符 */
+        var MSG_EDIT = /*[[#{common.edit}]]*/ 'Edit';
+        var MSG_NEW = /*[[#{ignore.new}]]*/ 'New';
+        var MSG_CREATE = /*[[#{common.create}]]*/ 'New';
+
+        function updateFields() {
+            var type = document.querySelector('input[name="ruleType"]:checked').value;
+            ['ruleCode', 'filePath', 'filePattern', 'lineNumber'].forEach(function (f) {
+                document.getElementById('f-' + f).style.display =
+                    ('RULE_CODE' === type && f === 'ruleCode') ||
+                    ('FILE_PATH' === type && (f === 'filePath' || f === 'lineNumber')) ||
+                    ('FILE_PATTERN' === type && f === 'filePattern') ? 'block' : 'none';
+            });
+        }
+        document.querySelectorAll('input[name="ruleType"]').forEach(function (r) {
+            r.addEventListener('change', updateFields);
+        });
+
+        window.openIgnoreForm = function (id) {
+            document.getElementById('ign-id').value = id || '';
+            document.getElementById('ign-modal-title').textContent =
+                id ? MSG_EDIT : MSG_NEW;
+            document.getElementById('ign-modal-tag').textContent =
+                id ? MSG_EDIT : MSG_CREATE;
+            if (!id) {
+                document.getElementById('ignore-rule-form').reset();
+                document.querySelector('input[name="ruleType"][value="RULE_CODE"]').checked = true;
+                updateFields();
+                UI.openModal('ignore-modal');
+                return;
+            }
+            UI.api.get('/api/ignore-rules/' + id).then(function (r) {
+                document.querySelector('input[name="ruleType"][value="' + r.ruleType + '"]').checked = true;
+                document.getElementById('ign-ruleCode').value = r.ruleCode || '';
+                document.getElementById('ign-filePath').value = r.filePath || '';
+                document.getElementById('ign-filePattern').value = r.filePattern || '';
+                document.getElementById('ign-lineNumber').value = r.lineNumber || '';
+                document.getElementById('ign-reason').value = r.reason || '';
+                updateFields();
+                UI.openModal('ignore-modal');
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+
+        document.getElementById('ignore-rule-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var id = document.getElementById('ign-id').value;
+            var ruleType = document.querySelector('input[name="ruleType"]:checked').value;
+            var data = {
+                ruleType: ruleType,
+                ruleCode: document.getElementById('ign-ruleCode').value.trim() || null,
+                filePath: document.getElementById('ign-filePath').value.trim() || null,
+                filePattern: document.getElementById('ign-filePattern').value.trim() || null,
+                lineNumber: parseInt(document.getElementById('ign-lineNumber').value) || null,
+                reason: document.getElementById('ign-reason').value.trim() || null
+            };
+            var promise = id
+                ? UI.api.put('/api/ignore-rules/' + id, data)
+                : UI.api.post('/api/ignore-rules', data);
+            promise.then(function () {
+                UI.toast(UI.t('common.saved'), 'ok');
+                UI.closeModal('ignore-modal');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+    })();
+</script>
+</th:block>
+</html>

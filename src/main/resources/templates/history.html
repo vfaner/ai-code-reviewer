@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'history', 'history.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{history.title}">History</h2>
+        <p th:text="#{history.subtitle}">All scan tasks</p>
+    </div>
+    <div class="page-actions" th:if="${isAdmin}">
+        <a class="btn btn-primary" th:href="@{/scan/new}">
+            <svg class="ico"><use href="#plus-lg"/></svg>
+            <span th:text="#{nav.scanNew}">New Scan</span>
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form class="toolbar" method="get" th:action="@{/history}">
+            <input type="text" class="input" name="keyword"
+                   th:value="${keyword}" th:placeholder="#{common.keywordPlaceholder}">
+            <button type="submit" class="btn btn-ghost">
+                <svg class="ico"><use href="#search"/></svg>
+                <span th:text="#{common.search}">Search</span>
+            </button>
+            <div class="spacer"></div>
+            <span class="muted small" th:text="#{common.total(${pageData.total})}">total</span>
+        </form>
+
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                <tr>
+                    <th class="num" style="width:56px;" th:text="#{history.col.id}">#</th>
+                    <th th:text="#{history.col.name}">Task</th>
+                    <th th:text="#{history.col.project}">Project</th>
+                    <th th:text="#{history.col.source}">Source</th>
+                    <th th:text="#{history.col.status}">Status</th>
+                    <th class="num col-grade" th:text="#{history.col.blocker}">阻断</th>
+                    <th class="num col-grade" th:text="#{history.col.critical}">严重</th>
+                    <th class="num col-grade" th:text="#{history.col.major}">主要</th>
+                    <th class="num col-grade" th:text="#{history.col.minor}">次要</th>
+                    <th class="num col-grade" th:text="#{history.col.info}">提示</th>
+                    <th class="num" th:text="#{history.col.total}">Total</th>
+                    <th class="num" th:text="#{history.col.files}">Files</th>
+                    <th th:text="#{history.col.time}">Finished</th>
+                    <th class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="t : ${pageData.records}">
+                    <td class="num mono" th:text="${t.id}">1</td>
+                    <td>
+                        <a th:href="@{/scan/result/{id}(id=${t.id})}"
+                           class="soft" th:text="${t.taskName} ?: '(untitled)'">task</a>
+                    </td>
+                    <td th:text="${t.projectName} ?: '—'">project</td>
+                    <td>
+                        <span class="badge badge-mute" th:text="#{|source.${t.sourceType}|}">ZIP</span>
+                    </td>
+                    <td>
+                        <span class="scan-status" th:classappend="'is-' + ${#strings.toLowerCase(t.status)}">
+                            <span class="dot"></span>
+                            <span th:text="#{|status.${t.status}|}">Status</span>
+                        </span>
+                    </td>
+                    <td class="num col-grade" th:classappend="${t.blockerCount != null and t.blockerCount > 0} ? 'row-bad' : ''"
+                        th:text="${t.blockerCount ?: 0}">0</td>
+                    <td class="num col-grade" th:classappend="${t.criticalCount != null and t.criticalCount > 0} ? 'row-bad-soft' : ''"
+                        th:text="${t.criticalCount ?: 0}">0</td>
+                    <td class="num col-grade" th:text="${t.majorCount ?: 0}">0</td>
+                    <td class="num col-grade" th:text="${t.minorCount ?: 0}">0</td>
+                    <td class="num col-grade muted" th:text="${t.infoCount ?: 0}">0</td>
+                    <td class="num" th:text="${t.totalIssues ?: 0}">0</td>
+                    <td class="num" th:text="${t.totalFiles ?: 0}">0</td>
+                    <td class="muted small"
+                        th:text="${t.completedAt != null} ? ${#temporals.format(t.completedAt, 'yyyy-MM-dd HH:mm')} : '—'">
+                        time
+                    </td>
+                    <td class="num">
+                        <div class="row-actions">
+                            <button type="button" class="btn btn-icon" th:if="${isAdmin}"
+                                    th:data-rescan-id="${t.id}" th:data-rescan-name="${t.taskName}"
+                                    th:title="#{scan.rescan}">
+                                <svg class="ico"><use href="#upload"/></svg>
+                            </button>
+                            <a class="btn btn-icon" th:href="@{/scan/result/{id}(id=${t.id})}"
+                               th:title="#{common.view}">
+                                <svg class="ico"><use href="#eye"/></svg>
+                            </a>
+                            <a class="btn btn-icon" th:href="@{/api/reports/{id}/download(id=${t.id},format='pdf')}"
+                               th:if="${t.status == 'SUCCESS'}" th:title="#{history.report}">
+                                <svg class="ico"><use href="#box-arrow-in-down-left"/></svg>
+                            </a>
+                            <button type="button" class="btn btn-icon" th:if="${isAdmin}"
+                                    data-api-role="action" th:data-api="'/api/scans/' + ${t.id}"
+                                    data-method="DELETE" data-reload="true"
+                                    th:data-confirm="#{common.deleteConfirm}" th:data-ok-text="#{common.deleted}"
+                                    th:title="#{common.delete}">
+                                <svg class="ico"><use href="#trash"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${pageData.records.isEmpty()}">
+                    <td colspan="12">
+                        <div class="empty-state">
+                            <div class="empty-ico"><svg class="ico"><use href="#inbox"/></svg></div>
+                            <p th:text="#{common.empty}">No data</p>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination" th:if="${pageData.pages > 1}">
+            <div class="pagination-info"
+                 th:text="#{common.total(${pageData.total})}">total</div>
+            <div class="pagination-nav">
+                <a th:if="${pageData.current > 1}"
+                   th:href="@{|${baseQuery}page=${pageData.current - 1}&size=${pageData.size}|}">
+                    <svg class="ico"><use href="#chevron-left"/></svg>
+                </a>
+                <span th:if="${pageData.current == 1}" class="disabled">
+                    <svg class="ico"><use href="#chevron-left"/></svg>
+                </span>
+
+                <th:block th:each="i : ${#numbers.sequence(1, pageData.pages)}">
+                    <a th:if="${i == 1 or i == pageData.pages or (i >= pageData.current - 2 and i <= pageData.current + 2)}"
+                       th:classappend="${i == pageData.current} ? 'current' : ''"
+                       th:href="@{|${baseQuery}page=${i}&size=${pageData.size}|}"
+                       th:text="${i}">1</a>
+                    <span th:if="${(i == 2 and pageData.current > 4) or (i == pageData.pages - 1 and pageData.current < pageData.pages - 3)}"
+                          class="dots">…</span>
+                </th:block>
+
+                <a th:if="${pageData.current < pageData.pages}"
+                   th:href="@{|${baseQuery}page=${pageData.current + 1}&size=${pageData.size}|}">
+                    <svg class="ico"><use href="#chevron-right"/></svg>
+                </a>
+                <span th:if="${pageData.current == pageData.pages}" class="disabled">
+                    <svg class="ico"><use href="#chevron-right"/></svg>
+                </span>
+
+                <form class="pagination-goto" method="get" th:action="@{/history}">
+                    <input type="hidden" name="keyword" th:value="${keyword}">
+                    <input type="hidden" name="size" th:value="${pageData.size}">
+                    <span th:text="#{page.page}">Page</span>
+                    <input type="number" name="page" min="1" th:max="${pageData.pages}" value="1">
+                    <button type="submit" th:text="#{page.goto}">Go</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+</th:block>
+</html>

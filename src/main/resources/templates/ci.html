@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'ci', 'ci.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{ci.title}">CI/CD Integration</h2>
+        <p th:text="#{ci.subtitle}">Trigger scans from your pipeline</p>
+    </div>
+</div>
+
+<div class="tabs" role="tablist">
+    <button type="button" class="tab active" data-tab="triggers" onclick="switchTab('triggers')">
+        <svg class="ico"><use href="#hdd-network-fill"/></svg>
+        <span th:text="#{ci.tab.triggers}">Triggers</span>
+    </button>
+    <button type="button" class="tab" data-tab="tokens" onclick="switchTab('tokens')">
+        <svg class="ico"><use href="#key"/></svg>
+        <span th:text="#{ci.tab.tokens}">Access tokens</span>
+    </button>
+    <button type="button" class="tab" data-tab="records" onclick="switchTab('records')">
+        <svg class="ico"><use href="#clock-history"/></svg>
+        <span th:text="#{ci.tab.records}">Scan records</span>
+    </button>
+</div>
+
+<!-- Triggers -->
+<div id="panel-triggers" class="ci-panel">
+    <div class="card">
+        <div class="card-head">
+            <h3 th:text="#{ci.tab.triggers}">Triggers</h3>
+            <button class="btn btn-primary btn-sm" data-open-modal="trigger-modal" onclick="openTriggerForm(null)">
+                <svg class="ico"><use href="#plus-lg"/></svg>
+                <span th:text="#{ci.newTrigger}">New trigger</span>
+            </button>
+        </div>
+        <div class="card-body tight">
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <thead>
+                    <tr>
+                        <th th:text="#{ci.col.name}">Name</th>
+                        <th th:text="#{ci.col.platform}">Platform</th>
+                        <th th:text="#{ci.col.webhookUrl}">Webhook URL</th>
+                        <th th:text="#{ci.col.branchFilter}">Branch filter</th>
+                        <th th:text="#{ci.col.autoComment}">Auto comment</th>
+                        <th th:text="#{ci.col.enabled}">Status</th>
+                        <th class="num" th:text="#{common.actions}">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="t : ${triggers}">
+                        <td class="soft" th:text="${t.configName}">name</td>
+                        <td>
+                            <span class="badge badge-info" th:text="#{|ci.platform.${t.platform}|}">GITHUB</span>
+                            <div class="muted small mono" th:if="${t.platformUrl}" th:text="${t.platformUrl}">url</div>
+                            <div class="muted small mono" th:if="${t.repoScope}" th:text="'⤷ ' + ${t.repoScope}">repo</div>
+                        </td>
+                        <td>
+                            <div class="token-display" style="max-width:400px;">
+                                <code th:text="${t.webhookUrl}">url</code>
+                                <button class="btn btn-icon btn-copy-url" th:data-copy="${t.webhookUrl}" th:title="#{common.copy}">
+                                    <svg class="ico"><use href="#copy"/></svg>
+                                </button>
+                            </div>
+                        </td>
+                        <td th:text="${t.branchFilter} ?: '*'">*</td>
+                        <td>
+                            <span th:if="${t.autoComment}" class="badge badge-ok" th:text="#{common.enable}">On</span>
+                            <span th:unless="${t.autoComment}" class="badge badge-mute" th:text="#{common.disable}">Off</span>
+                        </td>
+                        <td>
+                            <div class="cell-switch">
+                                <label class="switch">
+                                    <input type="checkbox" th:checked="${t.isEnabled}"
+                                           data-api-role="action"
+                                           th:data-api="@{/api/ci/triggers/{id}/toggle(id=${t.id})}"
+                                           data-method="PUT">
+                                    <span class="track"></span>
+                                </label>
+                            </div>
+                        </td>
+                        <td class="num">
+                            <div class="row-actions">
+                                <button class="btn btn-icon" th:onclick="'filterRecords(' + ${t.id} + ')'" th:title="#{ci.record.viewByTrigger}">
+                                    <svg class="ico"><use href="#clock-history"/></svg>
+                                </button>
+                                <button class="btn btn-icon" th:onclick="'resetSecret(' + ${t.id} + ')'" th:title="#{ci.resetSecret}">
+                                    <svg class="ico"><use href="#arrow-clockwise"/></svg>
+                                </button>
+                                <button class="btn btn-icon" th:onclick="'openTriggerForm(' + ${t.id} + ')'" th:title="#{common.edit}">
+                                    <svg class="ico"><use href="#pencil"/></svg>
+                                </button>
+                                <button class="btn btn-icon is-danger"
+                                        data-api-role="action"
+                                        th:data-api="@{/api/ci/triggers/{id}(id=${t.id})}"
+                                        data-method="DELETE"
+                                        th:data-confirm="#{common.deleteConfirm}"
+                                        data-reload="true"
+                                        th:title="#{common.delete}">
+                                    <svg class="ico"><use href="#trash"/></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr th:if="${triggers.isEmpty()}">
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <div class="empty-ico"><svg class="ico"><use href="#plug"/></svg></div>
+                                <p th:text="#{common.empty}">No data</p>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tokens -->
+<div id="panel-tokens" class="ci-panel" style="display:none;">
+    <div class="card">
+        <div class="card-head">
+            <h3 th:text="#{ci.tab.tokens}">Access tokens</h3>
+            <button class="btn btn-primary btn-sm" data-open-modal="token-modal" onclick="openTokenForm()">
+                <svg class="ico"><use href="#plus-lg"/></svg>
+                <span th:text="#{ci.newToken}">New token</span>
+            </button>
+        </div>
+        <div class="card-body tight">
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <thead>
+                    <tr>
+                        <th th:text="#{ci.token.name}">Name</th>
+                        <th th:text="#{ci.token.value}">Token</th>
+                        <th th:text="#{ci.token.description}">Description</th>
+                        <th th:text="#{ci.token.expiresAt}">Expires</th>
+                        <th th:text="#{ci.token.lastUsedAt}">Last used</th>
+                        <th th:text="#{common.status}">Status</th>
+                        <th class="num" th:text="#{common.actions}">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="t : ${tokens}">
+                        <td class="soft" th:text="${t.tokenName}">name</td>
+                        <td class="mono small" th:text="${t.tokenValue}">****</td>
+                        <td th:text="${t.description} ?: '—'" class="muted">desc</td>
+                        <td th:text="${t.expiresAt != null} ? ${#temporals.format(t.expiresAt, 'yyyy-MM-dd')} : #{ci.token.never}" class="muted small">never</td>
+                        <td th:text="${t.lastUsedAt != null} ? ${#temporals.format(t.lastUsedAt, 'yyyy-MM-dd HH:mm')} : '—'" class="muted small">—</td>
+                        <td>
+                            <div class="cell-switch">
+                                <label class="switch">
+                                    <input type="checkbox" th:checked="${t.isEnabled}"
+                                           data-api-role="action"
+                                           th:data-api="@{/api/ci/tokens/{id}/toggle(id=${t.id})}"
+                                           data-method="PUT">
+                                    <span class="track"></span>
+                                </label>
+                            </div>
+                        </td>
+                        <td class="num">
+                            <div class="row-actions">
+                                <button class="btn btn-icon is-danger"
+                                        data-api-role="action"
+                                        th:data-api="@{/api/ci/tokens/{id}(id=${t.id})}"
+                                        data-method="DELETE"
+                                        th:data-confirm="#{common.deleteConfirm}"
+                                        data-reload="true"
+                                        th:title="#{common.delete}">
+                                    <svg class="ico"><use href="#trash"/></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr th:if="${tokens.isEmpty()}">
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <div class="empty-ico"><svg class="ico"><use href="#key"/></svg></div>
+                                <p th:text="#{common.empty}">No data</p>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Records -->
+<div id="panel-records" class="ci-panel" style="display:none;">
+    <div class="card">
+        <div class="card-head">
+            <h3 th:text="#{ci.tab.records}">Scan records</h3>
+            <select class="select" id="record-filter" style="width:220px;height:34px;font-size:13px;">
+                <option value="" th:text="#{ci.record.filterAll}">All triggers</option>
+                <option th:each="t : ${triggers}" th:value="${t.id}" th:text="${t.configName}">proj</option>
+            </select>
+        </div>
+        <div class="card-body tight">
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <thead>
+                    <tr>
+                        <th th:text="#{ci.record.project}">Project</th>
+                        <th th:text="#{ci.record.platform}">Platform</th>
+                        <th th:text="#{ci.record.branch}">Branch</th>
+                        <th th:text="#{ci.record.commit}">Commit</th>
+                        <th th:text="#{ci.record.mr}">MR/PR</th>
+                        <th th:text="#{ci.record.author}">Author</th>
+                        <th th:text="#{ci.record.status}">Status</th>
+                        <th th:text="#{common.createTime}">Time</th>
+                        <th class="num" th:text="#{common.actions}">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r : ${records}" th:attr="data-trigger=${r.triggerConfigId}">
+                        <td>
+                            <div class="soft" th:text="${triggerNames.get(r.triggerConfigId)}">trigger</div>
+                            <div class="muted small mono" th:if="${r.projectUrl}"
+                                 style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                 th:title="${r.projectUrl}" th:text="${r.projectUrl}">url</div>
+                        </td>
+                        <td>
+                            <span class="badge badge-info" th:text="#{|ci.platform.${r.platform}|}">GITHUB</span>
+                        </td>
+                        <td class="mono small" th:text="${r.branch} ?: '—'">main</td>
+                        <td class="mono small"
+                            th:text="${r.commitId != null} ? (${r.commitId.length() > 8} ? ${r.commitId.substring(0, 8)} : ${r.commitId}) : '—'">abc123</td>
+                        <td th:text="${r.mrPrTitle} ?: '—'" class="soft">PR title</td>
+                        <td th:text="${r.author} ?: '—'">author</td>
+                        <td>
+                            <span class="scan-status" th:classappend="'is-' + ${#strings.toLowerCase(r.status)}">
+                                <span class="dot"></span>
+                                <span th:text="#{|status.${r.status}|}">Status</span>
+                            </span>
+                        </td>
+                        <td class="muted small"
+                            th:text="${r.createdAt != null} ? ${#temporals.format(r.createdAt, 'yyyy-MM-dd HH:mm')} : '—'">time</td>
+                        <td class="num">
+                            <a th:if="${r.taskId != null}" class="btn btn-ghost btn-xs" th:href="@{/scan/result/{id}(id=${r.taskId})}">
+                                <svg class="ico"><use href="#eye"/></svg>
+                                <span th:text="#{common.view}">View</span>
+                            </a>
+                        </td>
+                    </tr>
+                    <tr th:if="${records.isEmpty()}">
+                        <td colspan="9">
+                            <div class="empty-state">
+                                <div class="empty-ico"><svg class="ico"><use href="#clock-history"/></svg></div>
+                                <p th:text="#{ci.record.empty}">No CI records</p>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Trigger 弹窗 -->
+<div class="modal" id="trigger-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="trigger-modal"></div>
+    <div class="modal-dialog modal-lg">
+        <button type="button" class="modal-close" data-close-modal="trigger-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" id="trig-modal-tag">New</span>
+            <h3 id="trig-modal-title" th:text="#{ci.newTrigger}">New trigger</h3>
+        </div>
+        <form id="trigger-form" autocomplete="off">
+            <input type="hidden" id="trig-id">
+            <div class="grid-2">
+                <div class="field">
+                    <label for="trig-configName" th:text="#{ci.col.name}">Name</label>
+                    <input type="text" class="input" id="trig-configName" maxlength="64" required>
+                </div>
+                <div class="field">
+                    <label for="trig-platform" th:text="#{ci.record.platform}">Platform</label>
+                    <select class="select" id="trig-platform" onchange="onTriggerPlatformChange()">
+                        <option value="GITHUB">GitHub Actions</option>
+                        <option value="GITLAB">GitLab CI</option>
+                        <option value="GITEE">Gitee Go</option>
+                        <option value="GENERIC">Generic</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field" id="trig-platformUrl-field">
+                    <label for="trig-platformUrl">
+                        <span th:text="#{ci.form.platformUrl}">Platform URL</span>
+                        <span class="tip-ico" tabindex="0" role="img" th:attr="data-tip=#{ci.form.platformUrlHint}">?</span>
+                    </label>
+                    <input type="text" class="input" id="trig-platformUrl" maxlength="256"
+                           placeholder="https://gitlab.company.com">
+                </div>
+                <div class="field">
+                    <label for="trig-branchFilter" th:text="#{ci.branchFilter}">Branch filter</label>
+                    <input type="text" class="input" id="trig-branchFilter" maxlength="256" placeholder="develop,release/**">
+                </div>
+            </div>
+            <div class="field">
+                <label for="trig-repoScope">
+                    <span th:text="#{ci.form.repoScope}">Repo scope (optional)</span>
+                    <span class="tip-ico" tabindex="0" role="img" th:attr="data-tip=#{ci.form.repoScopeHint}">?</span>
+                </label>
+                <input type="text" class="input" id="trig-repoScope" maxlength="256" placeholder="owner/repo">
+            </div>
+            <div class="field" id="trig-secret-field" hidden>
+                <label>
+                    <span th:text="#{ci.form.secret}">Webhook secret</span>
+                    <span class="tip-ico" tabindex="0" role="img" th:attr="data-tip=#{ci.form.secretHint}">?</span>
+                </label>
+                <div class="token-display">
+                    <code id="trig-secret" style="flex:1;">secret</code>
+                    <button type="button" class="btn btn-icon" id="trig-secret-copy" th:title="#{common.copy}">
+                        <svg class="ico"><use href="#copy"/></svg>
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="trig-secret-reset"
+                            th:text="#{ci.resetSecret}">Reset</button>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="trig-repoUsername">
+                        <span th:text="#{ci.form.repoUsername}">Repo username</span>
+                        <span class="tip-ico" tabindex="0" role="img" th:attr="data-tip=#{ci.form.repoCredHint}">?</span>
+                    </label>
+                    <input type="text" class="input" id="trig-repoUsername" maxlength="128"
+                           autocomplete="off" placeholder="oauth2 / x-access-token">
+                </div>
+                <div class="field">
+                    <label for="trig-repoToken" th:text="#{ci.form.repoToken}">Repo token</label>
+                    <input type="password" class="input" id="trig-repoToken" maxlength="256"
+                           autocomplete="new-password">
+                </div>
+            </div>
+            <div class="grid-2" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="trig-skipUnitTest">
+                        <span class="track"></span>
+                        <span class="switch-text" th:text="#{ci.opt.skipUnitTest}">Skip unit tests</span>
+                    </label>
+                </div>
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="trig-includeTestCode">
+                        <span class="track"></span>
+                        <span class="switch-text" th:text="#{ci.opt.includeTestCode}">Test code</span>
+                    </label>
+                </div>
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="trig-enableAiReview" checked>
+                        <span class="track"></span>
+                        <span class="switch-text" th:text="#{ci.opt.enableAiReview}">AI review</span>
+                    </label>
+                </div>
+            </div>
+            <div class="field">
+                <label class="switch">
+                    <input type="checkbox" id="trig-autoComment">
+                    <span class="track"></span>
+                    <span class="switch-text" th:text="#{ci.opt.autoComment}">Auto comment results to MR/PR</span>
+                </label>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="trigger-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="submit" class="btn btn-primary" th:text="#{common.save}">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Token 弹窗 -->
+<div class="modal" id="token-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="token-modal"></div>
+    <div class="modal-dialog">
+        <button type="button" class="modal-close" data-close-modal="token-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" th:text="#{ci.newToken}">New</span>
+            <h3 th:text="#{ci.newToken}">New access token</h3>
+        </div>
+        <form id="token-form" autocomplete="off">
+            <div class="field">
+                <label for="tok-name" th:text="#{ci.token.name}">Token name</label>
+                <input type="text" class="input" id="tok-name" maxlength="64" required>
+            </div>
+            <div class="field">
+                <label for="tok-desc" th:text="#{ci.token.description}">Description</label>
+                <input type="text" class="input" id="tok-desc" maxlength="200">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="token-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="submit" class="btn btn-primary" th:text="#{common.save}">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Trigger 创建成功：Webhook 地址 + 密钥仅展示一次 -->
+<div class="modal" id="trigger-created-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="trigger-created-modal"></div>
+    <div class="modal-dialog">
+        <button type="button" class="modal-close" data-close-modal="trigger-created-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" th:text="#{common.create}">New</span>
+            <h3 th:text="#{ci.created.title}">Trigger created</h3>
+        </div>
+        <div class="alert alert-warn">
+            <svg class="ico"><use href="#exclamation-triangle-fill"/></svg>
+            <div class="alert-body" th:text="#{ci.created.once}">Secret shown once</div>
+        </div>
+        <div class="field" style="margin-top:14px;">
+            <label th:text="#{ci.col.webhookUrl}">Webhook URL</label>
+            <div class="token-display">
+                <code id="created-webhook" style="flex:1;">url</code>
+                <button type="button" class="btn btn-icon" id="created-webhook-copy" th:title="#{common.copy}">
+                    <svg class="ico"><use href="#copy"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="field">
+            <label th:text="#{ci.form.secret}">Webhook secret</label>
+            <div class="token-display">
+                <code id="created-secret" style="flex:1;">secret</code>
+                <button type="button" class="btn btn-icon" id="created-secret-copy" th:title="#{common.copy}">
+                    <svg class="ico"><use href="#copy"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="alert alert-info" style="margin-top:6px;">
+            <svg class="ico"><use href="#info-circle-fill"/></svg>
+            <div class="alert-body small" id="created-hint" style="white-space:pre-wrap;"></div>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-primary" id="trigger-created-done" th:text="#{common.confirm}">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- Token 显示弹窗（创建后） -->
+<div class="modal" id="token-show-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="token-show-modal"></div>
+    <div class="modal-dialog">
+        <button type="button" class="modal-close" data-close-modal="token-show-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag">Once</span>
+            <h3 th:text="#{ci.token.once}">Copy your token now</h3>
+        </div>
+        <div class="alert alert-warn">
+            <svg class="ico"><use href="#exclamation-triangle-fill"/></svg>
+            <div class="alert-body" th:text="#{ci.token.once}">Shown only once</div>
+        </div>
+        <div class="token-display" style="margin-top:14px;">
+            <code id="token-show-value">token</code>
+            <button class="btn btn-icon" onclick="copyText(document.getElementById('token-show-value').textContent)">
+                <svg class="ico"><use href="#copy"/></svg>
+            </button>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-primary" data-close-modal="token-show-modal" th:text="#{common.done}">Done</button>
+        </div>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var UI = window.AicrUI;
+        /* 内联表达式只能整句赋值，三元里写会被吃掉分隔符 */
+        var MSG_EDIT = /*[[#{common.edit}]]*/ 'Edit';
+        var MSG_NEW = /*[[#{ci.newTrigger}]]*/ 'New';
+        var MSG_CREATE = /*[[#{common.create}]]*/ 'New';
+        var MSG_RESET_CONFIRM = /*[[#{ci.resetSecret.confirm}]]*/ 'Reset?';
+        var MSG_PW_KEEP = /*[[#{ci.form.tokenKeep}]]*/ 'Leave blank to keep unchanged';
+        var MSG_PW_ENTER = /*[[#{ci.form.tokenEnter}]]*/ 'Enter token';
+        var MSG_HINT_GITHUB = /*[[#{ci.created.hint.github}]]*/ '';
+        var MSG_HINT_GITLAB = /*[[#{ci.created.hint.gitlab}]]*/ '';
+        var MSG_HINT_GITEE = /*[[#{ci.created.hint.gitee}]]*/ '';
+        var MSG_HINT_GENERIC = /*[[#{ci.created.hint.generic}]]*/ '';
+
+        window.switchTab = function (tab) {
+            document.querySelectorAll('.tab').forEach(function (t) {
+                t.classList.toggle('active', t.dataset.tab === tab);
+            });
+            document.querySelectorAll('.ci-panel').forEach(function (p) {
+                p.style.display = 'none';
+            });
+            document.getElementById('panel-' + tab).style.display = 'block';
+        };
+
+        // 扫描记录按触发器（项目）筛选
+        function applyRecordFilter() {
+            var v = document.getElementById('record-filter').value;
+            document.querySelectorAll('#panel-records tbody tr[data-trigger]').forEach(function (tr) {
+                tr.style.display = (!v || tr.getAttribute('data-trigger') === v) ? '' : 'none';
+            });
+        }
+        document.getElementById('record-filter').addEventListener('change', applyRecordFilter);
+        window.filterRecords = function (triggerId) {
+            document.getElementById('record-filter').value = triggerId ? String(triggerId) : '';
+            applyRecordFilter();
+            switchTab('records');
+        };
+
+        window.copyText = function (text) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function () {
+                    UI.toast(/*[[#{common.copied}]]*/ 'Copied', 'ok');
+                });
+            } else {
+                var ta = document.createElement('textarea');
+                ta.value = text; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); UI.toast('Copied', 'ok'); } catch (e) {}
+                ta.remove();
+            }
+        };
+
+        // Webhook 复制按钮：data-copy 委托（普通属性里的 [[...]] 不会被 Thymeleaf 解析）
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.btn-copy-url');
+            if (btn) window.copyText(btn.dataset.copy || '');
+        });
+
+        // 各平台官方云地址与占位符；企业自建时用户改成公司内网地址
+        var PLATFORM_DEFAULTS = {
+            GITHUB: { url: 'https://github.com', ph: 'https://github.com' },
+            GITLAB: { url: 'https://gitlab.com', ph: 'https://gitlab.com' },
+            GITEE: { url: 'https://gitee.com', ph: 'https://gitee.com' },
+            GENERIC: { url: '', ph: '' }
+        };
+        var prevDefaultUrl = null;
+        window.onTriggerPlatformChange = function () {
+            var p = document.getElementById('trig-platform').value;
+            var meta = PLATFORM_DEFAULTS[p] || PLATFORM_DEFAULTS.GENERIC;
+            var urlEl = document.getElementById('trig-platformUrl');
+            document.getElementById('trig-platformUrl-field').hidden = (p === 'GENERIC');
+            urlEl.placeholder = meta.ph;
+            // 仅当为空或等于上一个平台默认地址时才自动替换，用户手填地址保留
+            if (meta.url && (!urlEl.value || urlEl.value === prevDefaultUrl)) {
+                urlEl.value = meta.url;
+            }
+            if (p === 'GENERIC') urlEl.value = '';
+            prevDefaultUrl = meta.url || null;
+        };
+
+        window.openTriggerForm = function (id) {
+            document.getElementById('trig-id').value = id || '';
+            document.getElementById('trig-modal-title').textContent =
+                id ? MSG_EDIT : MSG_NEW;
+            document.getElementById('trig-modal-tag').textContent =
+                id ? MSG_EDIT : MSG_CREATE;
+            if (!id) {
+                document.getElementById('trigger-form').reset();
+                document.getElementById('trig-enableAiReview').checked = true;
+                document.getElementById('trig-secret-field').hidden = true;
+                document.getElementById('trig-secret').textContent = '';
+                document.getElementById('trig-repoScope').value = '';
+                document.getElementById('trig-repoUsername').value = '';
+                document.getElementById('trig-repoToken').value = '';
+                document.getElementById('trig-repoToken').placeholder = MSG_PW_ENTER;
+                prevDefaultUrl = null;
+                onTriggerPlatformChange();
+                UI.openModal('trigger-modal');
+                return;
+            }
+            UI.api.get('/api/ci/triggers/' + id).then(function (t) {
+                document.getElementById('trig-configName').value = t.configName || '';
+                document.getElementById('trig-platform').value = t.platform || 'GITHUB';
+                document.getElementById('trig-platformUrl').value = t.platformUrl || '';
+                var meta = PLATFORM_DEFAULTS[t.platform] || PLATFORM_DEFAULTS.GENERIC;
+                prevDefaultUrl = meta.url || null;
+                onTriggerPlatformChange();
+                // 编辑回填以库中值为准；老数据没有地址时显示该平台默认（保存时服务端也会补）
+                document.getElementById('trig-platformUrl').value = t.platformUrl || meta.url || '';
+                document.getElementById('trig-branchFilter').value = t.branchFilter || '';
+                document.getElementById('trig-repoScope').value = t.repoScope || '';
+                // 密钥：编辑时解密回显，可复制/重置
+                document.getElementById('trig-secret-field').hidden = false;
+                document.getElementById('trig-secret').textContent = t.secretToken || '';
+                // 私有库凭据：账号回显，令牌不回显（留空=不修改）
+                document.getElementById('trig-repoUsername').value = t.repoUsername || '';
+                document.getElementById('trig-repoToken').value = '';
+                document.getElementById('trig-repoToken').placeholder =
+                    (t.repoToken !== undefined && t.repoToken !== null) ? MSG_PW_KEEP : MSG_PW_ENTER;
+                document.getElementById('trig-skipUnitTest').checked = !!t.skipUnitTest;
+                document.getElementById('trig-includeTestCode').checked = !!t.includeTestCode;
+                document.getElementById('trig-enableAiReview').checked = !!t.enableAiReview;
+                document.getElementById('trig-autoComment').checked = !!t.autoComment;
+                UI.openModal('trigger-modal');
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+
+        document.getElementById('trigger-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var id = document.getElementById('trig-id').value;
+            var platform = document.getElementById('trig-platform').value;
+            var data = {
+                configName: document.getElementById('trig-configName').value.trim(),
+                platform: platform,
+                platformUrl: platform === 'GENERIC'
+                    ? null
+                    : document.getElementById('trig-platformUrl').value.trim() || null,
+                branchFilter: document.getElementById('trig-branchFilter').value.trim() || null,
+                repoScope: document.getElementById('trig-repoScope').value.trim() || null,
+                // 账号空串=清除；令牌空(null)=不修改
+                repoUsername: document.getElementById('trig-repoUsername').value.trim(),
+                repoToken: document.getElementById('trig-repoToken').value.trim() || null,
+                skipUnitTest: document.getElementById('trig-skipUnitTest').checked,
+                includeTestCode: document.getElementById('trig-includeTestCode').checked,
+                enableAiReview: document.getElementById('trig-enableAiReview').checked,
+                autoComment: document.getElementById('trig-autoComment').checked
+            };
+            var promise = id
+                ? UI.api.put('/api/ci/triggers/' + id, data)
+                : UI.api.post('/api/ci/triggers', data);
+            promise.then(function (d) {
+                UI.toast(UI.t('common.saved'), 'ok');
+                UI.closeModal('trigger-modal');
+                // 新建：一次性展示 Webhook 地址 + 密钥，关闭后刷新列表
+                if (!id && d && d.secretToken) {
+                    showCreatedTrigger(d);
+                } else {
+                    setTimeout(function () { location.reload(); }, 500);
+                }
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+
+        function showCreatedTrigger(d) {
+            document.getElementById('created-webhook').textContent = d.webhookUrl || '';
+            document.getElementById('created-secret').textContent = d.secretToken || '';
+            var hintMap = {
+                GITHUB: MSG_HINT_GITHUB, GITLAB: MSG_HINT_GITLAB,
+                GITEE: MSG_HINT_GITEE, GENERIC: MSG_HINT_GENERIC
+            };
+            document.getElementById('created-hint').textContent =
+                hintMap[d.platform] || MSG_HINT_GENERIC;
+            UI.openModal('trigger-created-modal');
+        }
+
+        document.getElementById('trigger-created-done').addEventListener('click', function () {
+            UI.closeModal('trigger-created-modal');
+            setTimeout(function () { location.reload(); }, 200);
+        });
+        document.getElementById('created-webhook-copy').addEventListener('click', function () {
+            copyText(document.getElementById('created-webhook').textContent);
+        });
+        document.getElementById('created-secret-copy').addEventListener('click', function () {
+            copyText(document.getElementById('created-secret').textContent);
+        });
+        document.getElementById('trig-secret-copy').addEventListener('click', function () {
+            copyText(document.getElementById('trig-secret').textContent);
+        });
+        document.getElementById('trig-secret-reset').addEventListener('click', function () {
+            var tid = document.getElementById('trig-id').value;
+            if (tid) window.resetSecret(Number(tid));
+        });
+
+        window.resetSecret = function (id) {
+            if (!confirm(MSG_RESET_CONFIRM)) return;
+            // 接口返回明文新密钥（仅这一次）
+            UI.api.post('/api/ci/triggers/' + id + '/reset-secret').then(function (secret) {
+                copyText(secret);
+                var el = document.getElementById('trig-secret');
+                if (el && !document.getElementById('trig-secret-field').hidden) {
+                    el.textContent = secret;
+                }
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+
+        window.openTokenForm = function () {
+            document.getElementById('token-form').reset();
+        };
+
+        document.getElementById('token-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var data = {
+                tokenName: document.getElementById('tok-name').value.trim(),
+                description: document.getElementById('tok-desc').value.trim() || null
+            };
+            UI.api.post('/api/ci/tokens', data).then(function (d) {
+                UI.closeModal('token-modal');
+                if (d.token) {
+                    document.getElementById('token-show-value').textContent = d.token;
+                    UI.openModal('token-show-modal');
+                }
+                setTimeout(function () { location.reload(); }, 1000);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+    })();
+</script>
+</th:block>
+</html>

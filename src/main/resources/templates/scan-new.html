@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'scan', 'scan.new.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{scan.new.title}">New Scan</h2>
+        <p th:text="#{scan.new.subtitle}">Upload a ZIP or paste code to start</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <!-- 页签 -->
+        <div class="tabs" role="tablist">
+            <button type="button" class="tab active" data-tab="zip" id="tab-zip">
+                <svg class="ico"><use href="#box-arrow-in-down-left"/></svg>
+                <span th:text="#{scan.tab.zip}">ZIP package</span>
+            </button>
+            <button type="button" class="tab" data-tab="paste" id="tab-paste">
+                <svg class="ico"><use href="#code-square"/></svg>
+                <span th:text="#{scan.tab.paste}">Paste code</span>
+            </button>
+        </div>
+
+        <!-- 基础信息 -->
+        <div class="grid-2">
+            <div class="field">
+                <label for="taskName" th:text="#{scan.taskName}">Task name</label>
+                <input type="text" class="input" id="taskName" maxlength="128"
+                       th:placeholder="#{scan.taskName.ph}">
+            </div>
+            <div class="field">
+                <label for="projectName" th:text="#{scan.projectName}">Project name</label>
+                <input type="text" class="input" id="projectName" maxlength="128"
+                       th:placeholder="#{scan.projectName.ph}">
+            </div>
+        </div>
+
+        <!-- ZIP 上传区 -->
+        <div id="panel-zip" class="scan-panel">
+            <div class="dropzone" id="dropzone">
+                <div class="dz-ico"><svg class="ico"><use href="#box-arrow-in-down-left"/></svg></div>
+                <div class="dz-title" th:text="#{scan.upload.drag}">Click or drop a ZIP file here</div>
+                <div class="dz-hint" th:text="#{scan.upload.hint}">.zip up to 100MB</div>
+                <div class="dz-file" id="dz-file" hidden>
+                    <svg class="ico"><use href="#check-lg"/></svg>
+                    <span id="dz-filename">file.zip</span>
+                </div>
+                <input type="file" id="file-input" accept=".zip">
+            </div>
+        </div>
+
+        <!-- 粘贴代码区 -->
+        <div id="panel-paste" class="scan-panel" hidden>
+            <div class="field">
+                <label for="codeInput" th:text="#{scan.tab.paste}">Paste code</label>
+                <textarea class="textarea" id="codeInput" rows="14"
+                          th:placeholder="#{scan.code.placeholder}"></textarea>
+            </div>
+        </div>
+
+        <!-- 扫描选项 -->
+        <div style="margin-top:16px;">
+            <div class="sec-tag" th:text="#{scan.options}">Scan options</div>
+            <div class="grid-3" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin-top:12px;">
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="opt-skip" checked>
+                        <span class="track"></span>
+                        <span class="switch-text" th:text="#{scan.opt.skipUnitTest}">Skip unit test</span>
+                    </label>
+                </div>
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="opt-include">
+                        <span class="track"></span>
+                        <span class="switch-text" th:text="#{scan.opt.includeTestCode}">Include test code</span>
+                    </label>
+                </div>
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="opt-ai" checked>
+                        <span class="track"></span>
+                        <span class="switch-text" th:text="#{scan.opt.enableAiReview}">Enable AI review</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a class="btn btn-ghost" th:href="@{/dashboard}" th:text="#{common.cancel}">Cancel</a>
+            <button type="button" class="btn btn-primary" id="start-btn">
+                <svg class="ico"><use href="#play-fill"/></svg>
+                <span th:text="#{scan.submit}">Start scan</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var UI = window.AicrUI;
+        var currentTab = 'zip';
+
+        // 页签切换
+        document.querySelectorAll('.tab').forEach(function (t) {
+            t.addEventListener('click', function () {
+                currentTab = t.dataset.tab;
+                document.querySelectorAll('.tab').forEach(function (x) {
+                    x.classList.toggle('active', x === t);
+                });
+                document.getElementById('panel-zip').hidden = currentTab !== 'zip';
+                document.getElementById('panel-paste').hidden = currentTab !== 'paste';
+            });
+        });
+
+        // 拖拽上传
+        var dz = document.getElementById('dropzone');
+        var fileInput = document.getElementById('file-input');
+        var dzFile = document.getElementById('dz-file');
+        var dzFilename = document.getElementById('dz-filename');
+        var selectedFile = null;
+
+        dz.addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function (e) {
+            if (e.target.files[0]) setFile(e.target.files[0]);
+        });
+        ['dragenter', 'dragover'].forEach(function (ev) {
+            dz.addEventListener(ev, function (e) {
+                e.preventDefault(); dz.classList.add('is-dragover');
+            });
+        });
+        ['dragleave', 'drop'].forEach(function (ev) {
+            dz.addEventListener(ev, function (e) {
+                e.preventDefault(); dz.classList.remove('is-dragover');
+            });
+        });
+        dz.addEventListener('drop', function (e) {
+            if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+        });
+        function setFile(f) {
+            selectedFile = f;
+            dzFilename.textContent = f.name + ' (' + (f.size / 1024 / 1024).toFixed(1) + ' MB)';
+            dzFile.hidden = false;
+        }
+
+        // 开始扫描
+        var btn = document.getElementById('start-btn');
+        btn.addEventListener('click', function () {
+            var taskName = document.getElementById('taskName').value.trim();
+            var projectName = document.getElementById('projectName').value.trim();
+            var includeTestCode = document.getElementById('opt-include').checked;
+            var enableAiReview = document.getElementById('opt-ai').checked;
+            var skipUnitTest = document.getElementById('opt-skip').checked;
+
+            if (currentTab === 'zip') {
+                if (!selectedFile) { UI.toast(UI.t('scan.fileRequired'), 'warn'); return; }
+                var fd = new FormData();
+                fd.append('file', selectedFile);
+                if (taskName) fd.append('taskName', taskName);
+                if (projectName) fd.append('projectName', projectName);
+                fd.append('includeTestCode', includeTestCode);
+                fd.append('enableAiReview', enableAiReview);
+                fd.append('skipUnitTest', skipUnitTest);
+                btn.disabled = true;
+                UI.api.upload('/api/scans/upload', fd).then(function (data) {
+                    location.href = '/scan/result/' + data.id;
+                }).catch(function (err) {
+                    UI.toast(String(err.message || err), 'danger');
+                    btn.disabled = false;
+                });
+            } else {
+                var code = document.getElementById('codeInput').value;
+                if (!code.trim()) { UI.toast(UI.t('scan.code.placeholder'), 'warn'); return; }
+                btn.disabled = true;
+                UI.api.post('/api/scans/paste', {
+                    code: code,
+                    taskName: taskName || null,
+                    projectName: projectName || null,
+                    includeTestCode: includeTestCode,
+                    enableAiReview: enableAiReview
+                }).then(function (data) {
+                    location.href = '/scan/result/' + data.id;
+                }).catch(function (err) {
+                    UI.toast(String(err.message || err), 'danger');
+                    btn.disabled = false;
+                });
+            }
+        });
+
+        // 页面文案补到消息字典（按需）
+        UI._msg = UI._msg || {};
+        UI._msg['scan.fileRequired'] = /*[[#{scan.fileRequired}]]*/ '';
+    })();
+</script>
+</th:block>
+</html>

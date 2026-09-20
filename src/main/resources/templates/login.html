@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<!--/*
+  登录页：全项目唯一不套 layout 的模板 —— 未登录的人不该看到导航。
+  自带防白闪主题脚本（与 layout 同源）。本地登录 / 远端 OA 登录两个页签。
+*/-->
+<html xmlns:th="http://www.thymeleaf.org"
+      th:lang="${#locale.toString().startsWith('zh')} ? 'zh-CN' : 'en'"
+      data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title th:text="|#{login.title} · #{app.title}|">Sign in · AI Code Reviewer</title>
+
+    <script>
+        (function () {
+            var mode;
+            try { mode = localStorage.getItem('aicr-theme'); } catch (e) { /* 隐私模式 */ }
+            if (mode !== 'dark' && mode !== 'light') {
+                mode = window.matchMedia
+                    && window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', mode);
+        })();
+    </script>
+
+    <link rel="icon" type="image/svg+xml" th:href="@{/vendor/favicon.svg}">
+    <link rel="stylesheet" th:href="@{/css/app.css(v=${assetVersion})}">
+</head>
+<body class="login-body">
+
+<th:block th:replace="~{fragments/icons :: sprite}"></th:block>
+
+<div class="login-glow login-glow-a" aria-hidden="true"></div>
+<div class="login-glow login-glow-b" aria-hidden="true"></div>
+
+<div class="login-tools">
+    <a class="icon-btn lang-btn"
+       th:href="${#locale.toString().startsWith('zh')} ? @{/login(lang='en')} : @{/login(lang='zh_CN')}"
+       th:title="#{nav.language}"
+       th:text="${#locale.toString().startsWith('zh')} ? '中' : 'EN'">EN</a>
+    <button type="button" class="icon-btn" data-theme-btn
+            th:attr="data-to-dark=#{nav.theme.dark},data-to-light=#{nav.theme.light}">
+        <svg class="ico"><use href="#moon-stars-fill"/></svg>
+    </button>
+</div>
+
+<main class="login-wrap">
+
+    <div class="login-brand">
+        <span class="login-mark"><svg class="ico ico-xl"><use href="#code-square"/></svg></span>
+        <h1 th:text="#{app.title}">AI Code Reviewer</h1>
+        <p th:text="#{login.tagline}">Sign in to continue · works offline</p>
+    </div>
+
+    <div class="login-card">
+
+        <div class="login-tabs" role="tablist">
+            <button type="button" class="login-tab active" id="tab-local" data-tab="local"
+                    th:text="#{login.local}">Local sign-in</button>
+            <button type="button" class="login-tab" id="tab-remote" data-tab="remote"
+                    th:text="#{login.remote}">OA sign-in</button>
+        </div>
+
+        <div class="alert alert-danger" id="login-error" hidden>
+            <svg class="ico"><use href="#x-circle-fill"/></svg>
+            <div class="alert-body" id="login-error-text"></div>
+        </div>
+
+        <!--/* 本地登录 */-->
+        <form id="form-local" class="login-form" method="post" action="javascript:void(0)" autocomplete="off">
+            <div class="field">
+                <label for="username" th:text="#{login.username}">Username</label>
+                <input type="text" class="input" id="username" name="username"
+                       autocomplete="username" required autofocus maxlength="64"
+                       th:placeholder="#{login.usernamePlaceholder}">
+            </div>
+
+            <div class="field">
+                <label for="password" th:text="#{login.password}">Password</label>
+                <div class="login-pw">
+                    <input type="password" class="input" id="password" name="password"
+                           autocomplete="current-password" required maxlength="128"
+                           th:placeholder="#{login.passwordPlaceholder}">
+                    <button type="button" class="icon-btn login-pw-toggle"
+                            data-role="toggle-password" data-target="password"
+                            th:title="#{login.showPassword}" th:aria-label="#{login.showPassword}">
+                        <svg class="ico"><use href="#eye"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg login-submit" id="local-submit">
+                <svg class="ico"><use href="#shield-check"/></svg>
+                <span th:text="#{login.submit}">Sign in</span>
+            </button>
+
+            <p class="login-hint">
+                <svg class="ico"><use href="#info-circle"/></svg>
+                <span th:text="#{login.defaultHint}">Default accounts</span>
+            </p>
+        </form>
+
+        <!--/* 远端 OA 登录 */-->
+        <form id="form-remote" class="login-form" method="post" action="javascript:void(0)" hidden autocomplete="off">
+            <div class="field">
+                <label for="remote-config" th:text="#{login.remoteConfig}">OA identity source</label>
+                <select class="select" id="remote-config" required>
+                    <option value="" th:text="#{login.remoteConfigPlaceholder}">Select…</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="remote-username" th:text="#{login.username}">Username</label>
+                <input type="text" class="input" id="remote-username"
+                       autocomplete="username" required maxlength="64"
+                       th:placeholder="#{login.usernamePlaceholder}">
+            </div>
+
+            <div class="field">
+                <label for="remote-password" th:text="#{login.password}">Password</label>
+                <div class="login-pw">
+                    <input type="password" class="input" id="remote-password"
+                           autocomplete="current-password" required maxlength="128"
+                           th:placeholder="#{login.passwordPlaceholder}">
+                    <button type="button" class="icon-btn login-pw-toggle"
+                            data-role="toggle-password" data-target="remote-password"
+                            th:title="#{login.showPassword}" th:aria-label="#{login.showPassword}">
+                        <svg class="ico"><use href="#eye"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg login-submit" id="remote-submit">
+                <svg class="ico"><use href="#hdd-network"/></svg>
+                <span th:text="#{login.submit}">Sign in</span>
+            </button>
+
+            <p class="login-hint" id="oa-hint" hidden>
+                <svg class="ico"><use href="#info-circle"/></svg>
+                <span th:text="#{login.oaUnavailable}">No identity source</span>
+            </p>
+        </form>
+    </div>
+
+    <p class="login-foot" th:text="#{login.foot}">Local assets only · no external CDN</p>
+</main>
+
+<script th:src="@{/js/theme.js(v=${assetVersion})}"></script>
+<script th:src="@{/js/app.js(v=${assetVersion})}"></script>
+<script th:inline="javascript">
+    (function () {
+        var UI = window.AicrUI;
+        var TOKEN_KEY = 'aicr_token';
+        /* JS 内联注释表达式只能整句赋值：写在三元/拼接里会被 Thymeleaf 吃掉分隔符 */
+        var MSG_LOGGING = /*[[#{login.logging}]]*/ 'Signing in…';
+        var MSG_SUBMIT = /*[[#{login.submit}]]*/ 'Sign in';
+
+        function redirectTarget() {
+            var p = new URLSearchParams(location.search).get('redirect');
+            // 只允许站内相对路径，杜绝开放重定向
+            if (p && p.charAt(0) === '/' && p.indexOf('//') !== 0) return p;
+            return '/dashboard';
+        }
+
+        function showError(msg) {
+            var box = document.getElementById('login-error');
+            document.getElementById('login-error-text').textContent = msg;
+            box.hidden = false;
+        }
+
+        function setBusy(btnId, busy) {
+            var btn = document.getElementById(btnId);
+            btn.disabled = busy;
+            btn.querySelector('span').textContent = busy ? MSG_LOGGING : MSG_SUBMIT;
+        }
+
+        function submit(endpoint, btnId, payload) {
+            setBusy(btnId, true);
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(payload),
+                credentials: 'same-origin'
+            }).then(function (r) {
+                return r.json().catch(function () { throw new Error('HTTP ' + r.status); });
+            }).then(function (json) {
+                if (json.code !== 200 || !json.data || !json.data.token) {
+                    throw new Error(json.message || 'login failed');
+                }
+                try { localStorage.setItem(TOKEN_KEY, json.data.token); } catch (e) { /* ignore */ }
+                location.href = redirectTarget();
+            }).catch(function (err) {
+                showError(String(err.message || err));
+                setBusy(btnId, false);
+            });
+        }
+
+        document.getElementById('form-local').addEventListener('submit', function (e) {
+            e.preventDefault();
+            submit('/api/auth/login', 'local-submit', {
+                username: document.getElementById('username').value.trim(),
+                password: document.getElementById('password').value
+            });
+        });
+
+        document.getElementById('form-remote').addEventListener('submit', function (e) {
+            e.preventDefault();
+            submit('/api/auth/remote-login', 'remote-submit', {
+                configId: document.getElementById('remote-config').value,
+                username: document.getElementById('remote-username').value.trim(),
+                password: document.getElementById('remote-password').value
+            });
+        });
+
+        // 页签切换
+        document.querySelectorAll('.login-tab').forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                var key = tab.dataset.tab;
+                document.querySelectorAll('.login-tab').forEach(function (t) {
+                    t.classList.toggle('active', t === tab);
+                });
+                document.getElementById('form-local').hidden = key !== 'local';
+                document.getElementById('form-remote').hidden = key !== 'remote';
+                document.getElementById('login-error').hidden = true;
+            });
+        });
+
+        // 加载启用的远端认证源
+        fetch('/api/auth/remote-configs', {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        }).then(function (r) { return r.json(); }).then(function (json) {
+            var list = (json && json.code === 200 && json.data) ? json.data : [];
+            var sel = document.getElementById('remote-config');
+            list.forEach(function (c) {
+                var opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.configName;
+                sel.appendChild(opt);
+            });
+            if (!list.length) {
+                document.getElementById('tab-remote').disabled = true;
+                document.getElementById('oa-hint').hidden = false;
+            }
+        }).catch(function () {
+            document.getElementById('tab-remote').disabled = true;
+        });
+    })();
+</script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'settings', 'settings.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{settings.title}">Settings</h2>
+        <p th:text="#{settings.subtitle}">Runtime environment and system information</p>
+    </div>
+</div>
+
+<div class="split-2">
+    <div class="card">
+        <div class="card-head">
+            <h3 th:text="#{settings.systemInfo}">System information</h3>
+        </div>
+        <div class="card-body">
+            <div class="dl-row">
+                <dt th:text="#{settings.version}">Version</dt>
+                <dd th:text="${appVersion} ?: 'dev'">v1.0.0</dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{settings.profile}">Profile</dt>
+                <dd>
+                    <span th:text="${osName}">Mac OS</span>
+                    <span class="muted"> · Java </span>
+                    <span th:text="${javaVersion}">17</span>
+                </dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{settings.authMode}">Auth</dt>
+                <dd>
+                    <span th:if="${authEnabled}" class="badge badge-ok" th:text="#{settings.auth.on}">Enabled</span>
+                    <span th:unless="${authEnabled}" class="badge badge-warn" th:text="#{settings.auth.off}">Disabled</span>
+                </dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{settings.workDir}">Working directory</dt>
+                <dd class="mono" th:text="${workDir}">./work</dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{settings.driverDir}">Driver directory</dt>
+                <dd class="mono" th:text="${driverDir}">./lib/custom</dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{settings.projectUrl}">Project URL</dt>
+                <dd>
+                    <a class="repo-link" th:href="${githubUrl}" target="_blank" rel="noopener noreferrer">
+                        <img th:src="@{/assets/github.svg}" alt="" width="15" height="15" class="gh-ico">
+                        <span class="mono" th:text="${githubUrl}">https://github.com/...</span>
+                    </a>
+                </dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt>Time</dt>
+                <dd th:text="${#temporals.format(now, 'yyyy-MM-dd HH:mm:ss')}">now</dd>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-head">
+            <h3 th:text="#{common.status}">Status</h3>
+        </div>
+        <div class="card-body">
+            <div class="dl-row">
+                <dt th:text="#{settings.activeDb}">Active DB</dt>
+                <dd>
+                    <span th:if="${activeDb != null}">
+                        <span class="badge badge-ok">●</span>
+                        <span class="soft" th:text="${activeDb.name}">h2</span>
+                        <span class="muted mono" th:text="| (${activeDb.dbType})|">(H2)</span>
+                    </span>
+                    <span th:unless="${activeDb != null}" class="muted">—</span>
+                </dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{settings.activeProvider}">Active AI provider</dt>
+                <dd>
+                    <span th:if="${activeProvider != null}">
+                        <span class="badge badge-ok">●</span>
+                        <span class="soft" th:text="${activeProvider.displayName} ?: ${activeProvider.providerName}">provider</span>
+                    </span>
+                    <span th:unless="${activeProvider != null}">
+                        <span class="badge badge-mute" th:text="#{providers.noActive}">None</span>
+                    </span>
+                </dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{settings.checkerCount}">Checkers</dt>
+                <dd><strong th:text="${checkerCount}">0</strong> <span class="muted">registered</span></dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{settings.taskCount}">Total scans</dt>
+                <dd><strong th:text="${taskCount}">0</strong></dd>
+            </div>
+        </div>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+</th:block>
+</html>

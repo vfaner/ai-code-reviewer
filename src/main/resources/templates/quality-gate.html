@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'gate', 'gate.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{gate.title}">Quality Gate</h2>
+        <p th:text="#{gate.subtitle(${gateSettings.blockerLimit}, ${gateSettings.passScore})}">阻断清零 + 80 分门槛</p>
+    </div>
+</div>
+
+<div class="split-2">
+    <div class="card">
+        <div class="card-head">
+            <h3 th:text="#{gate.rules}">Gate rules</h3>
+            <button th:if="${isAdmin}" type="button" class="btn btn-ghost btn-sm" data-open-modal="gate-modal">
+                <svg class="ico"><use href="#sliders"/></svg>
+                <span th:text="#{gate.customize}">自定义分值</span>
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-ok">
+                <svg class="ico"><use href="#shield-check"/></svg>
+                <div class="alert-body" th:text="#{quality.rule1(${gateSettings.blockerLimit})}">阻断清零（一票否决）</div>
+            </div>
+            <div class="alert alert-info" style="margin-top:10px;">
+                <svg class="ico"><use href="#info-circle-fill"/></svg>
+                <div class="alert-body" th:text="#{quality.rule2(${gateSettings.passScore})}">80-point threshold</div>
+            </div>
+            <div class="code-block" style="margin-top:14px;"
+                 th:text="#{quality.formula5(${gateSettings.blockerWeight}, ${gateSettings.criticalWeight}, ${gateSettings.majorWeight}, ${gateSettings.minorWeight}, ${gateSettings.infoWeight})}">
+                Score = 100 - Blocker*25 - Critical*15 - Major*5 - Minor*1 (Info*0)
+            </div>
+            <div style="margin-top:18px;">
+                <div class="distrib-row">
+                    <div class="distrib-label" th:text="#{quality.EXCELLENT}">Excellent</div>
+                    <div class="distrib-num muted" th:text="'≥ ' + ${gateSettings.excellent}">≥ 90</div>
+                </div>
+                <div class="distrib-row">
+                    <div class="distrib-label" th:text="#{quality.GOOD}">Good</div>
+                    <div class="distrib-num muted" th:text="'≥ ' + ${gateSettings.good}">≥ 75</div>
+                </div>
+                <div class="distrib-row">
+                    <div class="distrib-label" th:text="#{quality.FAIR}">Fair</div>
+                    <div class="distrib-num muted" th:text="'≥ ' + ${gateSettings.fair}">≥ 60</div>
+                </div>
+                <div class="distrib-row">
+                    <div class="distrib-label" th:text="#{quality.POOR}">Poor</div>
+                    <div class="distrib-num muted" th:utext="'&lt; ' + ${gateSettings.fair}">&lt; 60</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-head">
+            <h3 th:text="#{gate.col.distribution}">Issue weights</h3>
+        </div>
+        <div class="card-body">
+            <div class="dl-row">
+                <dt><span class="dot-badge lv-blocker"></span><span th:text="#{level.BLOCKER}">阻断</span></dt>
+                <dd><strong th:text="'× ' + ${gateSettings.blockerWeight}">× 25</strong> <span class="muted" th:text="#{gate.perIssue}">每条扣分</span></dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt><span class="dot-badge lv-critical"></span><span th:text="#{level.CRITICAL}">严重</span></dt>
+                <dd><strong th:text="'× ' + ${gateSettings.criticalWeight}">× 15</strong> <span class="muted" th:text="#{gate.perIssue}">每条扣分</span></dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt><span class="dot-badge lv-major"></span><span th:text="#{level.MAJOR}">主要</span></dt>
+                <dd><strong th:text="'× ' + ${gateSettings.majorWeight}">× 5</strong> <span class="muted" th:text="#{gate.perIssue}">每条扣分</span></dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt><span class="dot-badge lv-minor"></span><span th:text="#{level.MINOR}">次要</span></dt>
+                <dd><strong th:text="'× ' + ${gateSettings.minorWeight}">× 1</strong> <span class="muted" th:text="#{gate.perIssue}">每条扣分</span></dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt><span class="dot-badge lv-info"></span><span th:text="#{level.INFO}">提示</span></dt>
+                <dd><strong th:text="'× ' + ${gateSettings.infoWeight}">× 0</strong> <span class="muted" th:text="#{gate.infoOnly}">仅提示不扣分</span></dd>
+            </div>
+            <div class="divider"></div>
+            <div class="dl-row">
+                <dt th:text="#{gate.passed}">通过</dt>
+                <dd>
+                    <span class="badge badge-ok" th:text="'score ≥ ' + ${gateSettings.passScore}">score ≥ 80</span>
+                    <span class="muted"> + </span>
+                    <span class="badge badge-ok" th:text="#{quality.rule1(${gateSettings.blockerLimit})}">阻断清零</span>
+                </dd>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-head">
+        <h3 th:text="#{gate.table}">Recent gate results</h3>
+    </div>
+    <div class="card-body tight">
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                <tr>
+                    <th th:text="#{gate.col.task}">Task</th>
+                    <th class="num" style="width:160px;" th:text="#{gate.col.score}">Score</th>
+                    <th th:text="#{gate.col.level}">Grade</th>
+                    <th th:text="#{gate.col.result}">Result</th>
+                    <th th:text="#{gate.col.distribution}">Distribution</th>
+                    <th th:text="#{gate.col.debt}">Technical debt</th>
+                    <th th:text="#{gate.col.time}">Finished</th>
+                    <th class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="row : ${rows}">
+                    <th:block th:with="t=${row.task}, q=${row.quality}">
+                        <td>
+                            <a th:href="@{/scan/result/{id}(id=${t.id})}"
+                               class="soft" th:text="${t.taskName} ?: '(untitled)'">task</a>
+                        </td>
+                        <td class="num">
+                            <span th:if="${q != null}">
+                                <span class="mini-ring" th:classappend="'is-' + ${#strings.toLowerCase(q.level)}">
+                                    <svg viewBox="0 0 28 28">
+                                        <circle class="ring-bg" cx="14" cy="14" r="12"/>
+                                        <circle class="ring-fg" cx="14" cy="14" r="12"
+                                                th:style="'stroke-dasharray:' + ${q.score * 0.754} + '; stroke-dashoffset: 75.4;'"/>
+                                    </svg>
+                                </span>
+                                <strong style="margin-left:8px;" th:text="${q.score}">0</strong>
+                            </span>
+                            <span th:unless="${q != null}" class="muted">—</span>
+                        </td>
+                        <td>
+                            <span th:if="${q != null}"
+                                  class="badge"
+                                  th:classappend="${q.level == 'EXCELLENT'} ? 'badge-ok' : (q.level == 'GOOD' ? 'badge-info' : (q.level == 'FAIR' ? 'badge-warn' : 'badge-danger'))"
+                                  th:text="#{|quality.${q.level}|}">Good</span>
+                            <span th:unless="${q != null}" class="muted">—</span>
+                        </td>
+                        <td>
+                            <span th:if="${q != null}"
+                                  class="badge"
+                                  th:classappend="${q.passed} ? 'badge-ok' : 'badge-danger'"
+                                  th:text="${q.passed} ? #{gate.passed} : #{gate.failed}">Pass</span>
+                            <span th:unless="${q != null}">
+                                <span class="scan-status" th:classappend="'is-' + ${#strings.toLowerCase(t.status)}">
+                                    <span class="dot"></span>
+                                    <span th:text="#{|status.${t.status}|}">Status</span>
+                                </span>
+                            </span>
+                        </td>
+                        <td>
+                            <!-- 分布徽章用完整级别名（中文环境即中文），不用英文缩写 -->
+                            <span th:if="${q != null}" class="grade-badges">
+                                <span class="badge badge-blocker" th:if="${q.blockerCount > 0}"
+                                      th:text="#{level.BLOCKER} + ' ' + ${q.blockerCount}">阻断 0</span>
+                                <span class="badge badge-critical" th:if="${q.criticalCount > 0}"
+                                      th:text="#{level.CRITICAL} + ' ' + ${q.criticalCount}">严重 0</span>
+                                <span class="badge badge-major" th:if="${q.majorCount > 0}"
+                                      th:text="#{level.MAJOR} + ' ' + ${q.majorCount}">主要 0</span>
+                                <span class="badge badge-minor" th:if="${q.minorCount > 0}"
+                                      th:text="#{level.MINOR} + ' ' + ${q.minorCount}">次要 0</span>
+                                <span class="badge badge-info-grade" th:if="${q.infoCount > 0}"
+                                      th:text="#{level.INFO} + ' ' + ${q.infoCount}">提示 0</span>
+                                <span th:if="${q.totalIssues == 0}" class="muted">0</span>
+                            </span>
+                            <span th:unless="${q != null}" class="muted">—</span>
+                        </td>
+                        <td class="muted small">
+                            <span th:if="${q != null and q.debtMinutes > 0}" th:text="${q.debtText}">1h25m</span>
+                            <span th:unless="${q != null and q.debtMinutes > 0}">—</span>
+                        </td>
+                        <td class="muted small"
+                            th:text="${t.completedAt != null} ? ${#temporals.format(t.completedAt, 'yyyy-MM-dd HH:mm')} : '—'">
+                            time
+                        </td>
+                        <td class="num">
+                            <a class="btn btn-ghost btn-xs" th:href="@{/scan/result/{id}(id=${t.id})}">
+                                <svg class="ico"><use href="#eye"/></svg>
+                                <span th:text="#{gate.viewResult}">View</span>
+                            </a>
+                        </td>
+                    </th:block>
+                </tr>
+                <tr th:if="${rows.isEmpty()}">
+                    <td colspan="8">
+                        <div class="empty-state">
+                            <div class="empty-ico"><svg class="ico"><use href="#shield-check"/></svg></div>
+                            <p th:text="#{gate.none}">No scans yet</p>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 门禁分值自定义弹窗（仅管理员渲染） -->
+<div class="modal" id="gate-modal" aria-hidden="true" th:if="${isAdmin}">
+    <div class="modal-mask" data-close-modal="gate-modal"></div>
+    <div class="modal-dialog modal-lg">
+        <button type="button" class="modal-close" data-close-modal="gate-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" th:text="#{gate.customize}">自定义</span>
+            <h3 th:text="#{gate.modal.title}">自定义门禁分值与阈值</h3>
+            <p th:text="#{gate.modal.hint}">保存后立即生效</p>
+        </div>
+        <form id="gate-settings-form" autocomplete="off">
+            <div style="margin:2px 0 12px;"><span class="sec-tag" th:text="#{gate.sec.weights}">扣分权重</span></div>
+            <div class="grid-2" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div class="field">
+                    <label for="gate-blockerWeight">
+                        <span class="dot-badge lv-blocker"></span>
+                        <span th:text="#{level.BLOCKER}">阻断</span>
+                    </label>
+                    <input type="number" class="input" id="gate-blockerWeight"
+                           min="0" max="100" step="1" required th:value="${gateSettings.blockerWeight}">
+                </div>
+                <div class="field">
+                    <label for="gate-criticalWeight">
+                        <span class="dot-badge lv-critical"></span>
+                        <span th:text="#{level.CRITICAL}">严重</span>
+                    </label>
+                    <input type="number" class="input" id="gate-criticalWeight"
+                           min="0" max="100" step="1" required th:value="${gateSettings.criticalWeight}">
+                </div>
+                <div class="field">
+                    <label for="gate-majorWeight">
+                        <span class="dot-badge lv-major"></span>
+                        <span th:text="#{level.MAJOR}">主要</span>
+                    </label>
+                    <input type="number" class="input" id="gate-majorWeight"
+                           min="0" max="100" step="1" required th:value="${gateSettings.majorWeight}">
+                </div>
+                <div class="field">
+                    <label for="gate-minorWeight">
+                        <span class="dot-badge lv-minor"></span>
+                        <span th:text="#{level.MINOR}">次要</span>
+                    </label>
+                    <input type="number" class="input" id="gate-minorWeight"
+                           min="0" max="100" step="1" required th:value="${gateSettings.minorWeight}">
+                </div>
+                <div class="field">
+                    <label for="gate-infoWeight">
+                        <span class="dot-badge lv-info"></span>
+                        <span th:text="#{level.INFO}">提示</span>
+                    </label>
+                    <input type="number" class="input" id="gate-infoWeight"
+                           min="0" max="100" step="1" required th:value="${gateSettings.infoWeight}">
+                </div>
+            </div>
+
+            <div style="margin:14px 0 12px;"><span class="sec-tag" th:text="#{gate.sec.thresholds}">通过条件</span></div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="gate-passScore" th:text="#{gate.set.passScore}">通过门禁最低评分</label>
+                    <input type="number" class="input" id="gate-passScore"
+                           min="0" max="100" step="1" required th:value="${gateSettings.passScore}">
+                </div>
+                <div class="field">
+                    <label for="gate-blockerLimit" th:text="#{gate.set.blockerLimit}">允许的最大阻断数</label>
+                    <input type="number" class="input" id="gate-blockerLimit"
+                           min="0" max="1000" step="1" required th:value="${gateSettings.blockerLimit}">
+                    <div class="help" th:text="#{gate.set.blockerLimitHint}">0 = 阻断一票否决</div>
+                </div>
+            </div>
+
+            <div style="margin:14px 0 12px;"><span class="sec-tag" th:text="#{gate.sec.bands}">评级分界</span></div>
+            <div class="grid-2" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div class="field">
+                    <label for="gate-excellent" th:text="#{quality.EXCELLENT} + ' ≥'">优秀 ≥</label>
+                    <input type="number" class="input" id="gate-excellent"
+                           min="0" max="100" step="1" required th:value="${gateSettings.excellent}">
+                </div>
+                <div class="field">
+                    <label for="gate-good" th:text="#{quality.GOOD} + ' ≥'">良好 ≥</label>
+                    <input type="number" class="input" id="gate-good"
+                           min="0" max="100" step="1" required th:value="${gateSettings.good}">
+                </div>
+                <div class="field">
+                    <label for="gate-fair" th:text="#{quality.FAIR} + ' ≥'">一般 ≥</label>
+                    <input type="number" class="input" id="gate-fair"
+                           min="0" max="100" step="1" required th:value="${gateSettings.fair}">
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" id="gate-reset-btn"
+                        style="margin-right:auto;" th:text="#{gate.resetDefaults}">恢复默认</button>
+                <button type="button" class="btn btn-ghost" data-close-modal="gate-modal"
+                        th:text="#{common.cancel}">取消</button>
+                <button type="submit" class="btn btn-primary" th:text="#{common.save}">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:if="${isAdmin}" th:inline="javascript">
+    (function () {
+        var UI = window.AicrUI;
+        var KEYS = ['blockerWeight', 'criticalWeight', 'majorWeight', 'minorWeight', 'infoWeight',
+                    'passScore', 'blockerLimit', 'excellent', 'good', 'fair'];
+        var MSG_RESET_CONFIRM = /*[[#{gate.resetConfirm}]]*/ 'Restore defaults?';
+        var MSG_INVALID = /*[[#{gate.modal.invalid}]]*/ 'Invalid input';
+
+        function collect() {
+            var data = {};
+            for (var i = 0; i < KEYS.length; i++) {
+                var v = parseInt(document.getElementById('gate-' + KEYS[i]).value, 10);
+                if (isNaN(v)) { return null; }
+                data[KEYS[i]] = v;
+            }
+            return data;
+        }
+        function done() {
+            UI.toast(UI.t('common.saved'), 'ok');
+            UI.closeModal('gate-modal');
+            setTimeout(function () { location.reload(); }, 500);
+        }
+        function fail(err) {
+            UI.toast(String(err.message || err), 'danger');
+        }
+
+        document.getElementById('gate-settings-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var data = collect();
+            if (!data) { UI.toast(MSG_INVALID, 'danger'); return; }
+            UI.api.put('/api/quality-gate/settings', data).then(done).catch(fail);
+        });
+        document.getElementById('gate-reset-btn').addEventListener('click', function () {
+            if (!confirm(MSG_RESET_CONFIRM)) return;
+            UI.api.del('/api/quality-gate/settings').then(done).catch(fail);
+        });
+    })();
+</script>
+</th:block>
+</html>

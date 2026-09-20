@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'dashboard', 'dashboard.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{dashboard.title}">Dashboard</h2>
+        <p th:text="#{dashboard.subtitle}">Scan tasks and issues at a glance</p>
+    </div>
+    <div class="page-actions" th:if="${isAdmin}">
+        <a class="btn btn-primary" th:href="@{/scan/new}">
+            <svg class="ico"><use href="#play-fill"/></svg>
+            <span th:text="#{dashboard.newScan}">Start your first scan</span>
+        </a>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="stat-grid">
+    <div class="stat">
+        <div class="stat-ico"><svg class="ico"><use href="#list-check"/></svg></div>
+        <div class="stat-body">
+            <div class="stat-n" th:text="${taskTotal}">0</div>
+            <div class="stat-l" th:text="#{dashboard.stat.tasks}">Scans</div>
+        </div>
+    </div>
+    <div class="stat is-blocker">
+        <div class="stat-ico"><svg class="ico"><use href="#x-circle-fill"/></svg></div>
+        <div class="stat-body">
+            <div class="stat-n" th:text="${blockers}">0</div>
+            <div class="stat-l" th:text="#{dashboard.stat.blockers}">阻断</div>
+        </div>
+    </div>
+    <div class="stat is-critical">
+        <div class="stat-ico"><svg class="ico"><use href="#exclamation-triangle-fill"/></svg></div>
+        <div class="stat-body">
+            <div class="stat-n" th:text="${criticals}">0</div>
+            <div class="stat-l" th:text="#{dashboard.stat.criticals}">严重</div>
+        </div>
+    </div>
+    <div class="stat is-major">
+        <div class="stat-ico"><svg class="ico"><use href="#info-circle-fill"/></svg></div>
+        <div class="stat-body">
+            <div class="stat-n" th:text="${majors}">0</div>
+            <div class="stat-l" th:text="#{dashboard.stat.majors}">主要</div>
+        </div>
+    </div>
+</div>
+
+<div class="split-2">
+    <!-- 趋势图 -->
+    <div class="card trend-card">
+        <div class="card-head">
+            <h3 th:text="#{dashboard.trend}">Scan trend</h3>
+        </div>
+        <div class="card-body">
+            <div class="trend-bars">
+                <div class="trend-bar"
+                     th:each="entry : ${trend}"
+                     th:data-count="${entry.value}"
+                     th:style="'height:' + ${entry.value * 100.0 / trendMax} + '%'">
+                </div>
+            </div>
+            <div class="trend-labels">
+                <span th:each="entry : ${trend}"
+                      th:text="${entry.key.substring(5)}">09-01</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 问题分布 -->
+    <div class="card">
+        <div class="card-head">
+            <h3 th:text="#{dashboard.distribution}">Issue distribution</h3>
+        </div>
+        <div class="card-body" th:with="gradeTotal=${blockers + criticals + majors + minors + infos}">
+            <div class="distrib-row">
+                <div class="distrib-label"><span class="dot-badge lv-blocker"></span><span th:text="#{level.BLOCKER}">阻断</span></div>
+                <div class="distrib-bar">
+                    <div class="distrib-fill lv-blocker"
+                         th:style="'width:' + ${gradeTotal > 0 ? blockers * 100.0 / gradeTotal : 0} + '%'"></div>
+                </div>
+                <div class="distrib-num" th:text="${blockers}">0</div>
+            </div>
+            <div class="distrib-row">
+                <div class="distrib-label"><span class="dot-badge lv-critical"></span><span th:text="#{level.CRITICAL}">严重</span></div>
+                <div class="distrib-bar">
+                    <div class="distrib-fill lv-critical"
+                         th:style="'width:' + ${gradeTotal > 0 ? criticals * 100.0 / gradeTotal : 0} + '%'"></div>
+                </div>
+                <div class="distrib-num" th:text="${criticals}">0</div>
+            </div>
+            <div class="distrib-row">
+                <div class="distrib-label"><span class="dot-badge lv-major"></span><span th:text="#{level.MAJOR}">主要</span></div>
+                <div class="distrib-bar">
+                    <div class="distrib-fill lv-major"
+                         th:style="'width:' + ${gradeTotal > 0 ? majors * 100.0 / gradeTotal : 0} + '%'"></div>
+                </div>
+                <div class="distrib-num" th:text="${majors}">0</div>
+            </div>
+            <div class="distrib-row">
+                <div class="distrib-label"><span class="dot-badge lv-minor"></span><span th:text="#{level.MINOR}">次要</span></div>
+                <div class="distrib-bar">
+                    <div class="distrib-fill lv-minor"
+                         th:style="'width:' + ${gradeTotal > 0 ? minors * 100.0 / gradeTotal : 0} + '%'"></div>
+                </div>
+                <div class="distrib-num" th:text="${minors}">0</div>
+            </div>
+            <div class="distrib-row">
+                <div class="distrib-label"><span class="dot-badge lv-info"></span><span th:text="#{level.INFO}">提示</span></div>
+                <div class="distrib-bar">
+                    <div class="distrib-fill lv-info"
+                         th:style="'width:' + ${gradeTotal > 0 ? infos * 100.0 / gradeTotal : 0} + '%'"></div>
+                </div>
+                <div class="distrib-num" th:text="${infos}">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 最近扫描 -->
+<div class="card">
+    <div class="card-head">
+        <h3 th:text="#{dashboard.recent}">Recent scans</h3>
+        <a th:href="@{/history}" class="btn btn-ghost btn-sm">
+            <svg class="ico"><use href="#arrow-left"/></svg>
+            <span th:text="#{nav.history}">History</span>
+        </a>
+    </div>
+    <div class="card-body tight" th:if="${!recent.isEmpty()}">
+        <div class="tbl-wrap">
+            <table class="tbl dense">
+                <thead>
+                <tr>
+                    <th th:text="#{dashboard.col.name}">Task</th>
+                    <th th:text="#{dashboard.col.project}">Project</th>
+                    <th th:text="#{dashboard.col.source}">Source</th>
+                    <th th:text="#{dashboard.col.status}">Status</th>
+                    <th class="num" th:text="#{dashboard.col.issues}">Issues</th>
+                    <th th:text="#{dashboard.col.time}">Time</th>
+                    <th class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="task : ${recent}">
+                    <td>
+                        <a th:href="@{/scan/result/{id}(id=${task.id})}"
+                           class="soft" th:text="${task.taskName} ?: '(untitled)'">task</a>
+                    </td>
+                    <td th:text="${task.projectName} ?: '—'">project</td>
+                    <td>
+                        <span class="badge badge-mute" th:text="#{|source.${task.sourceType}|}">ZIP</span>
+                    </td>
+                    <td>
+                        <span class="scan-status" th:classappend="'is-' + ${#strings.toLowerCase(task.status)}">
+                            <span class="dot" th:classappend="${task.status == 'SUCCESS'} ? 'dot-live' : ''"></span>
+                            <span th:text="#{|status.${task.status}|}">Status</span>
+                        </span>
+                    </td>
+                    <td class="num" th:text="${task.totalIssues ?: 0}">0</td>
+                    <td class="muted small"
+                        th:text="${task.completedAt != null} ? ${#temporals.format(task.completedAt, 'MM-dd HH:mm')} : ${task.createdAt != null ? #temporals.format(task.createdAt, 'MM-dd HH:mm') : '—'}">
+                        time
+                    </td>
+                    <td class="num">
+                        <div class="row-actions">
+                            <button type="button" th:if="${isAdmin}" class="btn btn-ghost btn-xs"
+                                    th:data-rescan-id="${task.id}" th:data-rescan-name="${task.taskName}"
+                                    th:title="#{scan.rescan}">
+                                <svg class="ico"><use href="#upload"/></svg>
+                                <span th:text="#{scan.rescan}">Re-upload</span>
+                            </button>
+                            <a class="btn btn-ghost btn-xs" th:href="@{/scan/result/{id}(id=${task.id})}">
+                                <svg class="ico"><use href="#eye"/></svg>
+                                <span th:text="#{dashboard.viewResult}">View</span>
+                            </a>
+                            <button type="button" th:if="${isAdmin}" class="btn btn-ghost btn-xs"
+                                    data-api-role="action" th:data-api="'/api/scans/' + ${task.id}"
+                                    data-method="DELETE" data-reload="true"
+                                    th:data-confirm="#{common.deleteConfirm}" th:data-ok-text="#{common.deleted}"
+                                    th:title="#{common.delete}">
+                                <svg class="ico"><use href="#trash"/></svg>
+                                <span th:text="#{common.delete}">Delete</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-body" th:if="${recent.isEmpty()}">
+        <div class="empty-state">
+            <div class="empty-ico"><svg class="ico"><use href="#inbox"/></svg></div>
+            <p th:text="#{dashboard.noScans}">No scans yet</p>
+            <a th:if="${isAdmin}" class="btn btn-primary btn-sm" th:href="@{/scan/new}">
+                <svg class="ico"><use href="#plus-lg"/></svg>
+                <span th:text="#{dashboard.newScan}">Start your first scan</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+</th:block>
+</html>

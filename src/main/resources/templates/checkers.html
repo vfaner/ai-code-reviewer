@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'checkers', 'checkers.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{checkers.title}">Checkers</h2>
+        <p th:text="#{checkers.subtitle}">Enable or disable individual static and AI checkers</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="toolbar">
+            <select class="select" id="cat-filter" style="max-width:200px;">
+                <option value="" th:text="#{common.all}">All</option>
+                <option th:each="c : ${checkers.![checkerCategory]}"
+                        th:value="${c}" th:text="${c}" th:if="${c != null}">cat</option>
+            </select>
+            <div class="spacer"></div>
+            <span class="muted small" th:text="|Total: ${checkers.size()}|">total</span>
+        </div>
+
+        <div class="tbl-wrap">
+            <table class="tbl" id="checkers-table">
+                <thead>
+                <tr>
+                    <th class="num" style="width:56px;" th:text="#{checkers.sort}">#</th>
+                    <th th:text="#{checkers.code}">Code</th>
+                    <th th:text="#{checkers.name}">Checker</th>
+                    <th th:text="#{checkers.category}">Category</th>
+                    <th th:text="#{checkers.type}">Type</th>
+                    <th th:text="#{common.description}">Description</th>
+                    <th class="num" style="width:120px;" th:text="#{common.status}">Status</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="c, iter : ${checkers}" th:data-category="${c.checkerCategory}">
+                    <td class="num" th:text="${iter.count}">1</td>
+                    <td class="mono"><span class="badge badge-brand" th:text="${c.checkerCode}">CODE</span></td>
+                    <td class="soft" th:text="${c.checkerName}">name</td>
+                    <td th:text="${c.checkerCategory} ?: '—'">cat</td>
+                    <td>
+                        <span class="badge"
+                              th:classappend="${c.isLocal != null and c.isLocal} ? 'badge-ok' : 'badge-info'"
+                              th:text="${c.isLocal != null and c.isLocal} ? #{common.local} : #{common.ai}">Local</span>
+                    </td>
+                    <td class="muted" th:text="${c.description} ?: '—'">desc</td>
+                    <td class="num">
+                        <div class="cell-switch">
+                            <label class="switch" th:if="${isAdmin}">
+                                <input type="checkbox" th:checked="${c.isEnabled}"
+                                       data-api-role="action"
+                                       th:data-api="@{/api/checkers/{id}/toggle(id=${c.id})}"
+                                       data-method="PUT">
+                                <span class="track"></span>
+                            </label>
+                            <span class="badge"
+                                  th:if="${!isAdmin}"
+                                  th:classappend="${c.isEnabled} ? 'badge-ok' : 'badge-mute'"
+                                  th:text="${c.isEnabled} ? #{common.enable} : #{common.disable}">On</span>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var filter = document.getElementById('cat-filter');
+        if (!filter) return;
+        // 去重
+        var cats = [];
+        filter.querySelectorAll('option').forEach(function (o) {
+            if (o.value === '') return;
+            if (cats.indexOf(o.value) >= 0) o.remove();
+            else cats.push(o.value);
+        });
+        filter.addEventListener('change', function () {
+            var v = filter.value;
+            document.querySelectorAll('#checkers-table tbody tr').forEach(function (tr) {
+                tr.style.display = (!v || tr.dataset.category === v) ? '' : 'none';
+            });
+        });
+    })();
+</script>
+</th:block>
+</html>

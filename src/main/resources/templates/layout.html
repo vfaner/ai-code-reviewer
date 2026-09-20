@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<!--/*
+  基础布局。页面这样使用：
+
+    <html th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'dashboard', 'dashboard.title')}">
+
+  内容与脚本以片段参数传入，每个页面仍是自包含文件，也无需额外引入
+  thymeleaf-layout-dialect 依赖。
+*/-->
+<html xmlns:th="http://www.thymeleaf.org"
+      th:fragment="page(content, scripts, activeNav, titleKey)"
+      th:lang="${#locale.toString().startsWith('zh')} ? 'zh-CN' : 'en'"
+      data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title th:with="pt=${titleKey != null ? #messages.msg(titleKey) : #messages.msg('app.subtitle')}"
+           th:text="|${pt} · #{app.title}|">AI Code Reviewer</title>
+
+    <!--/* 首屏前应用主题，否则深色用户会看到一帧白底闪烁 */-->
+    <script>
+        (function () {
+            var mode;
+            try {
+                mode = localStorage.getItem('aicr-theme');
+            } catch (e) { /* 隐私模式：跟随系统 */ }
+            if (mode !== 'dark' && mode !== 'light') {
+                mode = window.matchMedia
+                    && window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', mode);
+        })();
+    </script>
+
+    <link rel="icon" type="image/svg+xml" th:href="@{/vendor/favicon.svg}">
+    <link rel="stylesheet" th:href="@{/css/app.css(v=${assetVersion})}">
+</head>
+<body>
+
+<!--/* SVG 图标精灵表，内联在页面里：<use href="#name"> 不产生额外请求，
+       也不会像图标字体那样因路径问题整体失效。.ico 尺寸在 CSS 中按容器约束，
+       杜绝 SVG 未受样式约束时撑满整个页面的问题。 */-->
+<th:block th:replace="~{fragments/icons :: sprite}"></th:block>
+
+<header class="nav">
+    <div class="nav-inner">
+        <a class="logo" th:href="@{/dashboard}">
+            <span class="logo-mark"><svg class="ico"><use href="#code-square"/></svg></span>
+            <span class="logo-text">
+                <span th:text="#{app.title}">AI Code Reviewer</span>
+                <small th:if="${appVersion}" class="logo-ver" th:text="${appVersion}">vX.Y.Z</small>
+            </span>
+        </a>
+
+        <!--/* 导航分组：Dashboard 顶级；扫描 / 评审 / 管理收成下拉，避免头部拥挤 */-->
+        <nav class="nav-links" id="nav-links">
+            <a th:href="@{/dashboard}" th:classappend="${activeNav == 'dashboard'} ? 'active' : ''">
+                <svg class="ico"><use href="#speedometer2"/></svg><span th:text="#{nav.dashboard}">Dashboard</span>
+            </a>
+
+            <!--/* 扫描组：新建扫描（管理员）+ 历史 */-->
+            <div class="nav-group" th:classappend="${#lists.contains({'scan','history'}, activeNav)} ? 'is-active' : ''">
+                <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false">
+                    <svg class="ico"><use href="#play-fill"/></svg>
+                    <span th:text="#{nav.group.scan}">Scan</span>
+                    <svg class="ico nav-caret"><use href="#chevron-down"/></svg>
+                </button>
+                <div class="nav-menu">
+                    <a th:if="${isAdmin}" th:href="@{/scan/new}" th:classappend="${activeNav == 'scan'} ? 'active' : ''">
+                        <svg class="ico"><use href="#play-fill"/></svg><span th:text="#{nav.scanNew}">New Scan</span>
+                    </a>
+                    <a th:href="@{/history}" th:classappend="${activeNav == 'history'} ? 'active' : ''">
+                        <svg class="ico"><use href="#clock-history"/></svg><span th:text="#{nav.history}">History</span>
+                    </a>
+                </div>
+            </div>
+
+            <!--/* 评审组：检查器 / 质量门禁 / 忽略规则（管理员）/ 评审规则（管理员） */-->
+            <div class="nav-group" th:classappend="${#lists.contains({'checkers','gate','ignore','review'}, activeNav)} ? 'is-active' : ''">
+                <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false">
+                    <svg class="ico"><use href="#shield-check"/></svg>
+                    <span th:text="#{nav.group.review}">Review</span>
+                    <svg class="ico nav-caret"><use href="#chevron-down"/></svg>
+                </button>
+                <div class="nav-menu">
+                    <a th:href="@{/checkers}" th:classappend="${activeNav == 'checkers'} ? 'active' : ''">
+                        <svg class="ico"><use href="#puzzle"/></svg><span th:text="#{nav.checkers}">Checkers</span>
+                    </a>
+                    <a th:href="@{/quality-gate}" th:classappend="${activeNav == 'gate'} ? 'active' : ''">
+                        <svg class="ico"><use href="#shield-check"/></svg><span th:text="#{nav.qualityGate}">Quality Gate</span>
+                    </a>
+                    <a th:if="${isAdmin}" th:href="@{/ignore-rules}" th:classappend="${activeNav == 'ignore'} ? 'active' : ''">
+                        <svg class="ico"><use href="#list-check"/></svg><span th:text="#{nav.ignoreRules}">Ignore Rules</span>
+                    </a>
+                    <a th:if="${isAdmin}" th:href="@{/review-rules}" th:classappend="${activeNav == 'review'} ? 'active' : ''">
+                        <svg class="ico"><use href="#list-ul"/></svg><span th:text="#{nav.reviewRules}">Review Rules</span>
+                    </a>
+                </div>
+            </div>
+
+            <!--/* 管理组：AI 厂商 / 数据库 / CI/CD / 远端认证，仅管理员 */-->
+            <div class="nav-group" th:if="${isAdmin}"
+                 th:classappend="${#lists.contains({'providers','databases','ci','remoteauth'}, activeNav)} ? 'is-active' : ''">
+                <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false">
+                    <svg class="ico"><use href="#sliders"/></svg>
+                    <span th:text="#{nav.group.admin}">Administration</span>
+                    <svg class="ico nav-caret"><use href="#chevron-down"/></svg>
+                </button>
+                <div class="nav-menu">
+                    <a th:href="@{/providers}" th:classappend="${activeNav == 'providers'} ? 'active' : ''">
+                        <svg class="ico"><use href="#cpu"/></svg><span th:text="#{nav.providers}">AI Providers</span>
+                    </a>
+                    <a th:href="@{/databases}" th:classappend="${activeNav == 'databases'} ? 'active' : ''">
+                        <svg class="ico"><use href="#database"/></svg><span th:text="#{nav.databases}">Databases</span>
+                    </a>
+                    <a th:href="@{/ci}" th:classappend="${activeNav == 'ci'} ? 'active' : ''">
+                        <svg class="ico"><use href="#plug"/></svg><span th:text="#{nav.ci}">CI/CD</span>
+                    </a>
+                    <a th:href="@{/remote-auth}" th:classappend="${activeNav == 'remoteauth'} ? 'active' : ''">
+                        <svg class="ico"><use href="#hdd-network"/></svg><span th:text="#{nav.remoteAuth}">Remote Auth</span>
+                    </a>
+                </div>
+            </div>
+
+            <a th:if="${isAdmin}" class="nav-settings" th:href="@{/settings}"
+               th:classappend="${activeNav == 'settings'} ? 'active' : ''" th:title="#{nav.settings}">
+                <svg class="ico"><use href="#gear"/></svg><span th:text="#{nav.settings}">System info</span>
+            </a>
+        </nav>
+
+        <div class="nav-right">
+            <!--/* 语言切换：空 URL 保留当前路径只追加 ?lang，
+                   LocaleChangeInterceptor 接收后写入语言 Cookie。 */-->
+            <a class="icon-btn lang-btn"
+               th:href="${#locale.toString().startsWith('zh')} ? @{''(lang='en')} : @{''(lang='zh_CN')}"
+               th:title="#{nav.language}"
+               th:text="${#locale.toString().startsWith('zh')} ? '中' : 'EN'">EN</a>
+
+            <button type="button" class="icon-btn" data-theme-btn
+                    th:attr="data-to-dark=#{nav.theme.dark},data-to-light=#{nav.theme.light}">
+                <svg class="ico"><use href="#moon-stars-fill"/></svg>
+            </button>
+
+            <!--/* 打赏：收款码全部为本地 webp 图片，离线可用；与其他导航按钮统一为纯图标样式 */-->
+            <button type="button" class="icon-btn" data-role="open-donate"
+                    th:title="#{nav.donate}" th:aria-label="#{nav.donate}">
+                <svg class="ico"><use href="#heart-fill"/></svg>
+            </button>
+
+            <!--/* 当前用户下拉：修改密码（仅本地账号）/ 退出登录 */-->
+            <div class="nav-group user-group" th:if="${currentUsername != null}">
+                <button type="button" class="user-chip nav-trigger" aria-haspopup="true" aria-expanded="false">
+                    <svg class="ico"><use href="#shield-check"/></svg>
+                    <span class="uname" th:text="${currentNickname != null and !currentNickname.isBlank()} ? ${currentNickname} : ${currentUsername}">admin</span>
+                    <span class="role"
+                          th:classappend="${isAdmin} ? 'role-admin' : 'role-viewer'"
+                          th:text="${isAdmin} ? #{nav.role.admin} : #{nav.role.viewer}">ADMIN</span>
+                    <svg class="ico nav-caret"><use href="#chevron-down"/></svg>
+                </button>
+                <div class="nav-menu nav-menu-right">
+                    <button type="button" th:if="${currentSource == 'LOCAL'}"
+                            class="menu-item" data-open-modal="cp-modal">
+                        <svg class="ico"><use href="#key"/></svg>
+                        <span th:text="#{nav.changePassword}">Change password</span>
+                    </button>
+                    <button type="button" class="menu-item is-danger" id="logout-btn"
+                            th:title="#{nav.logout}">
+                        <svg class="ico"><use href="#box-arrow-in-down-left"/></svg>
+                        <span th:text="#{nav.logout}">Sign out</span>
+                    </button>
+                </div>
+            </div>
+
+            <form id="logout-form" method="post" action="/api/auth/logout" hidden></form>
+
+            <button type="button" class="icon-btn nav-toggle" data-role="nav-toggle"
+                    th:title="#{nav.menu}" th:aria-label="#{nav.menu}">
+                <svg class="ico"><use href="#list"/></svg>
+            </button>
+        </div>
+    </div>
+</header>
+
+<!--/* 默认口令横幅：只在本次会话可关闭（sessionStorage），口令真的改掉后服务端
+       不再渲染整条横幅与脚本。 */-->
+<th:block th:if="${usingDefaultPassword}">
+    <div class="default-pw-banner" id="default-pw-banner">
+        <svg class="ico"><use href="#exclamation-triangle-fill"/></svg>
+        <span th:text="#{banner.defaultPw}">Default password warning</span>
+        <button type="button" class="banner-link" data-open-modal="cp-modal" th:text="#{nav.changePassword}">Change password</button>
+        <button type="button" class="banner-close" data-role="dismiss-default-pw"
+                th:title="#{common.close}" th:aria-label="#{common.close}">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+    </div>
+    <script>
+        (function () {
+            var el = document.getElementById('default-pw-banner');
+            if (!el) return;
+            try {
+                if (sessionStorage.getItem('aicr-pw-banner-dismissed') === '1') {
+                    el.remove();
+                }
+            } catch (e) { /* 隐私模式：读不到就照常提示 */ }
+        })();
+    </script>
+</th:block>
+
+<div id="toasts"></div>
+
+<main class="shell">
+    <div th:if="${message}" class="alert alert-ok" data-auto-dismiss>
+        <svg class="ico"><use href="#check-circle-fill"/></svg>
+        <div class="alert-body" th:text="${message}">Saved</div>
+        <button type="button" class="alert-close" data-dismiss><svg class="ico"><use href="#x-lg"/></svg></button>
+    </div>
+    <div th:if="${error}" class="alert alert-danger">
+        <svg class="ico"><use href="#exclamation-triangle-fill"/></svg>
+        <div class="alert-body" th:text="${error}">Error</div>
+        <button type="button" class="alert-close" data-dismiss><svg class="ico"><use href="#x-lg"/></svg></button>
+    </div>
+
+    <th:block th:replace="${content}">
+        <p>Page content goes here.</p>
+    </th:block>
+</main>
+
+<footer class="foot">
+    <span>
+        <span th:text="#{app.title}">AI Code Reviewer</span>
+        <span class="mx-1">·</span>
+        <span th:text="#{app.subtitle}">Automated Java Code Review</span>
+        <small class="foot-ver mono" th:if="${appVersion}" th:text="${appVersion}">v1.0.0</small>
+    </span>
+    <span th:text="#{app.foot}">All assets local · works offline</span>
+</footer>
+
+<!--/* 修改密码弹窗（仅 LOCAL 账号；OA 用户服务端也会拒绝） */-->
+<div class="modal" id="cp-modal" aria-hidden="true" role="dialog" aria-modal="true"
+     th:aria-label="#{cp.title}">
+    <div class="modal-mask" data-close-modal="cp-modal"></div>
+    <div class="modal-dialog modal-sm">
+        <button type="button" class="modal-close" data-close-modal="cp-modal"
+                th:title="#{common.close}" th:aria-label="#{common.close}">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" th:text="${currentSource == 'LOCAL'} ? #{nav.source.local} : #{nav.source.remote}">Local</span>
+            <h3 th:text="#{cp.title}">Change password</h3>
+        </div>
+        <div th:if="${currentSource != 'LOCAL'}" class="alert alert-warn">
+            <svg class="ico"><use href="#exclamation-triangle-fill"/></svg>
+            <div class="alert-body" th:text="#{cp.remoteForbidden}">Remote account</div>
+        </div>
+        <form id="cp-form" th:if="${currentSource == 'LOCAL'}" autocomplete="off">
+            <div class="field">
+                <label for="cp-old" th:text="#{cp.old}">Current password</label>
+                <input type="password" class="input" id="cp-old" name="oldPassword" autocomplete="current-password" required>
+            </div>
+            <div class="field">
+                <label for="cp-new" th:text="#{cp.new}">New password</label>
+                <input type="password" class="input" id="cp-new" name="newPassword" autocomplete="new-password" minlength="6" required>
+                <div class="field-hint" th:text="#{cp.rule}">At least 6 characters</div>
+            </div>
+            <div class="field">
+                <label for="cp-confirm" th:text="#{cp.confirm}">Confirm new password</label>
+                <input type="password" class="input" id="cp-confirm" autocomplete="new-password" minlength="6" required>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="cp-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="submit" class="btn btn-primary" th:text="#{cp.submit}">Update password</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!--/* 打赏弹窗：微信 / 支付宝 / QQ 收款码均为本地图片 */-->
+<div class="modal" id="donate-modal" aria-hidden="true" role="dialog" aria-modal="true"
+     th:aria-label="#{donate.title}" th:data-assets="@{/assets/}">
+    <div class="modal-mask" data-role="close-donate"></div>
+    <div class="modal-dialog">
+        <button type="button" class="modal-close" data-role="close-donate"
+                th:title="#{common.close}" th:aria-label="#{common.close}">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+
+        <div class="modal-head">
+            <span class="sec-tag" th:text="#{nav.donate}">Donate</span>
+            <h3 th:text="#{donate.title}">Donate</h3>
+            <p th:text="#{donate.subtitle}">If this project helps you</p>
+        </div>
+
+        <div class="pay-tabs" data-role="pay-tabs">
+            <button type="button" class="pay-tab active" data-pay="wechat"
+                    th:data-hint="#{donate.tip}" th:text="#{donate.wechat}">WeChat</button>
+            <button type="button" class="pay-tab" data-pay="alipay"
+                    th:data-hint="#{donate.tip}" th:text="#{donate.alipay}">Alipay</button>
+            <button type="button" class="pay-tab" data-pay="qq"
+                    th:data-hint="#{donate.tip}" th:text="#{donate.qq}">QQ</button>
+        </div>
+
+        <div class="qr-shell">
+            <img id="donate-qr" th:src="@{/assets/wechat.webp}" th:alt="#{donate.wechat}"
+                 width="216" height="216" loading="lazy">
+        </div>
+        <div class="qr-tip" id="donate-tip" th:text="#{donate.tip}">Scan to pay</div>
+
+        <div class="donate-actions">
+            <a class="btn btn-primary btn-sm" th:href="${githubUrl}"
+               target="_blank" rel="noopener noreferrer">
+                <img th:src="@{/assets/github.svg}" alt="" width="15" height="15" class="gh-ico gh-ico-on-brand">
+                <span th:text="#{donate.star}">Star it on GitHub</span>
+            </a>
+            <a class="btn btn-ghost btn-sm" th:href="|${githubUrl}/issues|"
+               target="_blank" rel="noopener noreferrer" th:text="#{donate.issues}">Issues</a>
+        </div>
+    </div>
+</div>
+
+<!--/* 重新上传扫描弹窗：替换既有任务的代码快照并重跑扫描（任务名/项目名不变） */-->
+<div class="modal" id="rescan-modal" aria-hidden="true" role="dialog" aria-modal="true"
+     th:aria-label="#{scan.rescanTitle}">
+    <div class="modal-mask" data-close-modal="rescan-modal"></div>
+    <div class="modal-dialog modal-sm">
+        <button type="button" class="modal-close" data-close-modal="rescan-modal"
+                th:title="#{common.close}" th:aria-label="#{common.close}">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" th:text="#{scan.rescan}">Re-upload</span>
+            <h3 th:text="#{scan.rescanTitle}">Re-upload code</h3>
+            <p class="muted small mono" id="rescan-task-name"></p>
+        </div>
+        <form id="rescan-form" autocomplete="off">
+            <div class="field">
+                <label for="rescan-file" th:text="#{scan.tab.zip}">ZIP package</label>
+                <input type="file" class="input" id="rescan-file" accept=".zip" required>
+                <div class="field-hint" th:text="#{scan.rescanHint}">Replaces the code snapshot</div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="rescan-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="submit" class="btn btn-primary" th:text="#{scan.rescanSubmit}">Upload &amp; rescan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    /* 暴露给 app.js / 页面脚本使用的少量文案 */
+    window.AicrMessages = {
+        'error.sessionExpired': /*[[#{error.sessionExpired}]]*/ '',
+        'common.done': /*[[#{common.done}]]*/ '',
+        'common.saved': /*[[#{common.saved}]]*/ '',
+        'common.deleted': /*[[#{common.deleted}]]*/ '',
+        'common.deleteConfirm': /*[[#{common.deleteConfirm}]]*/ '',
+        'scan.fileRequired': /*[[#{scan.fileRequired}]]*/ '',
+        'scan.rescanOk': /*[[#{scan.rescanOk}]]*/ '',
+        'scan.code.placeholder': /*[[#{scan.code.placeholder}]]*/ '',
+        'cp.mismatch': /*[[#{cp.mismatch}]]*/ '',
+        'cp.success': /*[[#{cp.success}]]*/ '',
+        'issues.aiSuggestion': /*[[#{issues.aiSuggestion}]]*/ '',
+        'issues.aiEnhanceOk': /*[[#{issues.aiEnhanceOk}]]*/ '',
+        'issues.aiDeepReviewConfirm': /*[[#{issues.aiDeepReviewConfirm}]]*/ '',
+        'issues.aiProgress': /*[[#{issues.aiProgress}]]*/ '',
+        'issues.aiSkipped': /*[[#{issues.aiSkipped}]]*/ '',
+        'issues.deepDone': /*[[#{issues.deepDone}]]*/ '',
+        'issues.deepAllDone': /*[[#{issues.deepAllDone}]]*/ ''
+    };
+</script>
+<script th:src="@{/js/theme.js(v=${assetVersion})}"></script>
+<script th:src="@{/js/app.js(v=${assetVersion})}"></script>
+<script th:inline="javascript">
+    /* 修改密码 + 登出（JWT 无状态：调接口清 Cookie，本地清 token，回登录页） */
+    (function () {
+        var UI = window.AicrUI;
+
+        var cpForm = document.getElementById('cp-form');
+        if (cpForm) {
+            cpForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var oldPw = document.getElementById('cp-old').value;
+                var newPw = document.getElementById('cp-new').value;
+                var confirmPw = document.getElementById('cp-confirm').value;
+                if (newPw !== confirmPw) {
+                    UI.toast(UI.t('cp.mismatch'), 'warn');
+                    return;
+                }
+                UI.api.post('/api/auth/change-password', {
+                    oldPassword: oldPw, newPassword: newPw
+                }).then(function () {
+                    UI.toast(UI.t('cp.success'), 'ok');
+                    setTimeout(function () {
+                        UI.api.post('/api/auth/logout').catch(function () {}).then(function () {
+                            UI.token.clear();
+                            location.href = '/login';
+                        });
+                    }, 900);
+                }).catch(function (err) {
+                    UI.toast(String(err.message || err), 'danger');
+                });
+            });
+        }
+
+        function doLogout() {
+            UI.api.post('/api/auth/logout').catch(function () {}).then(function () {
+                UI.token.clear();
+                location.href = '/login';
+            });
+        }
+        var logoutForm = document.getElementById('logout-form');
+        if (logoutForm) {
+            logoutForm.addEventListener('submit', function (e) { e.preventDefault(); doLogout(); });
+        }
+        var logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', doLogout);
+        }
+    })();
+</script>
+<script>
+    /* 重新上传扫描：任意页面上带 data-rescan-id 的按钮打开弹窗，提交后替换快照并重跑 */
+    (function () {
+        var UI = window.AicrUI;
+        var MODAL = 'rescan-modal';
+        var form = document.getElementById('rescan-form');
+        if (!form) return;
+        var taskId = null;
+
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-rescan-id]');
+            if (!btn) return;
+            taskId = btn.getAttribute('data-rescan-id');
+            var name = btn.getAttribute('data-rescan-name') || '';
+            document.getElementById('rescan-task-name').textContent = name ? (name + '  #' + taskId) : ('#' + taskId);
+            document.getElementById('rescan-file').value = '';
+            UI.openModal(MODAL);
+        });
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var input = document.getElementById('rescan-file');
+            if (!input.files || !input.files.length) {
+                UI.toast(UI.t('scan.fileRequired'), 'warn');
+                return;
+            }
+            var fd = new FormData();
+            fd.append('file', input.files[0]);
+            var submitBtn = form.querySelector('[type=submit]');
+            submitBtn.disabled = true;
+            UI.api.upload('/api/scans/' + taskId + '/rescan', fd).then(function () {
+                UI.closeModal(MODAL);
+                UI.toast(UI.t('scan.rescanOk'), 'ok');
+                setTimeout(function () { location.reload(); }, 900);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            }).finally(function () {
+                submitBtn.disabled = false;
+            });
+        });
+    })();
+</script>
+<th:block th:replace="${scripts} ?: _"></th:block>
+</body>
+</html>

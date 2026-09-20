@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'review', 'review.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{review.title}">Review Rules</h2>
+        <p th:text="#{review.subtitle}">Rule definitions and default levels</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-primary" data-open-modal="review-modal" onclick="openReviewForm(null)">
+            <svg class="ico"><use href="#plus-lg"/></svg>
+            <span th:text="#{review.new}">New rule</span>
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form class="toolbar" method="get" th:action="@{/review-rules}">
+            <select class="select" name="category" style="max-width:180px;">
+                <option value="" th:text="#{common.all}">All categories</option>
+                <option th:each="c : ${#strings.arraySplit('quality,style,bug,redundant,security,performance,concurrent,other', ',')}"
+                        th:value="${c}"
+                        th:selected="${category == c}"
+                        th:text="#{|review.category.${c}|}">cat</option>
+            </select>
+            <input type="text" class="input" name="keyword"
+                   th:value="${keyword}" th:placeholder="#{common.keywordPlaceholder}">
+            <button type="submit" class="btn btn-ghost">
+                <svg class="ico"><use href="#search"/></svg>
+                <span th:text="#{common.search}">Search</span>
+            </button>
+            <div class="spacer"></div>
+            <span class="muted small" th:text="#{common.total(${pageData.total})}">total</span>
+        </form>
+
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                <tr>
+                    <th th:text="#{review.code}">Code</th>
+                    <th th:text="#{review.name}">Name</th>
+                    <th th:text="#{review.category}">Category</th>
+                    <th th:text="#{review.level}">Default level</th>
+                    <th th:text="#{common.description}">Description</th>
+                    <th th:text="#{common.status}">Status</th>
+                    <th class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="r : ${pageData.records}">
+                    <td>
+                        <span class="badge badge-brand mono" th:text="${r.ruleCode}">CODE</span>
+                    </td>
+                    <td class="soft" th:text="${r.ruleName}">name</td>
+                    <td>
+                        <span class="badge badge-mute" th:text="${r.ruleCategory} ?: '—'">cat</span>
+                    </td>
+                    <td>
+                        <span class="badge"
+                              th:classappend="'badge-' + ${#strings.toLowerCase(r.defaultLevel)}"
+                              th:text="#{|level.${r.defaultLevel}|}">Level</span>
+                    </td>
+                    <td class="muted" th:text="${r.description} ?: '—'">desc</td>
+                    <td>
+                        <div class="cell-switch">
+                            <label class="switch" th:unless="${r.isBuiltin}">
+                                <input type="checkbox" th:checked="${r.isEnabled}"
+                                       data-api-role="action"
+                                       th:data-api="@{/api/review-rules/{id}/toggle(id=${r.id})}"
+                                       data-method="PUT">
+                                <span class="track"></span>
+                            </label>
+                            <span th:if="${r.isBuiltin}" class="badge badge-mute"
+                                  th:classappend="${r.isEnabled} ? 'badge-ok' : ''"
+                                  th:text="#{common.badge.builtin}">Built-in</span>
+                        </div>
+                    </td>
+                    <td class="num">
+                        <div class="row-actions">
+                            <button class="btn btn-icon" th:onclick="'openReviewForm(' + ${r.id} + ')'"
+                                    th:disabled="${r.isBuiltin}" th:title="#{common.edit}">
+                                <svg class="ico"><use href="#pencil"/></svg>
+                            </button>
+                            <button class="btn btn-icon is-danger"
+                                    th:unless="${r.isBuiltin}"
+                                    data-api-role="action"
+                                    th:data-api="@{/api/review-rules/{id}(id=${r.id})}"
+                                    data-method="DELETE"
+                                    th:data-confirm="#{common.deleteConfirm}"
+                                    data-reload="true"
+                                    th:title="#{common.delete}">
+                                <svg class="ico"><use href="#trash"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${pageData.records.isEmpty()}">
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <div class="empty-ico"><svg class="ico"><use href="#list-ul"/></svg></div>
+                            <p th:text="#{common.empty}">No data</p>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination" th:if="${pageData.pages > 1}">
+            <div class="pagination-info" th:text="#{common.total(${pageData.total})}">total</div>
+            <div class="pagination-nav">
+                <a th:if="${pageData.current > 1}"
+                   th:href="@{|${baseQuery}page=${pageData.current - 1}&size=${pageData.size}|}">
+                    <svg class="ico"><use href="#chevron-left"/></svg>
+                </a>
+                <span th:if="${pageData.current == 1}" class="disabled">
+                    <svg class="ico"><use href="#chevron-left"/></svg>
+                </span>
+                <th:block th:each="i : ${#numbers.sequence(1, pageData.pages)}">
+                    <a th:if="${i == 1 or i == pageData.pages or (i >= pageData.current - 2 and i <= pageData.current + 2)}"
+                       th:classappend="${i == pageData.current} ? 'current' : ''"
+                       th:href="@{|${baseQuery}page=${i}&size=${pageData.size}|}"
+                       th:text="${i}">1</a>
+                    <span th:if="${(i == 2 and pageData.current > 4) or (i == pageData.pages - 1 and pageData.current < pageData.pages - 3)}"
+                          class="dots">…</span>
+                </th:block>
+                <a th:if="${pageData.current < pageData.pages}"
+                   th:href="@{|${baseQuery}page=${pageData.current + 1}&size=${pageData.size}|}">
+                    <svg class="ico"><use href="#chevron-right"/></svg>
+                </a>
+                <span th:if="${pageData.current == pageData.pages}" class="disabled">
+                    <svg class="ico"><use href="#chevron-right"/></svg>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑弹窗 -->
+<div class="modal" id="review-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="review-modal"></div>
+    <div class="modal-dialog modal-lg">
+        <button type="button" class="modal-close" data-close-modal="review-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" id="rev-modal-tag">New</span>
+            <h3 id="rev-modal-title" th:text="#{review.new}">New rule</h3>
+        </div>
+        <form id="review-rule-form" autocomplete="off">
+            <input type="hidden" id="rev-id">
+            <div class="grid-2">
+                <div class="field">
+                    <label for="rev-ruleCode" th:text="#{review.code}">Rule code</label>
+                    <input type="text" class="input" id="rev-ruleCode" maxlength="64" required>
+                </div>
+                <div class="field">
+                    <label for="rev-ruleName" th:text="#{review.name}">Rule name</label>
+                    <input type="text" class="input" id="rev-ruleName" maxlength="128" required>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="rev-category" th:text="#{review.category}">Category</label>
+                    <select class="select" id="rev-category">
+                        <option th:each="c : ${#strings.arraySplit('quality,style,bug,redundant,security,performance,concurrent,other', ',')}"
+                                th:value="${c}" th:text="#{|review.category.${c}|}">cat</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="rev-level" th:text="#{review.level}">Default level</label>
+                    <select class="select" id="rev-level">
+                        <option value="BLOCKER" th:text="#{level.BLOCKER}">阻断</option>
+                        <option value="CRITICAL" th:text="#{level.CRITICAL}">严重</option>
+                        <option value="MAJOR" th:text="#{level.MAJOR}">主要</option>
+                        <option value="MINOR" th:text="#{level.MINOR}">次要</option>
+                        <option value="INFO" th:text="#{level.INFO}">提示</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field">
+                <label for="rev-description" th:text="#{common.description}">Description</label>
+                <textarea class="textarea" id="rev-description" rows="3" maxlength="500"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="review-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="submit" class="btn btn-primary" th:text="#{common.save}">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var UI = window.AicrUI;
+        /* 内联表达式只能整句赋值，三元里写会被吃掉分隔符 */
+        var MSG_EDIT = /*[[#{common.edit}]]*/ 'Edit';
+        var MSG_NEW = /*[[#{review.new}]]*/ 'New';
+        var MSG_CREATE = /*[[#{common.create}]]*/ 'New';
+
+        window.openReviewForm = function (id) {
+            document.getElementById('rev-id').value = id || '';
+            document.getElementById('rev-modal-title').textContent =
+                id ? MSG_EDIT : MSG_NEW;
+            document.getElementById('rev-modal-tag').textContent =
+                id ? MSG_EDIT : MSG_CREATE;
+            if (!id) {
+                document.getElementById('review-rule-form').reset();
+                UI.openModal('review-modal');
+                return;
+            }
+            UI.api.get('/api/review-rules/' + id).then(function (r) {
+                if (r.isBuiltin) {
+                    UI.toast('Built-in rules cannot be edited', 'warn');
+                    return;
+                }
+                document.getElementById('rev-ruleCode').value = r.ruleCode || '';
+                document.getElementById('rev-ruleName').value = r.ruleName || '';
+                document.getElementById('rev-category').value = r.ruleCategory || 'quality';
+                document.getElementById('rev-level').value = r.defaultLevel || 'MAJOR';
+                document.getElementById('rev-description').value = r.description || '';
+                UI.openModal('review-modal');
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+
+        document.getElementById('review-rule-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var id = document.getElementById('rev-id').value;
+            var data = {
+                ruleCode: document.getElementById('rev-ruleCode').value.trim(),
+                ruleName: document.getElementById('rev-ruleName').value.trim(),
+                ruleCategory: document.getElementById('rev-category').value,
+                defaultLevel: document.getElementById('rev-level').value,
+                description: document.getElementById('rev-description').value.trim() || null
+            };
+            var promise = id
+                ? UI.api.put('/api/review-rules/' + id, data)
+                : UI.api.post('/api/review-rules', data);
+            promise.then(function () {
+                UI.toast(UI.t('common.saved'), 'ok');
+                UI.closeModal('review-modal');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+    })();
+</script>
+</th:block>
+</html>

@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'databases', 'databases.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{databases.title}">Databases</h2>
+        <p th:text="#{databases.subtitle}">Configure data sources</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-primary" data-open-modal="db-modal" onclick="openDbForm(null)">
+            <svg class="ico"><use href="#plus-lg"/></svg>
+            <span th:text="#{databases.new}">New data source</span>
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body tight">
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                <tr>
+                    <th th:text="#{databases.col.name}">Name</th>
+                    <th th:text="#{databases.col.type}">Type</th>
+                    <th th:text="#{databases.col.url}">JDBC URL</th>
+                    <th th:text="#{databases.col.username}">Username</th>
+                    <th th:text="#{common.status}">Status</th>
+                    <th class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="d : ${databases}">
+                    <td>
+                        <div class="soft" th:text="${d.name}">name</div>
+                        <div class="muted small" th:if="${d.schemaVersion}">
+                            schema v<span th:text="${d.schemaVersion}">1</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge"
+                              th:classappend="${d.isCustom} ? 'badge-brand' : 'badge-mute'"
+                              th:text="${d.dbType}">H2</span>
+                    </td>
+                    <td class="mono small wrap-detail" th:text="${d.jdbcUrl}">url</td>
+                    <td th:text="${d.username} ?: '—'">user</td>
+                    <td>
+                        <span th:if="${d.isActive}" class="badge badge-ok" th:text="#{common.badge.active}">Active</span>
+                        <span th:unless="${d.isActive}" class="badge badge-mute" th:text="#{common.disable}">Inactive</span>
+                    </td>
+                    <td class="num">
+                        <div class="row-actions">
+                            <button class="btn btn-icon" th:onclick="'testDb(' + ${d.id} + ')'" th:title="#{common.test}">
+                                <svg class="ico"><use href="#plug"/></svg>
+                            </button>
+                            <button class="btn btn-icon is-ok" th:onclick="'activateDb(' + ${d.id} + ')'" th:title="#{databases.activate}">
+                                <svg class="ico"><use href="#check-lg"/></svg>
+                            </button>
+                            <button class="btn btn-icon" th:onclick="'openDbForm(' + ${d.id} + ')'" th:title="#{common.edit}">
+                                <svg class="ico"><use href="#pencil"/></svg>
+                            </button>
+                            <button class="btn btn-icon is-danger" th:onclick="'deleteDb(' + ${d.id} + ')'" th:title="#{common.delete}">
+                                <svg class="ico"><use href="#trash"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${databases.isEmpty()}">
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <div class="empty-ico"><svg class="ico"><use href="#database"/></svg></div>
+                            <p th:text="#{common.empty}">No data</p>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- H2 提示 -->
+<div class="alert alert-info" style="margin-top:16px;">
+    <svg class="ico"><use href="#info-circle-fill"/></svg>
+    <div class="alert-body" th:text="#{databases.h2Note}">Built-in H2 database</div>
+</div>
+
+<!-- 编辑弹窗 -->
+<div class="modal" id="db-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="db-modal"></div>
+    <div class="modal-dialog modal-lg">
+        <button type="button" class="modal-close" data-close-modal="db-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" id="db-modal-tag">New</span>
+            <h3 id="db-modal-title" th:text="#{databases.new}">New data source</h3>
+        </div>
+        <form id="db-form" autocomplete="off">
+            <input type="hidden" id="db-id">
+            <input type="hidden" id="db-driverClass">
+            <div class="grid-2">
+                <div class="field">
+                    <label for="db-name" th:text="#{databases.form.name}">Name</label>
+                    <input type="text" class="input" id="db-name" maxlength="64" required>
+                </div>
+                <div class="field">
+                    <label for="db-dbType" th:text="#{databases.form.type}">Type</label>
+                    <select class="select" id="db-dbType" onchange="onDbTypeChange()">
+                        <optgroup th:label="#{databases.group.builtin}">
+                            <option th:each="t : ${dbTypes}" th:if="${t['isCustom'] == 'false'}"
+                                    th:value="${t.type}" th:text="${t.name}">type</option>
+                        </optgroup>
+                        <optgroup th:label="#{databases.group.custom}">
+                            <option th:each="t : ${dbTypes}" th:if="${t['isCustom'] == 'true'}"
+                                    th:value="${t.type}" th:text="${t.name}">type</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 内置数据库：只需 host/port/库名/参数/账号密码，驱动内置 -->
+            <div id="db-panel-builtin">
+                <div class="grid-2">
+                    <div class="field">
+                        <label for="db-host" th:text="#{databases.form.host}">Host</label>
+                        <input type="text" class="input" id="db-host" maxlength="256" value="127.0.0.1">
+                    </div>
+                    <div class="field">
+                        <label for="db-port" th:text="#{databases.form.port}">Port</label>
+                        <input type="number" class="input" id="db-port" min="1" max="65535">
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="field">
+                        <label for="db-database" th:text="#{databases.form.database}">Database</label>
+                        <input type="text" class="input" id="db-database" maxlength="128">
+                    </div>
+                    <div class="field">
+                        <label for="db-params">
+                            <span th:text="#{databases.form.params}">JDBC params</span>
+                            <span class="tip-ico tip-left" tabindex="0" role="img" th:attr="data-tip=#{databases.form.paramsHint}">?</span>
+                        </label>
+                        <input type="text" class="input" id="db-params" maxlength="512">
+                    </div>
+                </div>
+                <div class="field" style="margin-top:-4px;">
+                    <div class="muted small mono" id="db-urlPreview"></div>
+                </div>
+                <!-- 内置类型不展示完整 URL 输入框；无法自动拆分的旧 URL 放隐藏域原样保留，用户一编辑主机等字段即失效 -->
+                <input type="hidden" id="db-urlOverride" maxlength="512">
+            </div>
+
+            <!-- 自定义数据库：JAR 路径/上传 + driver + 完整 URL -->
+            <div id="db-panel-custom" hidden>
+                <div class="field">
+                    <label for="db-driverJarPath">
+                        <span th:text="#{databases.form.jarPath}">Driver JAR path</span>
+                        <span class="tip-ico" tabindex="0" role="img" th:attr="data-tip=#{databases.form.jarHint}">?</span>
+                    </label>
+                    <div style="display:flex;gap:8px;">
+                        <input type="text" class="input" id="db-driverJarPath" maxlength="512"
+                               placeholder="./lib/custom/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.jar">
+                        <input type="file" id="db-driverFile" accept=".jar" hidden>
+                        <button type="button" class="btn btn-ghost" id="db-upload-btn">
+                            <svg class="ico"><use href="#upload"/></svg>
+                            <span th:text="#{databases.form.upload}">Upload JAR</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="db-customDriver" th:text="#{databases.form.driver}">Driver class</label>
+                    <input type="text" class="input" id="db-customDriver" maxlength="256"
+                           placeholder="com.example.jdbc.Driver">
+                </div>
+                <div class="field">
+                    <label for="db-jdbcUrl" th:text="#{databases.form.url}">JDBC URL</label>
+                    <input type="text" class="input" id="db-jdbcUrl" maxlength="512"
+                           placeholder="jdbc:oracle:thin:@//host:1521/service">
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="field">
+                    <label for="db-username" th:text="#{databases.form.username}">Username</label>
+                    <input type="text" class="input" id="db-username" maxlength="64">
+                </div>
+                <div class="field">
+                    <label for="db-password">
+                        <span th:text="#{databases.form.password}">Password</span>
+                        <span class="tip-ico tip-left tip-up" tabindex="0" role="img" th:attr="data-tip=#{remoteauth.form.secretHint}">?</span>
+                    </label>
+                    <input type="password" class="input" id="db-password" maxlength="256"
+                           th:placeholder="#{databases.form.passwordPlaceholder}">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="db-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="button" class="btn btn-ghost" onclick="testDbForm(this)" th:text="#{common.test}">Test</button>
+                <button type="submit" class="btn btn-primary" th:text="#{common.save}">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 连接测试结果：独立的最外层弹窗，压在新增/编辑弹窗之上 -->
+<div class="modal modal-stack" id="db-test-modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-mask" data-close-modal="db-test-modal"></div>
+    <div class="modal-dialog modal-sm">
+        <button type="button" class="modal-close" data-close-modal="db-test-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="test-result">
+            <div class="test-result-ico" id="db-test-icon">
+                <svg class="ico-xl"><use href="#check-circle-fill"/></svg>
+            </div>
+            <h3 id="db-test-state" th:text="#{common.test}">Test</h3>
+            <div class="test-result-msg mono small" id="db-test-message"></div>
+            <div class="muted small" id="db-test-duration"></div>
+            <div class="form-actions" style="justify-content:center;margin-top:18px;">
+                <button type="button" class="btn btn-primary" data-close-modal="db-test-modal"
+                        th:text="#{common.confirm}">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var UI = window.AicrUI;
+        /* 内联表达式只能整句赋值，三元里写会被吃掉分隔符 */
+        var MSG_EDIT = /*[[#{common.edit}]]*/ 'Edit';
+        var MSG_NEW = /*[[#{databases.new}]]*/ 'New';
+        var MSG_CREATE = /*[[#{common.create}]]*/ 'New';
+        var MSG_UPLOADED = /*[[#{databases.uploaded}]]*/ 'Driver uploaded';
+        var MSG_PW_KEEP = /*[[#{databases.form.passwordKeep}]]*/ 'Leave blank to keep unchanged';
+        var MSG_PW_ENTER = /*[[#{databases.form.passwordPlaceholder}]]*/ 'Enter password';
+        var dbTypes = /*[[${dbTypes}]]*/ [];
+        var typeMap = {};
+        dbTypes.forEach(function (t) { typeMap[t.type] = t; });
+
+        var panelBuiltin = document.getElementById('db-panel-builtin');
+        var panelCustom = document.getElementById('db-panel-custom');
+        var preview = document.getElementById('db-urlPreview');
+
+        function curType() { return typeMap[document.getElementById('db-dbType').value]; }
+        function isCustom() { var t = curType(); return t && String(t.isCustom) === 'true'; }
+
+        function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+        /** 按内置类型拼 JDBC URL */
+        function buildUrl() {
+            var t = curType();
+            var host = document.getElementById('db-host').value.trim();
+            var port = document.getElementById('db-port').value.trim();
+            var database = document.getElementById('db-database').value.trim();
+            var params = document.getElementById('db-params').value.trim().replace(/^[?;]/, '');
+            var url = (t.urlPrefix || '') + host + (port ? ':' + port : '') +
+                      (database ? '/' + database : '');
+            if (params) url += (t.paramSep || '?') + params;
+            return url;
+        }
+
+        function refreshPreview() {
+            var override = document.getElementById('db-urlOverride').value.trim();
+            preview.textContent = override || buildUrl();
+        }
+
+        /**
+         * 把已有 URL 拆回 host/port/库名/参数。允许空主机（MySQL 空主机等同 localhost，
+         * 如 jdbc:mysql://:3306/db），也兼容无端口形态。拆不开时（如 jdbc:h2:file:、
+         * Oracle SID 形式）完整 URL 进隐藏域原样保留：保存/测试仍用原 URL，
+         * 用户一旦手动改主机等字段即按表单重建。内置面板不显示完整 URL 输入框。
+         */
+        function splitUrl(jdbcUrl) {
+            var t = curType();
+            var overrideEl = document.getElementById('db-urlOverride');
+            overrideEl.value = '';
+            ['db-host', 'db-port', 'db-database', 'db-params'].forEach(function (id) {
+                document.getElementById(id).value = '';
+            });
+            if (!jdbcUrl) return;
+            if (!t.urlPrefix || jdbcUrl.indexOf(t.urlPrefix) !== 0) {
+                overrideEl.value = jdbcUrl;
+                return;
+            }
+            var rest = jdbcUrl.substring(t.urlPrefix.length);
+            var sep = t.paramSep || '?';
+            var tail = '';
+            var qIdx = rest.indexOf('?');
+            var sIdx = rest.indexOf(';');
+            var cut = -1;
+            if (sep === '?') cut = qIdx < 0 ? sIdx : (sIdx < 0 ? qIdx : Math.min(qIdx, sIdx));
+            else cut = sIdx;
+            if (cut >= 0) {
+                tail = rest.substring(cut + 1);
+                rest = rest.substring(0, cut);
+            }
+            var host = '', port = '', db = '';
+            var m = rest.match(/^([^:/?#[\]]*):(\d+)\/?(.*)$/);
+            if (m) {
+                host = m[1] || '';
+                port = m[2];
+                db = m[3] || '';
+            } else {
+                var slash = rest.indexOf('/');
+                if (slash >= 0) {
+                    host = rest.substring(0, slash);
+                    db = rest.substring(slash + 1);
+                } else {
+                    host = rest;
+                }
+                if (host.indexOf(':') >= 0) {
+                    // 无法用 host/port/库名 表达的形态（如 Oracle SID）：原样保留
+                    overrideEl.value = jdbcUrl;
+                    return;
+                }
+            }
+            document.getElementById('db-host').value = host;
+            document.getElementById('db-port').value = port;
+            document.getElementById('db-database').value = db;
+            document.getElementById('db-params').value = tail;
+        }
+
+        // 记录上一个类型的默认端口：切换类型时仅自动替换“默认端口/空值”，不覆盖用户手填端口
+        var prevDefaultPort = null;
+        window.onDbTypeChange = function () {
+            var t = curType();
+            var custom = isCustom();
+            panelBuiltin.hidden = custom;
+            panelCustom.hidden = !custom;
+            document.getElementById('db-driverClass').value = custom
+                ? (document.getElementById('db-customDriver').value || t.driverClass || '')
+                : (t.driverClass || '');
+            if (custom) {
+                if (!document.getElementById('db-customDriver').value && t.driverClass) {
+                    document.getElementById('db-customDriver').value = t.driverClass;
+                }
+            } else {
+                // 切换内置类型 = 改按表单重建 URL，丢弃拆不开时暂存的完整 URL
+                document.getElementById('db-urlOverride').value = '';
+                var portEl = document.getElementById('db-port');
+                if (t.defaultPort && (!portEl.value || portEl.value === prevDefaultPort)) {
+                    portEl.value = t.defaultPort;
+                }
+            }
+            prevDefaultPort = t.defaultPort || null;
+            refreshPreview();
+        };
+
+        window.openDbForm = function (id) {
+            document.getElementById('db-id').value = id || '';
+            document.getElementById('db-modal-title').textContent =
+                id ? MSG_EDIT : MSG_NEW;
+            document.getElementById('db-modal-tag').textContent =
+                id ? MSG_EDIT : MSG_CREATE;
+            if (!id) {
+                document.getElementById('db-form').reset();
+                document.getElementById('db-customDriver').value = '';
+                document.getElementById('db-driverJarPath').value = '';
+                document.getElementById('db-urlOverride').value = '';
+                document.getElementById('db-password').placeholder = MSG_PW_ENTER;
+                onDbTypeChange();
+                UI.openModal('db-modal');
+                refreshPreview();
+                return;
+            }
+            UI.api.get('/api/databases/' + id).then(function (d) {
+                document.getElementById('db-name').value = d.name || '';
+                var select = document.getElementById('db-dbType');
+                select.value = typeMap[d.dbType] ? d.dbType : 'CUSTOM';
+                var custom = isCustom();
+                panelBuiltin.hidden = custom;
+                panelCustom.hidden = !custom;
+                document.getElementById('db-driverClass').value = d.driverClass || '';
+                document.getElementById('db-username').value = d.username || '';
+                // 后端不回显密码：留空即沿用原密码（保存与测试连接均在服务端回退到库中密码）
+                document.getElementById('db-password').value = '';
+                document.getElementById('db-password').placeholder = MSG_PW_KEEP;
+                document.getElementById('db-driverJarPath').value = d.driverJarPath || '';
+                if (custom) {
+                    document.getElementById('db-customDriver').value = d.driverClass || curType().driverClass || '';
+                    document.getElementById('db-jdbcUrl').value = d.jdbcUrl || '';
+                } else {
+                    ['db-host', 'db-port', 'db-database', 'db-params'].forEach(function (fid) {
+                        document.getElementById(fid).value = '';
+                    });
+                    splitUrl(d.jdbcUrl || '');
+                }
+                // 编辑态以当前记录端口为基准，只有它等于该类型默认端口时切换类型才自动替换
+                prevDefaultPort = curType() ? (curType().defaultPort || null) : null;
+                UI.openModal('db-modal');
+                refreshPreview();
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+
+        // 用户一旦手动改内置字段，就按表单重建 URL，丢弃暂存的完整 URL
+        ['db-host', 'db-port', 'db-database', 'db-params'].forEach(function (fid) {
+            document.getElementById(fid).addEventListener('input', function () {
+                document.getElementById('db-urlOverride').value = '';
+                refreshPreview();
+            });
+        });
+        document.getElementById('db-customDriver').addEventListener('input', function () {
+            if (isCustom()) document.getElementById('db-driverClass').value = this.value.trim();
+        });
+
+        /** 自定义驱动 JAR 上传 */
+        var fileInput = document.getElementById('db-driverFile');
+        document.getElementById('db-upload-btn').addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function () {
+            if (!fileInput.files[0]) return;
+            var fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+            UI.api.upload('/api/databases/upload-driver', fd).then(function (r) {
+                document.getElementById('db-driverJarPath').value = r.filePath || '';
+                UI.toast(MSG_UPLOADED + ': ' + (r.originalName || ''), 'ok');
+                fileInput.value = '';
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+
+        function collectFormData() {
+            var t = curType();
+            var custom = isCustom();
+            var driverClass = custom
+                ? document.getElementById('db-customDriver').value.trim()
+                : (t.driverClass || '');
+            var jdbcUrl;
+            var jarPath = null;
+            if (custom) {
+                jdbcUrl = document.getElementById('db-jdbcUrl').value.trim();
+                jarPath = document.getElementById('db-driverJarPath').value.trim() || null;
+            } else {
+                var override = document.getElementById('db-urlOverride').value.trim();
+                jdbcUrl = override || buildUrl();
+            }
+            var idVal = document.getElementById('db-id').value;
+            return {
+                id: idVal ? Number(idVal) : null,
+                name: document.getElementById('db-name').value.trim(),
+                dbType: document.getElementById('db-dbType').value,
+                driverClass: driverClass,
+                jdbcUrl: jdbcUrl,
+                driverJarPath: jarPath,
+                isCustom: custom,
+                username: document.getElementById('db-username').value.trim(),
+                password: document.getElementById('db-password').value
+            };
+        }
+
+        document.getElementById('db-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var id = document.getElementById('db-id').value;
+            var data = collectFormData();
+            var promise = id
+                ? UI.api.put('/api/databases/' + id, data)
+                : UI.api.post('/api/databases', data);
+            promise.then(function () {
+                UI.toast(UI.t('common.saved'), 'ok');
+                UI.closeModal('db-modal');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+
+        /** 测试结果展示在最外层独立弹窗（位于新增/编辑弹窗之上） */
+        var MSG_TESTING = /*[[#{common.testing}]]*/ 'Testing…';
+        var MSG_TEST_OK = /*[[#{common.testOk}]]*/ 'Connection succeeded';
+        var MSG_TEST_FAIL = /*[[#{common.testFail}]]*/ 'Connection failed';
+
+        function showTestResult(r) {
+            var box = document.getElementById('db-test-modal');
+            var icon = document.getElementById('db-test-icon');
+            var state = document.getElementById('db-test-state');
+            var msg = document.getElementById('db-test-message');
+            var dur = document.getElementById('db-test-duration');
+            var ok = !!(r && r.success);
+            box.classList.toggle('is-ok', ok);
+            box.classList.toggle('is-fail', !ok);
+            icon.innerHTML = '<svg class="ico-xl"><use href="#' + (ok ? 'check-circle-fill' : 'x-circle-fill') + '"/></svg>';
+            state.textContent = ok ? MSG_TEST_OK : MSG_TEST_FAIL;
+            msg.textContent = (r && r.message) || '';
+            dur.textContent = (r && r.duration != null) ? (r.duration + ' ms') : '';
+            UI.openModal('db-test-modal');
+        }
+
+        var testBusy = false;
+        function runTest(promise, btn) {
+            if (testBusy) return;
+            testBusy = true;
+            var oldHtml = btn ? btn.innerHTML : null;
+            if (btn) { btn.disabled = true; btn.innerHTML = MSG_TESTING; }
+            promise.then(function (r) {
+                showTestResult(r);
+            }).catch(function (err) {
+                showTestResult({ success: false, message: String(err.message || err) });
+            }).finally(function () {
+                testBusy = false;
+                if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+            });
+        }
+
+        window.testDbForm = function (btn) {
+            runTest(UI.api.post('/api/databases/test', collectFormData()), btn);
+        };
+
+        window.testDb = function (id) {
+            runTest(UI.api.post('/api/databases/' + id + '/test'), null);
+        };
+
+        window.activateDb = function (id) {
+            // 启用是可随时切回的轻量操作，不再弹确认框
+            UI.api.post('/api/databases/' + id + '/activate?initIfNeeded=true').then(function () {
+                UI.toast(UI.t('common.done'), 'ok');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+
+        window.deleteDb = function (id) {
+            if (!confirm(UI.t('common.deleteConfirm'))) return;
+            UI.api.del('/api/databases/' + id).then(function () {
+                UI.toast(UI.t('common.deleted'), 'ok');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+    })();
+</script>
+</th:block>
+</html>

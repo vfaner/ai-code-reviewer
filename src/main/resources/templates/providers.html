@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'providers', 'providers.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{providers.title}">AI Providers</h2>
+        <p th:text="#{providers.subtitle}">Configure LLM providers</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-primary" data-open-modal="provider-modal" onclick="openProviderForm(null)">
+            <svg class="ico"><use href="#plus-lg"/></svg>
+            <span th:text="#{providers.new}">New provider</span>
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body tight">
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                <tr>
+                    <th th:text="#{providers.col.name}">Name</th>
+                    <th th:text="#{providers.col.protocol}">Protocol</th>
+                    <th th:text="#{providers.col.baseUrl}">Base URL</th>
+                    <th th:text="#{providers.col.model}">Default model</th>
+                    <th th:text="#{providers.col.status}">Status</th>
+                    <th class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="providers-tbody">
+                <tr th:each="p : ${providers}" th:data-id="${p.id}">
+                    <td>
+                        <div class="soft" th:text="${p.displayName} ?: ${p.providerName}">name</div>
+                        <div class="muted small mono" th:text="${p.providerName}">code</div>
+                    </td>
+                    <td>
+                        <span class="badge badge-mute"
+                              th:text="#{|providers.protocol.${#strings.toLowerCase(p.protocolType)}|}">PROTO</span>
+                    </td>
+                    <td class="mono small" th:text="${p.baseUrl} ?: '—'">url</td>
+                    <td th:text="${p.defaultModel} ?: '—'">model</td>
+                    <td>
+                        <span th:if="${p.isActive}" class="badge badge-ok" th:text="#{common.badge.active}">Active</span>
+                        <span th:unless="${p.isActive}" class="badge badge-mute" th:text="#{common.disable}">Inactive</span>
+                    </td>
+                    <td class="num">
+                        <div class="row-actions">
+                            <button class="btn btn-icon" th:onclick="'testProvider(' + ${p.id} + ')'" th:title="#{providers.test}">
+                                <svg class="ico"><use href="#plug"/></svg>
+                            </button>
+                            <button class="btn btn-icon is-ok" th:onclick="'activateProvider(' + ${p.id} + ')'" th:title="#{providers.activate}">
+                                <svg class="ico"><use href="#check-lg"/></svg>
+                            </button>
+                            <button class="btn btn-icon" th:onclick="'openProviderForm(' + ${p.id} + ')'" th:title="#{common.edit}">
+                                <svg class="ico"><use href="#pencil"/></svg>
+                            </button>
+                            <button class="btn btn-icon is-danger" th:onclick="'deleteProvider(' + ${p.id} + ')'" th:title="#{common.delete}">
+                                <svg class="ico"><use href="#trash"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${providers.isEmpty()}">
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <div class="empty-ico"><svg class="ico"><use href="#cpu"/></svg></div>
+                            <p th:text="#{common.empty}">No data</p>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 模板选择：点击后自动带出协议/地址/模型并打开新增弹窗 -->
+<div class="card" style="margin-top:16px;">
+    <div class="card-head">
+        <h3 th:text="#{providers.templates}">Built-in templates</h3>
+    </div>
+    <div class="card-body">
+        <p class="muted small" style="margin:0 0 12px;" th:text="#{providers.fillFromTemplate}">Templates fill protocol and URL</p>
+        <div id="tpl-list" style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-ghost btn-sm tpl-btn"
+                    th:each="t : ${templates}" th:data-tpl="${t.templateName}">
+                <svg class="ico"><use href="#puzzle"/></svg>
+                <span th:text="${t.templateName}">template</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑弹窗 -->
+<div class="modal" id="provider-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="provider-modal"></div>
+    <div class="modal-dialog modal-lg">
+        <button type="button" class="modal-close" data-close-modal="provider-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" id="prov-modal-tag">New</span>
+            <h3 id="prov-modal-title" th:text="#{providers.new}">New provider</h3>
+        </div>
+        <form id="provider-form" autocomplete="off">
+            <input type="hidden" id="prov-id">
+            <div class="grid-2">
+                <div class="field">
+                    <label for="prov-providerName" th:text="#{providers.providerName}">Provider code</label>
+                    <input type="text" class="input" id="prov-providerName" maxlength="64" required>
+                </div>
+                <div class="field">
+                    <label for="prov-displayName" th:text="#{providers.displayName}">Display name</label>
+                    <input type="text" class="input" id="prov-displayName" maxlength="128">
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="prov-protocolType" th:text="#{providers.protocol}">Protocol</label>
+                    <select class="select" id="prov-protocolType">
+                        <option value="OPENAI_COMPATIBLE" th:text="#{providers.protocol.openai_compatible}">OpenAI Compatible</option>
+                        <option value="ANTHROPIC" th:text="#{providers.protocol.anthropic}">Anthropic Compatible</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="prov-defaultModel" th:text="#{providers.defaultModel}">Default model</label>
+                    <input type="text" class="input" id="prov-defaultModel" maxlength="128">
+                </div>
+            </div>
+            <div class="field">
+                <label for="prov-baseUrl">
+                    <span th:text="#{providers.baseUrl}">Base URL</span>
+                    <span class="tip-ico" tabindex="0" role="img" th:attr="data-tip=#{providers.baseUrlHint}">?</span>
+                </label>
+                <input type="text" class="input" id="prov-baseUrl" maxlength="512" placeholder="https://api.example.com/v1">
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="prov-apiKey">
+                        <span th:text="#{providers.apiKey}">API Key</span>
+                        <span class="tip-ico" tabindex="0" role="img" th:attr="data-tip=#{remoteauth.form.secretHint}">?</span>
+                    </label>
+                    <input type="password" class="input" id="prov-apiKey" maxlength="512"
+                           th:placeholder="#{providers.apiKeyPlaceholder}">
+                </div>
+                <div class="field">
+                    <label for="prov-timeoutSeconds" th:text="#{providers.timeout}">Timeout (s)</label>
+                    <input type="number" class="input" id="prov-timeoutSeconds" min="1" max="300" value="30">
+                </div>
+            </div>
+            <div class="field">
+                <label class="switch">
+                    <input type="checkbox" id="prov-maxTokensOn">
+                    <span class="track"></span>
+                    <span class="switch-text" th:text="#{providers.maxTokensLimit}">Limit max tokens</span>
+                </label>
+                <div class="field" id="prov-maxTokens-field" style="margin-top:10px;" hidden>
+                    <input type="number" class="input" id="prov-maxTokens" min="1" max="1000000" placeholder="4096" style="max-width:240px;">
+                    <div class="field-hint" th:text="#{providers.maxTokensHint}">Cap output tokens</div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="provider-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="button" class="btn btn-ghost" onclick="testProviderForm(this)" th:text="#{common.test}">Test</button>
+                <button type="submit" class="btn btn-primary" th:text="#{common.save}">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 模型测试结果：独立的最外层弹窗，压在新增/编辑弹窗之上 -->
+<div class="modal modal-stack" id="prov-test-modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-mask" data-close-modal="prov-test-modal"></div>
+    <div class="modal-dialog modal-sm">
+        <button type="button" class="modal-close" data-close-modal="prov-test-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="test-result">
+            <div class="test-result-ico" id="prov-test-icon">
+                <svg class="ico-xl"><use href="#check-circle-fill"/></svg>
+            </div>
+            <h3 id="prov-test-state" th:text="#{providers.test}">Test</h3>
+            <div class="test-result-msg mono small" id="prov-test-message"></div>
+            <div class="muted small" id="prov-test-duration"></div>
+            <div class="form-actions" style="justify-content:center;margin-top:18px;">
+                <button type="button" class="btn btn-primary" data-close-modal="prov-test-modal"
+                        th:text="#{common.confirm}">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var UI = window.AicrUI;
+        /* 内联表达式只能整句赋值，三元里写会被吃掉分隔符 */
+        var MSG_EDIT = /*[[#{common.edit}]]*/ 'Edit';
+        var MSG_NEW = /*[[#{providers.new}]]*/ 'New';
+        var MSG_CREATE = /*[[#{common.create}]]*/ 'New';
+        var MSG_APPLIED = /*[[#{providers.templateApplied}]]*/ 'Template applied';
+        var MSG_TESTING = /*[[#{common.testing}]]*/ 'Testing…';
+        var MSG_TEST_OK = /*[[#{common.testOk}]]*/ 'Connection succeeded';
+        var MSG_TEST_FAIL = /*[[#{common.testFail}]]*/ 'Connection failed';
+        var MSG_KEY_ENTER = /*[[#{providers.apiKeyPlaceholder}]]*/ 'Enter API Key';
+        var MSG_KEY_KEEP = /*[[#{providers.apiKeyKeep}]]*/ 'Leave blank to keep unchanged';
+        var templates = /*[[${templates}]]*/ [];
+        var tplMap = {};
+        templates.forEach(function (t) { tplMap[t.templateName] = t; });
+
+        var maxOn = document.getElementById('prov-maxTokensOn');
+        var maxField = document.getElementById('prov-maxTokens-field');
+        maxOn.addEventListener('change', function () { maxField.hidden = !maxOn.checked; });
+
+        /** 模板芯片：data-tpl 委托点击（内联表达式写在普通属性里不会被解析） */
+        document.getElementById('tpl-list').addEventListener('click', function (e) {
+            var btn = e.target.closest('.tpl-btn');
+            if (!btn) return;
+            var t = tplMap[btn.dataset.tpl];
+            if (!t) return;
+            openProviderForm(null);
+            document.getElementById('prov-providerName').value = t.providerName || '';
+            document.getElementById('prov-displayName').value = t.templateName || '';
+            document.getElementById('prov-protocolType').value =
+                (t.protocolType === 'ANTHROPIC') ? 'ANTHROPIC' : 'OPENAI_COMPATIBLE';
+            document.getElementById('prov-baseUrl').value = t.baseUrl || '';
+            document.getElementById('prov-defaultModel').value = t.defaultModel || '';
+            UI.toast(MSG_APPLIED + ': ' + t.templateName, 'ok');
+        });
+
+        window.openProviderForm = function (id) {
+            document.getElementById('prov-id').value = id || '';
+            document.getElementById('prov-modal-title').textContent =
+                id ? MSG_EDIT : MSG_NEW;
+            document.getElementById('prov-modal-tag').textContent =
+                id ? MSG_EDIT : MSG_CREATE;
+
+            if (!id) {
+                document.getElementById('provider-form').reset();
+                document.getElementById('prov-timeoutSeconds').value = 30;
+                document.getElementById('prov-apiKey').placeholder = MSG_KEY_ENTER;
+                maxField.hidden = true;
+                UI.openModal('provider-modal');
+                return;
+            }
+            UI.api.get('/api/providers/' + id).then(function (p) {
+                document.getElementById('prov-providerName').value = p.providerName || '';
+                document.getElementById('prov-displayName').value = p.displayName || '';
+                document.getElementById('prov-protocolType').value =
+                    (p.protocolType === 'ANTHROPIC') ? 'ANTHROPIC' : 'OPENAI_COMPATIBLE';
+                document.getElementById('prov-baseUrl').value = p.baseUrl || '';
+                document.getElementById('prov-apiKey').value = p.apiKey || '';
+                document.getElementById('prov-apiKey').placeholder = MSG_KEY_KEEP;
+                document.getElementById('prov-defaultModel').value = p.defaultModel || '';
+                document.getElementById('prov-timeoutSeconds').value = p.timeoutSeconds || 30;
+                var cap = p.maxTokens ? Number(p.maxTokens) : null;
+                maxOn.checked = !!cap;
+                maxField.hidden = !cap;
+                document.getElementById('prov-maxTokens').value = cap || '';
+                UI.openModal('provider-modal');
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+        // 供行内 onclick 调用
+        window.applyTemplate = function (name) {
+            var btn = document.querySelector('.tpl-btn[data-tpl="' + name + '"]');
+            if (btn) btn.click();
+        };
+
+        function collectProviderForm() {
+            var idVal = document.getElementById('prov-id').value;
+            var cap = maxOn.checked
+                ? (parseInt(document.getElementById('prov-maxTokens').value, 10) || 0)
+                : null;
+            return {
+                id: idVal ? Number(idVal) : null,
+                providerName: document.getElementById('prov-providerName').value.trim(),
+                displayName: document.getElementById('prov-displayName').value.trim(),
+                protocolType: document.getElementById('prov-protocolType').value,
+                baseUrl: document.getElementById('prov-baseUrl').value.trim(),
+                apiKey: document.getElementById('prov-apiKey').value,
+                defaultModel: document.getElementById('prov-defaultModel').value.trim(),
+                timeoutSeconds: parseInt(document.getElementById('prov-timeoutSeconds').value, 10) || 30,
+                maxTokens: (cap && cap > 0) ? cap : null
+            };
+        }
+
+        document.getElementById('provider-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var data = collectProviderForm();
+            var id = data.id;
+            delete data.id;
+            var promise = id
+                ? UI.api.put('/api/providers/' + id, data)
+                : UI.api.post('/api/providers', data);
+            promise.then(function () {
+                UI.toast(UI.t('common.saved'), 'ok');
+                UI.closeModal('provider-modal');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+
+        /** 测试结果展示在最外层独立弹窗（位于新增/编辑弹窗之上） */
+        function showTestResult(r) {
+            var box = document.getElementById('prov-test-modal');
+            var icon = document.getElementById('prov-test-icon');
+            var state = document.getElementById('prov-test-state');
+            var msg = document.getElementById('prov-test-message');
+            var dur = document.getElementById('prov-test-duration');
+            var ok = !!(r && r.success);
+            box.classList.toggle('is-ok', ok);
+            box.classList.toggle('is-fail', !ok);
+            icon.innerHTML = '<svg class="ico-xl"><use href="#' + (ok ? 'check-circle-fill' : 'x-circle-fill') + '"/></svg>';
+            state.textContent = ok ? MSG_TEST_OK : MSG_TEST_FAIL;
+            msg.textContent = (r && r.message) || '';
+            dur.textContent = (r && r.duration != null) ? (r.duration + ' ms') : '';
+            UI.openModal('prov-test-modal');
+        }
+
+        var testBusy = false;
+        function runTest(promise, btn) {
+            if (testBusy) return;
+            testBusy = true;
+            var oldHtml = btn ? btn.innerHTML : null;
+            if (btn) { btn.disabled = true; btn.innerHTML = MSG_TESTING; }
+            promise.then(function (r) {
+                showTestResult(r);
+            }).catch(function (err) {
+                showTestResult({ success: false, message: String(err.message || err) });
+            }).finally(function () {
+                testBusy = false;
+                if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+            });
+        }
+
+        /** 弹窗内：按当前表单（未保存也可）测试；编辑态 Key 留空由服务端沿用已保存的 */
+        window.testProviderForm = function (btn) {
+            runTest(UI.api.post('/api/providers/test', collectProviderForm()), btn);
+        };
+
+        /** 行内：直接用库里已保存的配置测试 */
+        window.testProvider = function (id) {
+            runTest(UI.api.post('/api/providers/' + id + '/test'), null);
+        };
+
+        window.activateProvider = function (id) {
+            // 启用是可随时切回的轻量操作，不再弹确认框
+            UI.api.post('/api/providers/' + id + '/activate').then(function () {
+                UI.toast(UI.t('common.done'), 'ok');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+
+        window.deleteProvider = function (id) {
+            if (!confirm(UI.t('common.deleteConfirm'))) return;
+            UI.api.del('/api/providers/' + id).then(function () {
+                UI.toast(UI.t('common.deleted'), 'ok');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+    })();
+</script>
+</th:block>
+</html>

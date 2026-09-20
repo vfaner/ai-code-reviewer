@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'remoteauth', 'remoteauth.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{remoteauth.title}">Remote Auth</h2>
+        <p th:text="#{remoteauth.subtitle}">Integrate enterprise OA / SSO</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-primary" data-open-modal="ra-modal" onclick="openRaForm(null)">
+            <svg class="ico"><use href="#plus-lg"/></svg>
+            <span th:text="#{remoteauth.new}">New identity source</span>
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body tight">
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                <tr>
+                    <th th:text="#{remoteauth.col.name}">Name</th>
+                    <th th:text="#{remoteauth.col.type}">Type</th>
+                    <th th:text="#{remoteauth.col.loginUrl}">Login endpoint</th>
+                    <th th:text="#{remoteauth.col.field}">Username field</th>
+                    <th th:text="#{common.status}">Status</th>
+                    <th class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="c : ${configs}">
+                    <td class="soft" th:text="${c.configName}">name</td>
+                    <td>
+                        <span class="badge badge-info" th:text="${c.authType}">OAUTH2</span>
+                    </td>
+                    <td class="mono small" th:text="${c.loginUrl} ?: '—'">url</td>
+                    <td class="mono small" th:text="${c.usernameField} ?: '—'">field</td>
+                    <td>
+                        <div class="cell-switch">
+                            <label class="switch">
+                                <input type="checkbox" th:checked="${c.isEnabled}"
+                                       data-api-role="action"
+                                       th:data-api="@{/api/remote-auth/{id}/toggle(id=${c.id})}"
+                                       data-method="PUT">
+                                <span class="track"></span>
+                            </label>
+                        </div>
+                    </td>
+                    <td class="num">
+                        <div class="row-actions">
+                            <button class="btn btn-icon" th:onclick="'openRaForm(' + ${c.id} + ')'" th:title="#{common.edit}">
+                                <svg class="ico"><use href="#pencil"/></svg>
+                            </button>
+                            <button class="btn btn-icon is-danger"
+                                    data-api-role="action"
+                                    th:data-api="@{/api/remote-auth/{id}(id=${c.id})}"
+                                    data-method="DELETE"
+                                    th:data-confirm="#{common.deleteConfirm}"
+                                    data-reload="true"
+                                    th:title="#{common.delete}">
+                                <svg class="ico"><use href="#trash"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${configs.isEmpty()}">
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <div class="empty-ico"><svg class="ico"><use href="#hdd-network"/></svg></div>
+                            <p th:text="#{common.empty}">No data</p>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑弹窗 -->
+<div class="modal" id="ra-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="ra-modal"></div>
+    <div class="modal-dialog modal-xl">
+        <button type="button" class="modal-close" data-close-modal="ra-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" id="ra-modal-tag">New</span>
+            <h3 id="ra-modal-title" th:text="#{remoteauth.new}">New identity source</h3>
+        </div>
+        <form id="ra-form" autocomplete="off">
+            <input type="hidden" id="ra-id">
+            <div class="grid-2">
+                <div class="field">
+                    <label for="ra-configName"><span th:text="#{remoteauth.form.name}">Name</span><span class="req">*</span></label>
+                    <input type="text" class="input" id="ra-configName" maxlength="64" required>
+                </div>
+                <div class="field">
+                    <label for="ra-authType" th:text="#{remoteauth.form.type}">Auth type</label>
+                    <select class="select" id="ra-authType">
+                        <option value="OAUTH2">OAuth 2.0</option>
+                        <option value="HTTP">HTTP API</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field">
+                <label for="ra-loginUrl"><span th:text="#{remoteauth.form.loginUrl}">Login API URL</span><span class="req">*</span></label>
+                <input type="url" class="input" id="ra-loginUrl" maxlength="512" required
+                       placeholder="https://oa.company.com/api/login">
+                <div class="field-hint" th:text="#{remoteauth.form.loginHint}">POST username/password as JSON</div>
+            </div>
+
+            <button type="button" class="adv-toggle" id="ra-advanced-toggle" aria-expanded="false">
+                <svg class="ico adv-chevron"><use href="#chevron-right"/></svg>
+                <span th:text="#{remoteauth.form.advanced}">Advanced (optional)</span>
+            </button>
+            <div class="adv-body" id="ra-advanced" hidden>
+                <div class="field">
+                    <label for="ra-userInfoUrl" th:text="#{remoteauth.form.userInfoUrl}">User info API URL</label>
+                    <input type="url" class="input" id="ra-userInfoUrl" maxlength="512">
+                </div>
+                <div class="grid-2">
+                    <div class="field">
+                        <label for="ra-clientId" th:text="#{remoteauth.form.clientId}">Client ID</label>
+                        <input type="text" class="input" id="ra-clientId" maxlength="256">
+                    </div>
+                    <div class="field">
+                        <label for="ra-clientSecret" th:text="#{remoteauth.form.clientSecret}">Client Secret</label>
+                        <input type="password" class="input" id="ra-clientSecret" maxlength="512">
+                        <div class="field-hint" th:text="#{remoteauth.form.secretHint}">Keep **** unchanged</div>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <p class="adv-section-title" th:text="#{remoteauth.form.fieldHint}">Field mapping (dotted paths)</p>
+                <div class="grid-3">
+                    <div class="field">
+                        <label for="ra-usernameField" th:text="#{remoteauth.form.usernameField}">Username field</label>
+                        <input type="text" class="input" id="ra-usernameField" maxlength="128" placeholder="data.user.name">
+                    </div>
+                    <div class="field">
+                        <label for="ra-nicknameField" th:text="#{remoteauth.form.nicknameField}">Nickname field</label>
+                        <input type="text" class="input" id="ra-nicknameField" maxlength="128">
+                    </div>
+                    <div class="field">
+                        <label for="ra-roleField" th:text="#{remoteauth.form.roleField}">Role field</label>
+                        <input type="text" class="input" id="ra-roleField" maxlength="128">
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="ra-roleMapping" th:text="#{remoteauth.form.roleMapping}">Role mapping (JSON)</label>
+                    <textarea class="textarea mono" id="ra-roleMapping" rows="3"
+                              placeholder='{"admin_role": "ADMIN", "viewer_role": "VIEWER"}'></textarea>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="ra-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="button" class="btn btn-ghost" onclick="testRa(event)" th:text="#{common.test}">Test</button>
+                <button type="submit" class="btn btn-primary" th:text="#{common.save}">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var UI = window.AicrUI;
+        /* 内联表达式只能整句赋值，三元里写会被吃掉分隔符 */
+        var MSG_EDIT = /*[[#{common.edit}]]*/ 'Edit';
+        var MSG_NEW = /*[[#{remoteauth.new}]]*/ 'New';
+        var MSG_CREATE = /*[[#{common.create}]]*/ 'New';
+        var MSG_TESTING = /*[[#{common.testing}]]*/ 'Testing...';
+        var MSG_TEST = /*[[#{common.test}]]*/ 'Test';
+        var MSG_FILL_REQUIRED = /*[[#{remoteauth.test.fillRequired}]]*/ 'Fill required fields first';
+
+        // 高级设置折叠/展开
+        var advPanel = document.getElementById('ra-advanced');
+        var advToggle = document.getElementById('ra-advanced-toggle');
+        function setAdvanced(open) {
+            advPanel.hidden = !open;
+            advToggle.setAttribute('aria-expanded', String(open));
+            advToggle.querySelector('.adv-chevron').style.transform = open ? 'rotate(90deg)' : '';
+        }
+        advToggle.addEventListener('click', function () {
+            setAdvanced(advPanel.hidden);
+        });
+
+        window.openRaForm = function (id) {
+            document.getElementById('ra-id').value = id || '';
+            document.getElementById('ra-modal-title').textContent =
+                id ? MSG_EDIT : MSG_NEW;
+            document.getElementById('ra-modal-tag').textContent =
+                id ? MSG_EDIT : MSG_CREATE;
+            if (!id) {
+                document.getElementById('ra-form').reset();
+                setAdvanced(false);
+                UI.openModal('ra-modal');
+                return;
+            }
+            UI.api.get('/api/remote-auth/' + id).then(function (c) {
+                document.getElementById('ra-configName').value = c.configName || '';
+                document.getElementById('ra-authType').value = c.authType || 'HTTP';
+                document.getElementById('ra-loginUrl').value = c.loginUrl || '';
+                document.getElementById('ra-userInfoUrl').value = c.userInfoUrl || '';
+                document.getElementById('ra-clientId').value = c.clientId || '';
+                document.getElementById('ra-clientSecret').value = c.clientSecret || '';
+                document.getElementById('ra-usernameField').value = c.usernameField || '';
+                document.getElementById('ra-nicknameField').value = c.nicknameField || '';
+                document.getElementById('ra-roleField').value = c.roleField || '';
+                document.getElementById('ra-roleMapping').value = c.roleMapping
+                    ? (typeof c.roleMapping === 'string' ? c.roleMapping : JSON.stringify(c.roleMapping))
+                    : '';
+                // 已配置高级项时自动展开（密钥是脱敏值也算）
+                var hasAdvanced = !!(c.userInfoUrl || c.clientId || c.clientSecret
+                    || c.usernameField || c.nicknameField || c.roleField
+                    || (c.roleMapping && typeof c.roleMapping === 'object'
+                        && Object.keys(c.roleMapping).length));
+                setAdvanced(hasAdvanced);
+                UI.openModal('ra-modal');
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+
+        function collectForm() {
+            var mapping = document.getElementById('ra-roleMapping').value.trim();
+            var parsed = null;
+            if (mapping) {
+                try {
+                    var obj = JSON.parse(mapping);
+                    // 空对象 {} 视为未配置，避免给 String 字段发对象导致 400
+                    parsed = (obj && typeof obj === 'object' && !Object.keys(obj).length) ? null : mapping;
+                } catch (e) { parsed = mapping; }
+            }
+            var idVal = document.getElementById('ra-id').value;
+            return {
+                id: idVal ? Number(idVal) : null,
+                configName: document.getElementById('ra-configName').value.trim(),
+                authType: document.getElementById('ra-authType').value,
+                loginUrl: document.getElementById('ra-loginUrl').value.trim() || null,
+                userInfoUrl: document.getElementById('ra-userInfoUrl').value.trim() || null,
+                clientId: document.getElementById('ra-clientId').value.trim() || null,
+                clientSecret: document.getElementById('ra-clientSecret').value || null,
+                usernameField: document.getElementById('ra-usernameField').value.trim() || null,
+                nicknameField: document.getElementById('ra-nicknameField').value.trim() || null,
+                roleField: document.getElementById('ra-roleField').value.trim() || null,
+                roleMapping: parsed
+            };
+        }
+
+        document.getElementById('ra-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var id = document.getElementById('ra-id').value;
+            var data = collectForm();
+            var promise = id
+                ? UI.api.put('/api/remote-auth/' + id, data)
+                : UI.api.post('/api/remote-auth', data);
+            promise.then(function () {
+                UI.toast(UI.t('common.saved'), 'ok');
+                UI.closeModal('ra-modal');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+
+        window.testRa = function (ev) {
+            var data = collectForm();
+            if (!data.configName || !data.loginUrl) {
+                UI.toast(MSG_FILL_REQUIRED, 'danger');
+                return;
+            }
+            var btn = ev && ev.target ? ev.target.closest('button') : null;
+            if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = MSG_TESTING; }
+            UI.api.post('/api/remote-auth/test', data).then(function (r) {
+                UI.toast(r.message || (r.success ? 'OK' : 'FAIL'), r.success ? 'ok' : 'danger');
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            }).finally(function () {
+                if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || MSG_TEST; }
+            });
+        };
+    })();
+</script>
+</th:block>
+</html>
