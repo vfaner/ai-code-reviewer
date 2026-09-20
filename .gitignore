@@ -1,0 +1,60 @@
+# ── Maven / 构建产物 ─────────────────────────────
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+
+# ── 编译 / 运行时产物 ────────────────────────────
+*.class
+hs_err_pid*
+replay_pid*
+*.log
+logs/
+
+# ── 运行时数据（数据库、快照、报告、上传驱动）────
+data/
+work/
+lib/custom/
+
+# ── 本地环境变量（含密钥，绝不入库）──────────────
+.env
+.env.local
+.env.*.local
+
+# ── IDE ──────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+*.swp
+*.swo
+
+# ── 前端（当前为 SSR 无构建链，防御性保留）───────
+node_modules/
+frontend/dist/
+
+# ── 操作系统 ─────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── 压缩包 / 临时文件 ────────────────────────────
+*.tmp
+*.bak
+*.orig
+*.zip
+!samples/**/*.zip

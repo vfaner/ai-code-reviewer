@@ -1,0 +1,23 @@
+# 构建产物
+target/
+
+# 运行时数据（绝不打入镜像）
+data/
+logs/
+work/
+lib/custom/
+
+# IDE / VCS
+.idea/
+.vscode/
+*.iml
+.git/
+.gitignore
+
+# 文档与脚本（非运行必需）
+*.md
+samples/
+scripts/
+
+# 系统
+.DS_Store
