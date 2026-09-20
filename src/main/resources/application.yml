@@ -1,0 +1,153 @@
+# ============================================================
+# AI Code Reviewer - 主配置文件
+# ============================================================
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+  # 容器环境优雅停机
+  shutdown: graceful
+
+spring:
+  application:
+    name: ai-code-reviewer
+  # 容器环境优雅停机
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+  # Thymeleaf for HTML reports
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    cache: false
+
+  # 文件上传
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+  # 默认 Jackson 配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+
+  # 国际化文案（默认英文 messages.properties，中文 messages_zh_CN.properties）
+  messages:
+    basename: i18n/messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+    cache-duration: 3600
+
+# MyBatis-Plus
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.aicodereview.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 应用配置
+app:
+  # 版本号（页脚展示）
+  version: 1.0.0
+  # 静态资源版本号（css/js 缓存刷新，随静态资源改动递增）
+  asset-version: 1.1.15
+  # 仓库地址（导航 GitHub 图标与打赏弹窗）
+  github-url: https://github.com/
+  # 工作目录（源码快照、报告等）
+  work-dir: ./work
+  # 代码扫描并发上限（超过后排队，队列满则拒绝并提示稍后重试）
+  scan:
+    max-concurrent: 3
+    queue-capacity: 200
+  # 自定义驱动 JAR 目录
+  driver-dir: ./lib/custom
+  # 默认 AES 密钥（生产环境请修改）
+  crypto-key: a1b2c3d4e5f6g7h8
+  # 是否启用登录认证（false=免登录，便于本地开发/演示）
+  auth-enabled: true
+  # JWT 密钥（生产环境请修改）
+  jwt-secret: aicodereview-jwt-secret-key-2024-very-long-string-for-security
+  # JWT 过期时间（小时）
+  jwt-expire-hours: 24
+  # 对外可访问的基础地址（CI 回调 target_url / webhook URL 拼接）
+  webhook-base-url: http://localhost:8080
+  # 质量门禁评分与阈值（QualityGateService 读取，页面展示真实值）
+  gate:
+    blocker-weight: 25    # 每个阻断(BLOCKER)扣分
+    critical-weight: 15   # 每个严重(CRITICAL)扣分
+    major-weight: 5       # 每个主要(MAJOR)扣分
+    minor-weight: 1       # 每个次要(MINOR)扣分
+    info-weight: 0        # 提示(INFO)不扣分，仅展示
+    pass-score: 80        # 通过门禁所需最低评分
+    blocker-limit: 0      # 通过门禁允许的最大阻断数（一票否决项）
+    excellent: 90         # 优秀等级下界
+    good: 75              # 良好等级下界
+    fair: 60              # 一般等级下界
+  # 依赖漏洞扫描
+  dependency-scan:
+    online: false         # true 时对内置离线库未命中的依赖补查 OSV（需外网）
+
+# Actuator 监控端点（仅暴露健康检查与基本信息）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: AI Code Reviewer
+    version: 1.0.0
+    description: 自动化 Java 代码评审平台
+
+# Jasypt 加密
+jasypt:
+  encryptor:
+    password: ${app.crypto-key}
+    algorithm: PBEWithMD5AndDES
+
+# 日志
+logging:
+  level:
+    root: INFO
+    com.aicodereview: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: ./logs/ai-code-reviewer.log
+
+# ============================================================
+# 数据库配置 - 默认 H2（开箱即用）
+# 实际运行时通过 database_config 表动态切换
+# ============================================================
+datasource:
+  default:
+    type: H2
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:file:./data/aicodereview;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;MODE=MySQL
+    username: sa
+    password:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
