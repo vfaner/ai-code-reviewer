@@ -157,6 +157,26 @@
 
 ![暗色模式](images/ai_code_reviewer_anye.png)
 
+## ⚡ 极速部署（无需源码）
+
+无需克隆源码、无需安装 Maven，直接下载 Release 附带的**可运行 Jar**（GitHub 与 Gitee 的 Release 为同一个包）：
+
+- GitHub Releases：<https://github.com/vfaner/ai-code-reviewer/releases>
+- Gitee Releases：<https://gitee.com/super_rgh/ai-code-reviewer/releases>
+
+仅需 **JDK / JRE 17+**：
+
+```bash
+java -jar ai-code-reviewer-1.0.0.jar
+```
+
+- 首次启动自动在当前目录初始化内嵌 H2 数据库（`data/`）、扫描快照与报告（`work/`）、日志（`logs/`），无需外接数据库
+- 启动后访问 <http://localhost:8080>，默认账号 `admin / 123456`（登录后请尽快修改密码）
+- 换端口：`java -jar ai-code-reviewer-1.0.0.jar --server.port=9090`
+- 生产环境建议覆盖内置密钥：`--app.jwt-secret=<新JWT密钥> --app.crypto-key=<新AES密钥>`
+
+需要源码构建或 Docker 部署见下文 [部署方法](#-部署方法)。
+
 ## ⚔️ 优势对比
 
 与市面常用工具横向对比：

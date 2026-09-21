@@ -1514,6 +1514,9 @@ fieldset.bare { border: 0; padding: 0; margin: 0; min-width: 0; }
    列间距 58 = split-2 列距 16 + 卡片内边距 20×2 + 卡片边框 1×2：右栏标签与 .split-2 右卡标签同一条竖线 */
 .dl-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 58px; }
 @media (max-width: 900px) { .dl-grid-2 { grid-template-columns: 1fr; } }
+/* 三栏版本对照（当前 / GitHub 最新 / Gitee 最新） */
+.dl-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 28px; }
+@media (max-width: 900px) { .dl-grid-3 { grid-template-columns: 1fr; } }
 
 /* ─── 扫描状态指示 ────────────────────────────────────────── */
 .scan-status {

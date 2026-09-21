@@ -34,6 +34,12 @@ public class VersionInfo {
     private final String releaseUrl;
     /** 最新发布日期 yyyy-MM-dd；可能为 null。 */
     private final String latestPublishedDate;
+    /** Gitee 镜像最新发布版本（无 v 前缀）；未配置/不可达时为 null，仅展示不参与状态判定。 */
+    private final String giteeLatestVersion;
+    /** Gitee 最新发布页浏览器地址；可能为 null。 */
+    private final String giteeReleaseUrl;
+    /** Gitee 最新发布日期 yyyy-MM-dd；可能为 null。 */
+    private final String giteeLatestPublishedDate;
     private final State state;
     /** 当前版本发布说明的安全 HTML；取不到时 null。 */
     private final String currentNotesHtml;

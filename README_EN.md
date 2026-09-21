@@ -157,6 +157,26 @@ All screenshots are taken from real running pages; image assets live in the [`im
 
 ![Dark Mode](images/ai_code_reviewer_anye.png)
 
+## ⚡ Instant Deployment (no source code needed)
+
+No clone, no Maven — download the **runnable Jar** attached to a Release (the very same artifact is published on GitHub and Gitee):
+
+- GitHub Releases: <https://github.com/vfaner/ai-code-reviewer/releases>
+- Gitee Releases: <https://gitee.com/super_rgh/ai-code-reviewer/releases>
+
+All you need is **JDK / JRE 17+**:
+
+```bash
+java -jar ai-code-reviewer-1.0.0.jar
+```
+
+- First run auto-initializes the embedded H2 database (`data/`), scan snapshots & reports (`work/`) and logs (`logs/`) in the working directory — no external database required
+- Open <http://localhost:8080>, default account `admin / 123456` (change the password after first login)
+- Custom port: `java -jar ai-code-reviewer-1.0.0.jar --server.port=9090`
+- Override the built-in secrets in production: `--app.jwt-secret=<new-jwt-secret> --app.crypto-key=<new-aes-key>`
+
+For source builds and Docker, see [Deployment](#-deployment) below.
+
 ## ⚔️ Comparison
 
 | Dimension | **AI Code Reviewer** | SonarQube (Community) | PMD / SpotBugs / Checkstyle | CodeQL |

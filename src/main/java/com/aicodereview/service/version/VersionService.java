@@ -38,7 +38,10 @@ public class VersionService {
             .withZone(ZoneId.systemDefault());
 
     private final String currentVersion;
-    private final ReleaseFeed feed;
+    /** GitHub 为主比对源（状态徽标与「有新版本」由它决定）。 */
+    private final GithubReleaseFeed feed;
+    /** Gitee 镜像仅展示「Gitee 最新版本」一栏，不可达不影响主状态。 */
+    private final GiteeReleaseFeed giteeFeed;
     private final boolean enabled;
     /** 网络调用离开请求线程；每次刷新一条新守护线程。 */
     private final Executor refreshExecutor;
@@ -53,17 +56,19 @@ public class VersionService {
     private volatile boolean notesLoaded;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public VersionService(ReleaseFeed feed,
+    public VersionService(GithubReleaseFeed githubFeed, GiteeReleaseFeed giteeFeed,
                           @Value("${app.version:}") String currentVersion,
                           @Value("${app.update-check.enabled:true}") boolean enabled) {
-        this(feed, StringUtils.hasText(currentVersion) ? currentVersion.trim() : null,
+        this(githubFeed, giteeFeed,
+                StringUtils.hasText(currentVersion) ? currentVersion.trim() : null,
                 enabled, daemonExecutor());
     }
 
     /** 测试缝：注入假 feed 与同步执行器（如 Runnable::run），包内可见。 */
-    VersionService(ReleaseFeed feed, String currentVersion, boolean enabled,
-                   Executor refreshExecutor) {
-        this.feed = feed;
+    VersionService(GithubReleaseFeed githubFeed, GiteeReleaseFeed giteeFeed,
+                   String currentVersion, boolean enabled, Executor refreshExecutor) {
+        this.feed = githubFeed;
+        this.giteeFeed = giteeFeed;
         this.currentVersion = currentVersion;
         this.enabled = enabled;
         this.refreshExecutor = refreshExecutor;
@@ -115,6 +120,9 @@ public class VersionService {
                 .latestVersion(c.latestVersion())
                 .releaseUrl(c.releaseUrl())
                 .latestPublishedDate(c.latestPublishedDate())
+                .giteeLatestVersion(c.giteeLatestVersion())
+                .giteeReleaseUrl(c.giteeReleaseUrl())
+                .giteeLatestPublishedDate(c.giteeLatestPublishedDate())
                 .build();
     }
 
@@ -138,6 +146,18 @@ public class VersionService {
         if (cached != null && cached.validUntil().isAfter(now)) {
             return cached; // 等待锁期间别的线程已刷完
         }
+        // Gitee 镜像栏独立取值：失败只丢这一栏，不拖累 GitHub 主比对
+        String giteeVersion = null;
+        String giteeUrl = null;
+        String giteeDate = null;
+        try {
+            ReleaseFeed.Release gitee = giteeFeed.latest();
+            giteeVersion = stripV(gitee.tag());
+            giteeUrl = gitee.htmlUrl();
+            giteeDate = gitee.publishedAt() == null ? null : DATE.format(gitee.publishedAt());
+        } catch (Exception e) {
+            log.debug("Gitee 版本检查失败: {}", e.toString());
+        }
         try {
             ReleaseFeed.Release latest = feed.latest();
             String latestVersion = stripV(latest.tag());
@@ -151,11 +171,11 @@ public class VersionService {
             }
             cached = new Cached(state, latest.tag(), latestVersion, latest.htmlUrl(),
                     latest.publishedAt() == null ? null : DATE.format(latest.publishedAt()),
-                    now.plus(POSITIVE_TTL));
+                    giteeVersion, giteeUrl, giteeDate, now.plus(POSITIVE_TTL));
         } catch (Exception e) {
             log.debug("版本检查失败: {}", e.toString());
             cached = new Cached(VersionInfo.State.UNKNOWN, null, null, null, null,
-                    now.plus(NEGATIVE_TTL));
+                    giteeVersion, giteeUrl, giteeDate, now.plus(NEGATIVE_TTL));
         }
         return cached;
     }
@@ -244,6 +264,8 @@ public class VersionService {
     }
 
     private record Cached(VersionInfo.State state, String latestTag, String latestVersion,
-                          String releaseUrl, String latestPublishedDate, Instant validUntil) {
+                          String releaseUrl, String latestPublishedDate,
+                          String giteeLatestVersion, String giteeReleaseUrl,
+                          String giteeLatestPublishedDate, Instant validUntil) {
     }
 }
