@@ -77,7 +77,7 @@ public class GithubReleaseFeed implements ReleaseFeed {
         if (!m.matches()) {
             throw new IllegalArgumentException("不支持的版本比对仓库地址: " + url);
         }
-        return "https://api.github.com/repos/" + m.group(1) + m.group(2);
+        return "https://api.github.com/repos/" + m.group(1) + "/" + m.group(2);
     }
 
     @Override
