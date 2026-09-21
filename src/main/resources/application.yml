@@ -60,9 +60,18 @@ app:
   # 版本号（页脚展示）
   version: 1.0.0
   # 静态资源版本号（css/js 缓存刷新，随静态资源改动递增）
-  asset-version: 1.1.15
-  # 仓库地址（导航 GitHub 图标与打赏弹窗）
-  github-url: https://github.com/
+  asset-version: 1.1.16
+  # 仓库地址（导航 GitHub 图标、打赏弹窗、系统信息页与版本比对）
+  github-url: https://github.com/vfaner/ai-code-reviewer
+  # Gitee 镜像地址（系统信息页展示）
+  gitee-url: https://gitee.com/super_rgh/ai-code-reviewer
+  # 作者联系方式（系统信息页展示）
+  contact:
+    qq: 817094/2912167928
+    wechat: hua47609
+  # 版本比对（拉 GitHub releases）；纯离线内网可关闭
+  update-check:
+    enabled: true
   # 工作目录（源码快照、报告等）
   work-dir: ./work
   # 代码扫描并发上限（超过后排队，队列满则拒绝并提示稍后重试）

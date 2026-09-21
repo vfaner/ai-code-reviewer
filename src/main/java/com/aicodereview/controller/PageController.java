@@ -61,11 +61,18 @@ public class PageController {
     private final CiTriggerService ciTriggerService;
     private final CiTokenService ciTokenService;
     private final RemoteAuthConfigService remoteAuthConfigService;
+    private final com.aicodereview.service.version.VersionService versionService;
 
     @Value("${app.work-dir:./work}")
     private String workDir;
     @Value("${app.driver-dir:./lib/custom}")
     private String driverDir;
+    @Value("${app.gitee-url:}")
+    private String giteeUrl;
+    @Value("${app.contact.qq:}")
+    private String contactQq;
+    @Value("${app.contact.wechat:}")
+    private String contactWechat;
 
     /** 非管理员直敲管理员页面地址时，回到仪表盘 */
     private static final String ADMIN_REDIRECT = "redirect:/dashboard";
@@ -314,6 +321,10 @@ public class PageController {
         model.addAttribute("javaVersion", System.getProperty("java.version"));
         model.addAttribute("osName", System.getProperty("os.name"));
         model.addAttribute("now", LocalDateTime.now());
+        model.addAttribute("versionInfo", versionService.snapshot());
+        model.addAttribute("giteeUrl", giteeUrl);
+        model.addAttribute("contactQq", contactQq);
+        model.addAttribute("contactWechat", contactWechat);
         return "settings";
     }
 

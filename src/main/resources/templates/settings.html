@@ -10,17 +10,64 @@
     </div>
 </div>
 
+<!-- 版本信息：徽标 + 当前/最新对照 + 内置发布说明 -->
+<div class="card">
+    <div class="card-head">
+        <h3 th:text="#{settings.versionInfo}">Version information</h3>
+    </div>
+    <div class="card-body">
+        <div class="version-bar">
+            <span class="badge badge-ok" th:if="${versionInfo.state.name() == 'UP_TO_DATE'}">✓
+                <span th:text="#{settings.upToDate}">Up to date</span></span>
+            <th:block th:if="${versionInfo.state.name() == 'UPDATE_AVAILABLE'}">
+                <span class="badge badge-warn">↑ <span th:text="#{settings.updateAvailable}">New version</span></span>
+                <a class="repo-link" th:href="${versionInfo.releaseUrl}" target="_blank" rel="noopener noreferrer">
+                    <span th:text="#{settings.viewRelease}">View release</span>
+                </a>
+            </th:block>
+            <span class="badge badge-mute" th:if="${versionInfo.state.name() == 'CHECKING'}"
+                  th:text="#{settings.checking}">Checking…</span>
+            <span class="badge badge-mute" th:if="${versionInfo.state.name() == 'UNKNOWN'}"
+                  th:text="#{settings.unknown}">Unknown</span>
+            <span class="badge badge-mute" th:if="${versionInfo.state.name() == 'DISABLED'}"
+                  th:text="#{settings.disabled}">Disabled</span>
+        </div>
+        <div class="dl-grid-2">
+            <div class="dl-row">
+                <dt th:text="#{settings.currentVersion}">Current version</dt>
+                <dd>
+                    <span class="chip mono" th:if="${versionInfo.currentVersion}"
+                          th:text="'v' + ${versionInfo.currentVersion}">v1.0.0</span>
+                    <span class="chip" th:unless="${versionInfo.currentVersion}"
+                          th:text="#{settings.unknownVersion}">unknown</span>
+                </dd>
+            </div>
+            <div class="dl-row">
+                <dt th:text="#{settings.latestVersion}">Latest on GitHub</dt>
+                <dd>
+                    <th:block th:if="${versionInfo.latestVersion}">
+                        <span class="chip mono" th:text="'v' + ${versionInfo.latestVersion}">v1.0.0</span>
+                        <span class="muted" th:if="${versionInfo.latestPublishedDate}"
+                              th:text="${versionInfo.latestPublishedDate}">2026-09-21</span>
+                    </th:block>
+                    <span class="muted" th:unless="${versionInfo.latestVersion}">—</span>
+                </dd>
+            </div>
+        </div>
+        <th:block th:if="${versionInfo.currentNotesHtml}">
+            <h3 class="release-notes-title" th:text="#{settings.releaseNotes}">What's new</h3>
+            <div class="release-notes" th:utext="${versionInfo.currentNotesHtml}">notes</div>
+            <p class="small soft" th:text="#{settings.releaseNotesHint}">hint</p>
+        </th:block>
+    </div>
+</div>
+
 <div class="split-2">
     <div class="card">
         <div class="card-head">
             <h3 th:text="#{settings.systemInfo}">System information</h3>
         </div>
-        <div class="card-body">
-            <div class="dl-row">
-                <dt th:text="#{settings.version}">Version</dt>
-                <dd th:text="${appVersion} ?: 'dev'">v1.0.0</dd>
-            </div>
-            <div class="divider"></div>
+        <div class="card-body dl-list">
             <div class="dl-row">
                 <dt th:text="#{settings.profile}">Profile</dt>
                 <dd>
@@ -29,7 +76,6 @@
                     <span th:text="${javaVersion}">17</span>
                 </dd>
             </div>
-            <div class="divider"></div>
             <div class="dl-row">
                 <dt th:text="#{settings.authMode}">Auth</dt>
                 <dd>
@@ -37,27 +83,14 @@
                     <span th:unless="${authEnabled}" class="badge badge-warn" th:text="#{settings.auth.off}">Disabled</span>
                 </dd>
             </div>
-            <div class="divider"></div>
             <div class="dl-row">
                 <dt th:text="#{settings.workDir}">Working directory</dt>
                 <dd class="mono" th:text="${workDir}">./work</dd>
             </div>
-            <div class="divider"></div>
             <div class="dl-row">
                 <dt th:text="#{settings.driverDir}">Driver directory</dt>
                 <dd class="mono" th:text="${driverDir}">./lib/custom</dd>
             </div>
-            <div class="divider"></div>
-            <div class="dl-row">
-                <dt th:text="#{settings.projectUrl}">Project URL</dt>
-                <dd>
-                    <a class="repo-link" th:href="${githubUrl}" target="_blank" rel="noopener noreferrer">
-                        <img th:src="@{/assets/github.svg}" alt="" width="15" height="15" class="gh-ico">
-                        <span class="mono" th:text="${githubUrl}">https://github.com/...</span>
-                    </a>
-                </dd>
-            </div>
-            <div class="divider"></div>
             <div class="dl-row">
                 <dt>Time</dt>
                 <dd th:text="${#temporals.format(now, 'yyyy-MM-dd HH:mm:ss')}">now</dd>
@@ -69,7 +102,7 @@
         <div class="card-head">
             <h3 th:text="#{common.status}">Status</h3>
         </div>
-        <div class="card-body">
+        <div class="card-body dl-list">
             <div class="dl-row">
                 <dt th:text="#{settings.activeDb}">Active DB</dt>
                 <dd>
@@ -81,7 +114,6 @@
                     <span th:unless="${activeDb != null}" class="muted">—</span>
                 </dd>
             </div>
-            <div class="divider"></div>
             <div class="dl-row">
                 <dt th:text="#{settings.activeProvider}">Active AI provider</dt>
                 <dd>
@@ -94,15 +126,52 @@
                     </span>
                 </dd>
             </div>
-            <div class="divider"></div>
             <div class="dl-row">
                 <dt th:text="#{settings.checkerCount}">Checkers</dt>
                 <dd><strong th:text="${checkerCount}">0</strong> <span class="muted">registered</span></dd>
             </div>
-            <div class="divider"></div>
             <div class="dl-row">
                 <dt th:text="#{settings.taskCount}">Total scans</dt>
                 <dd><strong th:text="${taskCount}">0</strong></dd>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 项目地址（GitHub + Gitee）与作者联系方式 -->
+<div class="card">
+    <div class="card-head">
+        <h3 th:text="#{settings.projectAuthor}">Project &amp; author</h3>
+    </div>
+    <div class="card-body dl-grid-2">
+        <div class="dl-list">
+            <div class="dl-row">
+                <dt th:text="#{settings.githubUrl}">GitHub</dt>
+                <dd>
+                    <a class="repo-link" th:href="${githubUrl}" target="_blank" rel="noopener noreferrer">
+                        <img th:src="@{/assets/github.svg}" alt="" width="15" height="15" class="gh-ico">
+                        <span class="mono" th:text="${githubUrl}">https://github.com/...</span>
+                    </a>
+                </dd>
+            </div>
+            <div class="dl-row" th:if="${giteeUrl != null and giteeUrl != ''}">
+                <dt th:text="#{settings.giteeUrl}">Gitee</dt>
+                <dd>
+                    <a class="repo-link" th:href="${giteeUrl}" target="_blank" rel="noopener noreferrer">
+                        <span class="chip">Gitee</span>
+                        <span class="mono" th:text="${giteeUrl}">https://gitee.com/...</span>
+                    </a>
+                </dd>
+            </div>
+        </div>
+        <div class="dl-list">
+            <div class="dl-row" th:if="${contactQq != null and contactQq != ''}">
+                <dt th:text="#{settings.contactQq}">QQ</dt>
+                <dd class="mono" th:text="${contactQq}">817094/2912167928</dd>
+            </div>
+            <div class="dl-row" th:if="${contactWechat != null and contactWechat != ''}">
+                <dt th:text="#{settings.contactWechat}">WeChat</dt>
+                <dd class="mono" th:text="${contactWechat}">wechat</dd>
             </div>
         </div>
     </div>

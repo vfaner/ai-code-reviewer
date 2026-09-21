@@ -219,6 +219,13 @@
             <version>${commons-io.version}</version>
         </dependency>
 
+        <!-- Markdown 渲染（系统信息页内置发布说明转 HTML） -->
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark</artifactId>
+            <version>0.21.0</version>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

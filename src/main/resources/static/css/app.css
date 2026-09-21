@@ -1507,6 +1507,12 @@ fieldset.bare { border: 0; padding: 0; margin: 0; min-width: 0; }
 }
 .dl-row dt { color: var(--ink-soft); }
 .dl-row dd { margin: 0; color: var(--ink); }
+/* 紧凑列表：行间细线代替大间距 divider，系统信息页排版更密 */
+.dl-list .dl-row { padding: 9px 0; }
+.dl-list .dl-row + .dl-row { border-top: 1px solid var(--line); }
+/* 双栏详情（版本对照、项目与作者） */
+.dl-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 32px; }
+@media (max-width: 900px) { .dl-grid-2 { grid-template-columns: 1fr; } }
 
 /* ─── 扫描状态指示 ────────────────────────────────────────── */
 .scan-status {
