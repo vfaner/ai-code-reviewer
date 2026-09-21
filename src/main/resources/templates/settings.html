@@ -10,58 +10,6 @@
     </div>
 </div>
 
-<!-- 版本信息：徽标 + 当前/最新对照 + 内置发布说明 -->
-<div class="card">
-    <div class="card-head">
-        <h3 th:text="#{settings.versionInfo}">Version information</h3>
-    </div>
-    <div class="card-body">
-        <div class="version-bar">
-            <span class="badge badge-ok" th:if="${versionInfo.state.name() == 'UP_TO_DATE'}">✓
-                <span th:text="#{settings.upToDate}">Up to date</span></span>
-            <th:block th:if="${versionInfo.state.name() == 'UPDATE_AVAILABLE'}">
-                <span class="badge badge-warn">↑ <span th:text="#{settings.updateAvailable}">New version</span></span>
-                <a class="repo-link" th:href="${versionInfo.releaseUrl}" target="_blank" rel="noopener noreferrer">
-                    <span th:text="#{settings.viewRelease}">View release</span>
-                </a>
-            </th:block>
-            <span class="badge badge-mute" th:if="${versionInfo.state.name() == 'CHECKING'}"
-                  th:text="#{settings.checking}">Checking…</span>
-            <span class="badge badge-mute" th:if="${versionInfo.state.name() == 'UNKNOWN'}"
-                  th:text="#{settings.unknown}">Unknown</span>
-            <span class="badge badge-mute" th:if="${versionInfo.state.name() == 'DISABLED'}"
-                  th:text="#{settings.disabled}">Disabled</span>
-        </div>
-        <div class="dl-grid-2">
-            <div class="dl-row">
-                <dt th:text="#{settings.currentVersion}">Current version</dt>
-                <dd>
-                    <span class="chip mono" th:if="${versionInfo.currentVersion}"
-                          th:text="'v' + ${versionInfo.currentVersion}">v1.0.0</span>
-                    <span class="chip" th:unless="${versionInfo.currentVersion}"
-                          th:text="#{settings.unknownVersion}">unknown</span>
-                </dd>
-            </div>
-            <div class="dl-row">
-                <dt th:text="#{settings.latestVersion}">Latest on GitHub</dt>
-                <dd>
-                    <th:block th:if="${versionInfo.latestVersion}">
-                        <span class="chip mono" th:text="'v' + ${versionInfo.latestVersion}">v1.0.0</span>
-                        <span class="muted" th:if="${versionInfo.latestPublishedDate}"
-                              th:text="${versionInfo.latestPublishedDate}">2026-09-21</span>
-                    </th:block>
-                    <span class="muted" th:unless="${versionInfo.latestVersion}">—</span>
-                </dd>
-            </div>
-        </div>
-        <th:block th:if="${versionInfo.currentNotesHtml}">
-            <h3 class="release-notes-title" th:text="#{settings.releaseNotes}">What's new</h3>
-            <div class="release-notes" th:utext="${versionInfo.currentNotesHtml}">notes</div>
-            <p class="small soft" th:text="#{settings.releaseNotesHint}">hint</p>
-        </th:block>
-    </div>
-</div>
-
 <div class="split-2">
     <div class="card">
         <div class="card-head">
@@ -174,6 +122,58 @@
                 <dd class="mono" th:text="${contactWechat}">wechat</dd>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- 版本信息：徽标 + 当前/最新对照 + 内置发布说明（置底） -->
+<div class="card">
+    <div class="card-head">
+        <h3 th:text="#{settings.versionInfo}">Version information</h3>
+    </div>
+    <div class="card-body">
+        <div class="version-bar">
+            <span class="badge badge-ok" th:if="${versionInfo.state.name() == 'UP_TO_DATE'}">✓
+                <span th:text="#{settings.upToDate}">Up to date</span></span>
+            <th:block th:if="${versionInfo.state.name() == 'UPDATE_AVAILABLE'}">
+                <span class="badge badge-warn">↑ <span th:text="#{settings.updateAvailable}">New version</span></span>
+                <a class="repo-link" th:href="${versionInfo.releaseUrl}" target="_blank" rel="noopener noreferrer">
+                    <span th:text="#{settings.viewRelease}">View release</span>
+                </a>
+            </th:block>
+            <span class="badge badge-mute" th:if="${versionInfo.state.name() == 'CHECKING'}"
+                  th:text="#{settings.checking}">Checking…</span>
+            <span class="badge badge-mute" th:if="${versionInfo.state.name() == 'UNKNOWN'}"
+                  th:text="#{settings.unknown}">Unknown</span>
+            <span class="badge badge-mute" th:if="${versionInfo.state.name() == 'DISABLED'}"
+                  th:text="#{settings.disabled}">Disabled</span>
+        </div>
+        <div class="dl-grid-2">
+            <div class="dl-row">
+                <dt th:text="#{settings.currentVersion}">Current version</dt>
+                <dd>
+                    <span class="chip mono" th:if="${versionInfo.currentVersion}"
+                          th:text="'v' + ${versionInfo.currentVersion}">v1.0.0</span>
+                    <span class="chip" th:unless="${versionInfo.currentVersion}"
+                          th:text="#{settings.unknownVersion}">unknown</span>
+                </dd>
+            </div>
+            <div class="dl-row">
+                <dt th:text="#{settings.latestVersion}">Latest on GitHub</dt>
+                <dd>
+                    <th:block th:if="${versionInfo.latestVersion}">
+                        <span class="chip mono" th:text="'v' + ${versionInfo.latestVersion}">v1.0.0</span>
+                        <span class="muted" th:if="${versionInfo.latestPublishedDate}"
+                              th:text="${versionInfo.latestPublishedDate}">2026-09-21</span>
+                    </th:block>
+                    <span class="muted" th:unless="${versionInfo.latestVersion}">—</span>
+                </dd>
+            </div>
+        </div>
+        <th:block th:if="${versionInfo.currentNotesHtml}">
+            <h3 class="release-notes-title" th:text="#{settings.releaseNotes}">What's new</h3>
+            <div class="release-notes" th:utext="${versionInfo.currentNotesHtml}">notes</div>
+            <p class="small soft" th:text="#{settings.releaseNotesHint}">hint</p>
+        </th:block>
     </div>
 </div>
 
