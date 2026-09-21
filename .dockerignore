@@ -16,6 +16,7 @@ lib/custom/
 
 # 文档与脚本（非运行必需）
 *.md
+images/
 samples/
 scripts/
 

@@ -93,6 +93,70 @@
 | 前端 | Thymeleaf SSR · 原生 JavaScript · CSS 变量设计令牌 · 内联 SVG 图标精灵 · 零 CDN |
 | 部署 | 单 JAR · Docker 多阶段构建（内置中文字体、非 root 运行、HEALTHCHECK）· docker compose |
 
+## 🖼️ 效果预览
+
+以下截图均取自真实运行页面，图片资产位于仓库 [`images/`](images) 目录。
+
+**仪表盘** — 任务统计、质量评分与技术债总览
+
+![仪表盘](images/ai_code_reviewer_kanban.png)
+
+**代码扫描** — 发起 ZIP / Git / Webhook 扫描任务
+
+![代码扫描](images/ai_code_reviewer_daimasaomiao.png)
+
+**扫描历史** — 任务列表与状态流转
+
+![扫描历史](images/ai_code_reviewer_saomiaolishi.png)
+
+**扫描结果** — 五级问题统计与分类汇总
+
+![扫描结果](images/ai_code_reviewer_result.png)
+
+**结果详情** — 代码上下文、修复建议与 AI 增强建议
+
+![结果详情](images/ai_code_reviewer_result_detail.png)
+
+**AI 厂商配置** — 内置厂商模板与双协议接入
+
+![AI 厂商配置](images/ai_code_reviewer_ai.png)
+
+**检查器配置** — 检查器启停与参数调整
+
+![检查器配置](images/ai_code_reviewer_jianchapeizhi.png)
+
+**评审规则** — 规则默认等级与维护
+
+![评审规则](images/ai_code_reviewer_pingshenguize.png)
+
+**质量门禁** — 阈值配置与门禁判定
+
+![质量门禁](images/ai_code_reviewer_zhiliangmenjin.png)
+
+**忽略规则** — 路径与规则级忽略配置
+
+![忽略规则](images/ai_code_reviewer_hulue.png)
+
+**数据库配置** — 内嵌元数据与动态外接数据源
+
+![数据库配置](images/ai_code_reviewer_db.png)
+
+**CI/CD 集成** — 流水线接入配置
+
+![CI/CD 集成](images/ai_code_reviewer_cicd.png)
+
+**远端认证** — 对接企业 OA / 统一登录
+
+![远端认证](images/ai_code_reviewer_oa.png)
+
+**英文界面** — 中 / 英双语切换
+
+![英文界面](images/ai_code_reviewer_english.png)
+
+**暗色模式** — 深色主题切换
+
+![暗色模式](images/ai_code_reviewer_anye.png)
+
 ## ⚔️ 优势对比
 
 与市面常用工具横向对比：

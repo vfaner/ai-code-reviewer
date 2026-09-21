@@ -93,6 +93,70 @@ Databases are switched visually in the UI with automatic schema creation/migrati
 | Frontend | Thymeleaf SSR · vanilla JavaScript · CSS-variable design tokens · inline SVG sprite · zero CDN |
 | Deployment | Single JAR · multi-stage Docker build (CJK fonts baked in, non-root, HEALTHCHECK) · docker compose |
 
+## 🖼️ Screenshots
+
+All screenshots are taken from real running pages; image assets live in the [`images/`](images) directory.
+
+**Dashboard** — task stats, quality score and technical debt overview
+
+![Dashboard](images/ai_code_reviewer_kanban.png)
+
+**New Scan** — launch ZIP / Git / Webhook scan tasks
+
+![New Scan](images/ai_code_reviewer_daimasaomiao.png)
+
+**Scan History** — task list and status transitions
+
+![Scan History](images/ai_code_reviewer_saomiaolishi.png)
+
+**Scan Result** — five-level issue stats and category summary
+
+![Scan Result](images/ai_code_reviewer_result.png)
+
+**Result Details** — code context, fix suggestions and AI-enhanced advice
+
+![Result Details](images/ai_code_reviewer_result_detail.png)
+
+**AI Provider Settings** — built-in provider templates, dual-protocol access
+
+![AI Provider Settings](images/ai_code_reviewer_ai.png)
+
+**Checker Settings** — enable/disable checkers and tune parameters
+
+![Checker Settings](images/ai_code_reviewer_jianchapeizhi.png)
+
+**Review Rules** — default severity per rule
+
+![Review Rules](images/ai_code_reviewer_pingshenguize.png)
+
+**Quality Gate** — thresholds and gate verdicts
+
+![Quality Gate](images/ai_code_reviewer_zhiliangmenjin.png)
+
+**Ignore Rules** — path- and rule-level ignores
+
+![Ignore Rules](images/ai_code_reviewer_hulue.png)
+
+**Database Settings** — embedded metadata and dynamic external datasources
+
+![Database Settings](images/ai_code_reviewer_db.png)
+
+**CI/CD Integration** — pipeline hookup
+
+![CI/CD Integration](images/ai_code_reviewer_cicd.png)
+
+**Remote Auth** — enterprise OA / SSO hookup
+
+![Remote Auth](images/ai_code_reviewer_oa.png)
+
+**English UI** — zh / en switch
+
+![English UI](images/ai_code_reviewer_english.png)
+
+**Dark Mode** — dark theme toggle
+
+![Dark Mode](images/ai_code_reviewer_anye.png)
+
 ## ⚔️ Comparison
 
 | Dimension | **AI Code Reviewer** | SonarQube (Community) | PMD / SpotBugs / Checkstyle | CodeQL |
