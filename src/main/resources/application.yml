@@ -60,7 +60,7 @@ app:
   # 版本号（页脚展示）
   version: 1.0.0
   # 静态资源版本号（css/js 缓存刷新，随静态资源改动递增）
-  asset-version: 1.1.18
+  asset-version: 1.1.19
   # 仓库地址（导航 GitHub 图标、打赏弹窗、系统信息页与版本比对）
   github-url: https://github.com/vfaner/ai-code-reviewer
   # Gitee 镜像地址（系统信息页展示）

@@ -242,6 +242,11 @@ code, .mono { font-family: var(--mono); font-size: .88em; }
 }
 .icon-btn:hover { border-color: var(--brand); color: var(--brand); }
 .icon-btn:active { transform: scale(.94); }
+/* 主题切换（月亮/太阳）金黄、打赏爱心红色：图标自身定色，不随按钮默认色与 hover 变色 */
+.icon-btn[data-theme-btn] .ico { color: #e29a00; }
+[data-theme="dark"] .icon-btn[data-theme-btn] .ico { color: #ffc53d; }
+.icon-btn[data-role="open-donate"] .ico { color: #e5484d; }
+[data-theme="dark"] .icon-btn[data-role="open-donate"] .ico { color: #ff6369; }
 .lang-btn { font-weight: 700; font-size: 12.5px; letter-spacing: .3px; width: auto; padding: 0 11px; }
 
 .nav-toggle { display: none; }
