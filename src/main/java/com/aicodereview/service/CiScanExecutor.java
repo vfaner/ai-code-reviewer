@@ -35,11 +35,12 @@ public class CiScanExecutor {
     @Async("scanTaskExecutor")
     public void runGitScan(Long recordId, CiTriggerConfig config, String repoUrl,
                            String branch, String commitId) {
+        Path sourceDir = null;
         try {
             ciTriggerService.updateRecordStatus(recordId, "RUNNING", null);
 
             // 克隆代码
-            Path sourceDir = cloneRepo(config, repoUrl, branch, commitId, recordId);
+            sourceDir = cloneRepo(config, repoUrl, branch, commitId, recordId);
             if (sourceDir == null) {
                 ciTriggerService.updateRecordStatus(recordId, "FAILED", null);
                 // 尚未生成扫描任务，按记录级失败回调（commit status = error）
@@ -65,6 +66,28 @@ public class CiScanExecutor {
             log.error("CI 扫描触发失败: recordId={}", recordId, e);
             ciTriggerService.updateRecordStatus(recordId, "FAILED", null);
             ciCallbackService.onRecordFailed(recordId);
+        } finally {
+            // 扫描基于 createFromZip 落盘的快照进行，克隆目录用完即删，避免磁盘泄漏
+            if (sourceDir != null) {
+                deleteRecursively(sourceDir);
+            }
+        }
+    }
+
+    /**
+     * 递归删除目录（CI 克隆临时目录清理）
+     */
+    private void deleteRecursively(Path dir) {
+        try (var walk = Files.walk(dir)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (Exception e) {
+                    log.warn("删除 CI 临时文件失败: {}", p);
+                }
+            });
+        } catch (Exception e) {
+            log.warn("清理 CI 克隆目录失败: {}", dir, e);
         }
     }
 
