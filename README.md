@@ -113,9 +113,9 @@
 
 ![扫描结果](images/ai_code_reviewer_result.png)
 
-**结果详情** — 代码上下文、修复建议与 AI 增强建议
+**导出结果** — 导出的 HTML 报告截图：评分、门禁结论、代码上下文、修复建议与 AI 增强建议
 
-![结果详情](images/ai_code_reviewer_result_detail.png)
+![导出结果](images/ai_code_reviewer_result_detail.png)
 
 **AI 厂商配置** — 内置厂商模板与双协议接入
 
@@ -286,7 +286,72 @@ docker run -d --name ai-code-reviewer \
 2. 扫描完成自动跳转结果页：评分环、五级问题分布、门禁结论、逐条问题（可展开代码上下文）；
 3. 「质量门禁」页查看全部任务的评分趋势与门禁结果，管理员可点「自定义分值」调整每级扣分与阈值；
 4. 「报告导出」生成 HTML / PDF；
-5. 需要 CI 联动时，在「CI/CD 集成」页创建触发器与令牌，流水线里 `curl` 推送 Webhook 即可自动扫描、回写状态与评论。
+5. 需要 CI 联动时，在「CI/CD 集成」页创建触发器与令牌，流水线里 `curl` 推送 Webhook 即可自动扫描、回写状态与评论，详见 [CI/CD 集成指南](#-cicd-集成指南)。
+
+## 🔌 CI/CD 集成指南
+
+无需改源码、无需装插件：在平台侧建一个触发器，push / MR 事件即自动触发扫描；扫描完成按质量门禁结论回写 commit status 与 MR/PR 评论，流水线可据此阻断合并。支持 GitHub Actions、GitLab CI、Gitee Go 与任意通用 CI。
+
+### 第一步：新建触发器，拿到 Webhook 地址与密钥
+
+「CI/CD 集成」页 → 「触发器」页签 → 「新建触发器」：
+
+| 字段 | 填写说明 |
+|------|----------|
+| 名称 | 便于识别即可，如「核心服务-主分支扫描」 |
+| 平台 | GitHub Actions / GitLab CI / Gitee Go / 通用，决定事件解析格式与回写 API |
+| 平台地址 | 自动填官方云地址；企业自建版改成内网地址（如 `https://gitlab.company.com`） |
+| 分支过滤 | glob 模式逗号分隔，如 `develop,release/**`；留空 = 所有分支；不匹配的事件直接跳过不扫描 |
+| 仓库范围（可选） | `owner/repo`（GitLab 子组 `group/project` 亦可）；填写后仅接受该仓库的事件，防止同一 Webhook 地址被其他仓库误触发；留空 = 不限制 |
+| 仓库账号 / 仓库令牌 | 仅**私有仓库** HTTPS 克隆需要（GitHub 账号可填 `x-access-token`、GitLab 可填 `oauth2`，令牌填 Personal Access Token）；**公开仓库留空**；令牌 AES 加密落库，编辑时留空表示不修改 |
+| 跳过单元测试 / 分析测试代码 / 启用 AI 评审 / 扫描完成回评 MR/PR | 扫描行为开关：AI 评审消耗模型额度、回评会向平台写评论，按需开启 |
+
+创建成功的弹窗会给出该触发器的 **Webhook 地址**与 **Webhook 密钥**：**密钥仅完整展示这一次**（库中加密存储），请立即复制保存；错过可在触发器行「重置密钥」重新生成（重置后需同步更新平台侧配置）。
+
+### 第二步：在代码平台配置推送（二选一）
+
+**方式 A：平台侧配置 Webhook（推荐，push / MR 自动触发）**
+
+| 平台 | 配置路径 |
+|------|----------|
+| GitHub | 仓库 `Settings → Webhooks → Add webhook`：Payload URL = Webhook 地址，Content type = `application/json`，Secret = Webhook 密钥，勾选 `Pushes` 与 `Pull requests` |
+| GitLab | 项目 `Settings → Webhooks`：URL = Webhook 地址，Secret token = Webhook 密钥，勾选 Push / Merge request events |
+| Gitee | 仓库 `管理 → WebHooks → 添加 webhook`：URL = Webhook 地址，密码 = Webhook 密钥 |
+
+GitHub 投递带 `X-Hub-Signature-256` HMAC-SHA256 签名，GitLab 带 `X-Gitlab-Token`，Gitee 带 `X-Gitee-Token`；本平台按平台约定自动校验，签名不匹配的请求直接拒绝（401）。
+
+**方式 B：CI 脚本主动调用（任意流水线适用，含自托管 runner）**
+
+推送 JSON 事件（以 GitHub 签名为例）：
+
+```bash
+BODY='{"ref":"refs/heads/master","head_commit":{"id":"<commit-sha>"},"repository":{"clone_url":"https://github.com/owner/repo.git"}}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "<Webhook密钥>" -hex | awk '{print $2}')
+curl -X POST "<Webhook地址>?platform=GITHUB" \
+  -H "Content-Type: application/json" \
+  -H "X-GitHub-Event: push" \
+  -H "X-Hub-Signature-256: sha256=$SIG" \
+  --data-binary "$BODY"
+```
+
+或跳过 Git 克隆、直接上传源码 ZIP（流水线已有产物、或 runner 访问不到 Git 仓库时适用）：
+
+```bash
+curl -X POST "<Webhook地址>/upload" \
+  -H "Authorization: Bearer <Webhook密钥或访问令牌>" \
+  -F "file=@source.zip" -F "branch=master" -F "commitId=<commit-sha>"
+```
+
+`Authorization: Bearer` 既可填 Webhook 密钥，也可填「访问令牌」页签创建的系统访问令牌（`X-Ci-Token` 头同样支持）；访问令牌可设过期时间、可单独吊销，适合分发给多条流水线。
+
+### 第三步：查看扫描记录与结果回写
+
+1. 事件到达后按「签名 → 仓库范围 → 分支过滤」顺序校验，通过才创建扫描记录；随后**异步克隆仓库**（私有库自动使用所配凭据，按记录隔离工作目录），打包 ZIP 走与页面扫描完全相同的流程；
+2. 「扫描记录」页签查看每次触发的状态流转（PENDING → RUNNING → SUCCESS / FAILED），可按触发器筛选，点击跳转扫描结果页；
+3. 扫描完成自动向对应 commit 回写 **commit status**：状态取质量门禁结论（success / failure，描述含评分与五级问题计数），扫描失败回写 error；平台侧配置分支保护「状态检查必须通过」后，门禁不达标的提交将无法合并；
+4. 勾选「扫描完成回评 MR/PR」且事件携带 MR/PR 号时，额外在该 MR/PR 下评论：评分、门禁结论、五级计数、技术债与 Top 问题清单，附完整报告链接（链接域名取自 `app.webhook-base-url`）。
+
+> 注意：方式 A 要求 Webhook 地址能被代码平台直接访问（内网部署需公网映射或内网穿透）；方式 B 的 ZIP 上传只要求 runner 能访问本服务，全内网环境亦可使用。
 
 ## 📁 项目结构
 

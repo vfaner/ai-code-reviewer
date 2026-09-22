@@ -113,9 +113,9 @@ All screenshots are taken from real running pages; image assets live in the [`im
 
 ![Scan Result](images/ai_code_reviewer_result.png)
 
-**Result Details** — code context, fix suggestions and AI-enhanced advice
+**Export Result** — screenshot of the exported HTML report: score, gate verdict, code context, fix suggestions and AI-enhanced advice
 
-![Result Details](images/ai_code_reviewer_result_detail.png)
+![Export Result](images/ai_code_reviewer_result_detail.png)
 
 **AI Provider Settings** — built-in provider templates, dual-protocol access
 
@@ -284,7 +284,72 @@ Persistent paths: `/app/data` (database), `/app/work` (snapshots / reports), `/a
 2. When the scan finishes you land on the result page: score ring, five-grade distribution, gate verdict, and every issue (expandable with code context);
 3. The **Quality Gate** page shows scores and gate results for all tasks; admins can click **Customize** to tune per-grade weights and thresholds;
 4. Export **HTML / PDF** reports;
-5. For CI, create a trigger and token on the **CI/CD** page — a single `curl` webhook from your pipeline triggers the scan and writes back statuses and comments.
+5. For CI, create a trigger and token on the **CI/CD** page — a single `curl` webhook from your pipeline triggers the scan and writes back statuses and comments; see the [CI/CD Integration Guide](#-cicd-integration-guide) for step-by-step wiring.
+
+## 🔌 CI/CD Integration Guide
+
+No source changes, no plugins: create one trigger and push / MR events automatically kick off scans; when a scan finishes, the commit status and an MR/PR comment are written back according to the quality-gate verdict, so pipelines can block merges. Works with GitHub Actions, GitLab CI, Gitee Go and any generic CI.
+
+### Step 1 — Create a trigger, get the Webhook URL and secret
+
+**CI/CD** page → **Triggers** tab → **New Trigger**:
+
+| Field | What to fill in |
+|-------|-----------------|
+| Name | Anything recognizable, e.g. "core-service main-branch scan" |
+| Platform | GitHub Actions / GitLab CI / Gitee Go / Generic — decides event parsing and the write-back API |
+| Platform URL | Prefilled with the official cloud; change it to your self-hosted address for enterprise editions (e.g. `https://gitlab.company.com`) |
+| Branch filter | Comma-separated glob patterns, e.g. `develop,release/**`; empty = all branches; events from other branches are skipped without scanning |
+| Repo scope (optional) | `owner/repo` (GitLab subgroups `group/project` work too); when set, only events from that repo are accepted, so other repos cannot misfire the same Webhook URL; empty = unrestricted |
+| Repo account / token | HTTPS clone credentials for **private repos** only (GitHub: account `x-access-token` + PAT; GitLab: `oauth2` + PAT); **leave empty for public repos**; tokens are AES-encrypted at rest, leaving the field blank on edit keeps the stored value |
+| Skip unit tests / Include test code / Enable AI review / Comment on MR/PR | Scan-behaviour toggles: AI review consumes model quota, commenting writes back to the platform — enable as needed |
+
+The success dialog shows the trigger's **Webhook URL** and **Webhook secret**: **the secret is displayed in full only once** (stored encrypted), copy it now; otherwise use **Reset secret** on the trigger row later (update the platform-side config after resetting).
+
+### Step 2 — Wire up the code platform (pick one)
+
+**Option A: platform-side Webhook (recommended — fires automatically on push / MR)**
+
+| Platform | Where to configure |
+|----------|--------------------|
+| GitHub | Repo `Settings → Webhooks → Add webhook`: Payload URL = Webhook URL, Content type = `application/json`, Secret = Webhook secret, enable `Pushes` and `Pull requests` |
+| GitLab | Project `Settings → Webhooks`: URL = Webhook URL, Secret token = Webhook secret, enable Push / Merge request events |
+| Gitee | Repo `Manage → WebHooks → Add webhook`: URL = Webhook URL, password = Webhook secret |
+
+GitHub signs deliveries with `X-Hub-Signature-256` (HMAC-SHA256), GitLab sends `X-Gitlab-Token`, Gitee sends `X-Gitee-Token`; each is verified automatically and mismatched requests are rejected with 401.
+
+**Option B: call from your CI script (any pipeline, including self-hosted runners)**
+
+Post the JSON event (GitHub-style signature shown):
+
+```bash
+BODY='{"ref":"refs/heads/master","head_commit":{"id":"<commit-sha>"},"repository":{"clone_url":"https://github.com/owner/repo.git"}}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "<webhook-secret>" -hex | awk '{print $2}')
+curl -X POST "<webhook-url>?platform=GITHUB" \
+  -H "Content-Type: application/json" \
+  -H "X-GitHub-Event: push" \
+  -H "X-Hub-Signature-256: sha256=$SIG" \
+  --data-binary "$BODY"
+```
+
+Or skip the Git clone entirely and upload a source ZIP (when the pipeline already has artifacts, or the runner cannot reach the Git host):
+
+```bash
+curl -X POST "<webhook-url>/upload" \
+  -H "Authorization: Bearer <webhook-secret-or-access-token>" \
+  -F "file=@source.zip" -F "branch=master" -F "commitId=<commit-sha>"
+```
+
+`Authorization: Bearer` accepts either the Webhook secret or a system access token created on the **Access tokens** tab (the `X-Ci-Token` header works as well); access tokens support expiry and per-token revocation, which suits sharing across pipelines.
+
+### Step 3 — Scan records and result write-back
+
+1. Incoming events are verified in order — signature → repo scope → branch filter; only then is a scan record created and the repo **cloned asynchronously** (private repos use the stored credentials, each record gets an isolated work directory), zipped and scanned exactly like a UI-initiated scan;
+2. The **Scan records** tab shows every trigger run (PENDING → RUNNING → SUCCESS / FAILED), filterable by trigger, with a link through to the full result page;
+3. On completion a **commit status** is posted to the commit: state follows the quality-gate verdict (success / failure, description carries the score and five-grade counts), error when the scan itself fails; combine with branch protection "status checks must pass" to block merges that fail the gate;
+4. With **Comment on MR/PR** enabled and an MR/PR number in the event, a comment is posted carrying the score, gate verdict, five-grade counts, tech debt and a top-issue list, linking the full report (link base comes from `app.webhook-base-url`).
+
+> Note: Option A requires the Webhook URL to be reachable from the code platform (public mapping or a tunnel for intranet deployments); Option B's ZIP upload only needs the runner to reach this service, so it also works in fully air-gapped networks.
 
 ## 📁 Project Layout
 
