@@ -24,11 +24,4 @@ public class DependencyInfo {
 
     /** 类型 */
     private String type;
-
-    /**
-     * 获取完整标识
-     */
-    public String getFullName() {
-        return groupId + ":" + artifactId + ":" + (version != null ? version : "unknown");
-    }
 }

@@ -96,20 +96,6 @@ public class RemoteAuthConfigService {
     }
 
     /**
-     * 获取解密后的密钥（内部使用）
-     */
-    public String getDecryptedSecret(Long id) {
-        RemoteAuthConfig config = configMapper.selectById(id);
-        if (config == null || config.getClientSecret() == null) return null;
-        try {
-            return CryptoUtil.decrypt(config.getClientSecret());
-        } catch (Exception e) {
-            log.error("解密密钥失败: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
      * 获取原始配置（密钥已解密，仅供内部调用，不可返回给前端）
      */
     public RemoteAuthConfig getRawById(Long id) {

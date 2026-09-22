@@ -1,34 +1,28 @@
 package com.aicodereview.checker;
 
 /**
- * 问题严重度分级（对标 SonarQube 五级模型，直接驱动质量评分与门禁）
+ * 问题严重度分级（对标 SonarQube 五级模型，直接驱动质量评分与门禁）。
+ * 扣分权重不在枚举内维护，统一以 app.gate.* 配置为准（QualityGateService 读取）。
  */
 public enum IssueLevel {
     /** Blocker - 可能严重危害应用安全或功能，需立即修复 */
-    BLOCKER("BLOCKER", "阻断", 25),
+    BLOCKER("BLOCKER"),
     /** Critical - 对应用有严重影响，需尽快修复 */
-    CRITICAL("CRITICAL", "严重", 15),
+    CRITICAL("CRITICAL"),
     /** Major - 对应用有重大影响 */
-    MAJOR("MAJOR", "主要", 5),
+    MAJOR("MAJOR"),
     /** Minor - 影响较小，但建议修复 */
-    MINOR("MINOR", "次要", 1),
+    MINOR("MINOR"),
     /** Info - 纯信息提示，不影响评分与门禁 */
-    INFO("INFO", "提示", 0);
+    INFO("INFO");
 
     private final String code;
-    private final String label;
-    /** 默认扣分权重（实际权重以 app.gate.* 配置为准） */
-    private final int defaultWeight;
 
-    IssueLevel(String code, String label, int defaultWeight) {
+    IssueLevel(String code) {
         this.code = code;
-        this.label = label;
-        this.defaultWeight = defaultWeight;
     }
 
     public String getCode() { return code; }
-    public String getLabel() { return label; }
-    public int getDefaultWeight() { return defaultWeight; }
 
     /**
      * 兼容历史三级码：BUG→CRITICAL、WARNING→MAJOR、INFO(旧)→MINOR。

@@ -55,18 +55,4 @@ public class MethodInfo {
     public String getSignature() {
         return className + "." + methodName + descriptor;
     }
-
-    /**
-     * 获取简单签名（不含返回值）
-     */
-    public String getSimpleSignature() {
-        return className + "." + methodName;
-    }
-
-    /**
-     * 获取不含类名的方法签名
-     */
-    public String getMethodSignature() {
-        return methodName + descriptor;
-    }
 }

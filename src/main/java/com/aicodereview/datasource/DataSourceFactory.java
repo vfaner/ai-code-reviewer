@@ -6,9 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
-import java.sql.Driver;
-import java.sql.DriverManager;
-import java.util.Enumeration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -109,29 +106,5 @@ public class DataSourceFactory {
                 dataSource.close();
             }
         }
-    }
-
-    /**
-     * 销毁所有缓存的数据源
-     */
-    public void destroyAll() {
-        dataSourceCache.values().forEach(ds -> {
-            if (ds instanceof HikariDataSource hds) {
-                hds.close();
-            }
-        });
-        dataSourceCache.clear();
-    }
-
-    /**
-     * 获取已注册的所有驱动
-     */
-    public String[] getRegisteredDrivers() {
-        Enumeration<Driver> drivers = DriverManager.getDrivers();
-        java.util.List<String> list = new java.util.ArrayList<>();
-        while (drivers.hasMoreElements()) {
-            list.add(drivers.nextElement().getClass().getName());
-        }
-        return list.toArray(new String[0]);
     }
 }

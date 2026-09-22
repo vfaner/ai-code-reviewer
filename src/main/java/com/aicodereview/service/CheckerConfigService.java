@@ -19,6 +19,7 @@ import java.util.List;
 public class CheckerConfigService {
 
     private final CheckerConfigMapper checkerConfigMapper;
+    private final CheckerParamsService checkerParamsService;
 
     public List<CheckerConfig> listAll() {
         return checkerConfigMapper.selectList(
@@ -50,11 +51,20 @@ public class CheckerConfigService {
 
     public boolean update(CheckerConfig config) {
         config.setUpdatedAt(LocalDateTime.now());
-        return checkerConfigMapper.updateById(config) > 0;
+        boolean ok = checkerConfigMapper.updateById(config) > 0;
+        if (ok) {
+            // params 可能已修改，清除进程内参数缓存，避免阈值改动需重启才生效
+            checkerParamsService.evictAll();
+        }
+        return ok;
     }
 
     public boolean delete(Long id) {
-        return checkerConfigMapper.deleteById(id) > 0;
+        boolean ok = checkerConfigMapper.deleteById(id) > 0;
+        if (ok) {
+            checkerParamsService.evictAll();
+        }
+        return ok;
     }
 
     /**

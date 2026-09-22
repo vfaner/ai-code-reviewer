@@ -61,26 +61,6 @@ public class CheckContext {
     private List<CheckIssue> issues = new ArrayList<>();
 
     /**
-     * 添加一个问题
-     */
-    public void addIssue(CheckIssue issue) {
-        if (issues == null) {
-            issues = new ArrayList<>();
-        }
-        issues.add(issue);
-    }
-
-    /**
-     * 获取指定行的代码
-     */
-    public String getLine(int lineNumber) {
-        if (sourceLines == null || lineNumber < 1 || lineNumber > sourceLines.size()) {
-            return "";
-        }
-        return sourceLines.get(lineNumber - 1);
-    }
-
-    /**
      * 获取指定范围的代码片段
      */
     public String getCodeSnippet(int startLine, int endLine) {

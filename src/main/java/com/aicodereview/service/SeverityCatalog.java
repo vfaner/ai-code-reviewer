@@ -106,16 +106,4 @@ public final class SeverityCatalog {
             case INFO -> 1;
         };
     }
-
-    /** 按秩反查级别 */
-    public static IssueLevel fromRank(Integer rank) {
-        if (rank == null) return IssueLevel.INFO;
-        return switch (rank) {
-            case 5 -> IssueLevel.BLOCKER;
-            case 4 -> IssueLevel.CRITICAL;
-            case 3 -> IssueLevel.MAJOR;
-            case 2 -> IssueLevel.MINOR;
-            default -> IssueLevel.INFO;
-        };
-    }
 }

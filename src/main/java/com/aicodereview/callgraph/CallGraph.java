@@ -22,9 +22,6 @@ public class CallGraph {
     /** 方法被哪些方法调用（反向索引） key=被调用者签名, value=调用者列表 */
     private final Map<String, Set<String>> callersMap = new ConcurrentHashMap<>();
 
-    /** 方法调用了哪些方法（正向索引） key=调用者签名, value=被调用者列表 */
-    private final Map<String, Set<String>> calleesMap = new ConcurrentHashMap<>();
-
     /**
      * 添加方法定义
      */
@@ -42,18 +39,8 @@ public class CallGraph {
         String callerSig = edge.getCaller() != null ? edge.getCaller().getSignature() : "<unknown>";
         String calleeSig = edge.getCalleeClassName() + "." + edge.getCalleeMethodName() + edge.getCalleeDescriptor();
 
-        // 正向索引
-        calleesMap.computeIfAbsent(callerSig, k -> ConcurrentHashMap.newKeySet()).add(calleeSig);
-
         // 反向索引
         callersMap.computeIfAbsent(calleeSig, k -> ConcurrentHashMap.newKeySet()).add(callerSig);
-    }
-
-    /**
-     * 获取所有定义的方法
-     */
-    public Collection<MethodInfo> getAllMethods() {
-        return definedMethods.values();
     }
 
     /**
@@ -61,13 +48,6 @@ public class CallGraph {
      */
     public Set<String> getCallers(String methodSignature) {
         return callersMap.getOrDefault(methodSignature, Collections.emptySet());
-    }
-
-    /**
-     * 获取方法调用的其他方法
-     */
-    public Set<String> getCallees(String methodSignature) {
-        return calleesMap.getOrDefault(methodSignature, Collections.emptySet());
     }
 
     /**

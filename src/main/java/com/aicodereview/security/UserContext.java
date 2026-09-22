@@ -23,10 +23,6 @@ public class UserContext {
         HOLDER.remove();
     }
 
-    public static boolean isAuthenticated() {
-        return HOLDER.get() != null;
-    }
-
     public static boolean isAdmin() {
         CurrentUser u = HOLDER.get();
         return u != null && "ADMIN".equalsIgnoreCase(u.getRole());

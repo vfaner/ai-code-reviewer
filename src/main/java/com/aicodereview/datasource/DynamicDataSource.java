@@ -33,15 +33,4 @@ public class DynamicDataSource extends AbstractRoutingDataSource {
         super.setTargetDataSources(this.resolvedDataSources);
         super.afterPropertiesSet();
     }
-
-    /**
-     * 移除数据源
-     */
-    public void removeDataSource(String key) {
-        if (this.resolvedDataSources.containsKey(key) && !"default".equals(key)) {
-            this.resolvedDataSources.remove(key);
-            super.setTargetDataSources(this.resolvedDataSources);
-            super.afterPropertiesSet();
-        }
-    }
 }

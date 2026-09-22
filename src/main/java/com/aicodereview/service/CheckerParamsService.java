@@ -60,12 +60,8 @@ public class CheckerParamsService {
     }
 
     /**
-     * 配置变更后清除缓存
+     * 清除全部参数缓存（配置新增/修改/删除后由 CheckerConfigService 调用，使新 params 立即生效）
      */
-    public void evict(String checkerCode) {
-        paramsCache.remove(checkerCode);
-    }
-
     public void evictAll() {
         paramsCache.clear();
     }

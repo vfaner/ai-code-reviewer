@@ -41,19 +41,6 @@ public enum SqlDialectAdapter {
     }
 
     /**
-     * 获取分页 SQL
-     */
-    public String wrapPagination(String sql, int offset, int limit) {
-        return switch (this) {
-            case MYSQL, H2, POSTGRESQL, KINGBASE ->
-                    sql + " LIMIT " + limit + " OFFSET " + offset;
-            case ORACLE, DM ->
-                    "SELECT * FROM (SELECT t.*, ROWNUM rn FROM (" + sql + ") t WHERE ROWNUM <= " + (offset + limit) + ") WHERE rn > " + offset;
-            case CUSTOM -> sql + " LIMIT " + limit + " OFFSET " + offset; // 默认 MySQL 风格
-        };
-    }
-
-    /**
      * 根据数据库类型推断方言
      */
     public static SqlDialectAdapter fromDbType(String dbType) {
@@ -88,22 +75,5 @@ public enum SqlDialectAdapter {
         if (lower.startsWith("jdbc:dm:")) return "DM";
         if (lower.startsWith("jdbc:kingbase8:")) return "KINGBASE";
         return "CUSTOM";
-    }
-
-    /**
-     * 是否支持 boolean 类型
-     */
-    public boolean supportsBoolean() {
-        return this != ORACLE && this != DM;
-    }
-
-    /**
-     * 获取布尔值字符串表示
-     */
-    public String getBooleanValue(boolean value) {
-        if (supportsBoolean()) {
-            return value ? "TRUE" : "FALSE";
-        }
-        return value ? "1" : "0";
     }
 }

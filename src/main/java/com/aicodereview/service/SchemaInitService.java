@@ -1,10 +1,6 @@
 package com.aicodereview.service;
 
-import com.aicodereview.datasource.DataSourceContextHolder;
 import com.aicodereview.datasource.SqlDialectAdapter;
-import com.aicodereview.entity.DatabaseConfig;
-import com.aicodereview.mapper.DatabaseConfigMapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -24,8 +20,6 @@ import java.sql.Statement;
 @Service
 @RequiredArgsConstructor
 public class SchemaInitService {
-
-    private final DatabaseConfigMapper databaseConfigMapper;
 
     /**
      * 检查目标数据库中是否存在系统表
@@ -86,36 +80,5 @@ public class SchemaInitService {
             log.error("表结构初始化失败: {}", e.getMessage(), e);
             return false;
         }
-    }
-
-    /**
-     * 使用自定义 SQL 脚本初始化
-     */
-    public boolean initializeSchemaWithCustomScript(DataSource dataSource, String customScript) {
-        try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement()) {
-            // 简单的分号分割执行（生产环境建议使用更完善的脚本解析器）
-            String[] statements = customScript.split(";");
-            for (String sql : statements) {
-                String trimmed = sql.trim();
-                if (!trimmed.isEmpty()) {
-                    stmt.execute(trimmed);
-                }
-            }
-            log.info("自定义表结构初始化成功");
-            return true;
-        } catch (SQLException e) {
-            log.error("自定义表结构初始化失败: {}", e.getMessage(), e);
-            return false;
-        }
-    }
-
-    /**
-     * 获取当前激活的数据库配置
-     */
-    public DatabaseConfig getActiveDatabase() {
-        return databaseConfigMapper.selectOne(
-                new QueryWrapper<DatabaseConfig>().eq("is_active", true)
-        );
     }
 }

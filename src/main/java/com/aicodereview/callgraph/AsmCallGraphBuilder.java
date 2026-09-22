@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.objectweb.asm.*;
 import org.objectweb.asm.tree.*;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -160,18 +159,5 @@ public class AsmCallGraphBuilder {
                 callGraph.addCall(edge);
             }
         });
-    }
-
-    /**
-     * 从目录收集所有 .class 文件
-     */
-    public static List<Path> findClassFiles(Path root) throws IOException {
-        if (!Files.exists(root)) return List.of();
-        try (Stream<Path> stream = Files.walk(root)) {
-            return stream
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.toString().endsWith(".class"))
-                    .toList();
-        }
     }
 }

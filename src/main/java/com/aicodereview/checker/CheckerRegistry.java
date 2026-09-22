@@ -29,11 +29,6 @@ public class CheckerRegistry {
     private final CheckerConfigMapper checkerConfigMapper;
 
     /**
-     * 检查器缓存（按 code 索引，同一 code 允许多个检查器，按优先级排序）
-     */
-    private final Map<String, List<CodeChecker>> checkerMap = new ConcurrentHashMap<>();
-
-    /**
      * 全部检查器的扁平列表（按优先级排序）
      */
     private final List<CodeChecker> allCheckers = new CopyOnWriteArrayList<>();
@@ -50,19 +45,10 @@ public class CheckerRegistry {
             return;
         }
 
-        // 注册所有检查器（同 code 共存）
-        for (CodeChecker checker : checkers) {
-            checkerMap.computeIfAbsent(checker.getCheckerType().getCode(),
-                    k -> new CopyOnWriteArrayList<>()).add(checker);
-        }
-        checkerMap.values().forEach(list ->
-                list.sort(Comparator.comparingInt(CodeChecker::getPriority)));
-
         allCheckers.addAll(checkers);
         allCheckers.sort(Comparator.comparingInt(CodeChecker::getPriority));
 
-        log.info("检查器注册完成，共 {} 个检查器（{} 个类型编码）",
-                allCheckers.size(), checkerMap.size());
+        log.info("检查器注册完成，共 {} 个检查器", allCheckers.size());
     }
 
     /**
@@ -108,24 +94,6 @@ public class CheckerRegistry {
     }
 
     /**
-     * 获取所有启用的检查器
-     */
-    public List<CodeChecker> getEnabledCheckers() {
-        List<CodeChecker> all = new ArrayList<>();
-        all.addAll(getEnabledLocalCheckers());
-        all.addAll(getEnabledAiCheckers());
-        return all;
-    }
-
-    /**
-     * 根据 code 获取检查器（同 code 多个时返回优先级最高的一个）
-     */
-    public CodeChecker getChecker(String code) {
-        List<CodeChecker> list = checkerMap.get(code);
-        return list == null || list.isEmpty() ? null : list.get(0);
-    }
-
-    /**
      * 检查指定检查器是否启用
      */
     public boolean isCheckerEnabled(CodeChecker checker) {
@@ -136,12 +104,5 @@ public class CheckerRegistry {
         }
         // 否则使用检查器自身的默认值
         return checker.isEnabled();
-    }
-
-    /**
-     * 获取所有检查器数量
-     */
-    public int getTotalCount() {
-        return allCheckers.size();
     }
 }
