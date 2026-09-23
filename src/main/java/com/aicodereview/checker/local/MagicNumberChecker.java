@@ -14,6 +14,8 @@ import java.util.Set;
  *
  * 检测代码中使用的魔法数字，建议定义为常量。
  * 排除常见的 0, 1, -1, 2, 100 等常用数字。
+ * 参与算术运算的字面量（单位换算 ×60/×1000、位运算移位掩码、取模分桶等）
+ * 具有明确计算语义，不视为魔法数字（R41 收紧）。
  */
 @Component
 public class MagicNumberChecker extends AbstractLocalChecker {
@@ -60,7 +62,8 @@ public class MagicNumberChecker extends AbstractLocalChecker {
     private void checkIntegerLiteral(CheckContext context, IntegerLiteralExpr expr, List<CheckIssue> issues) {
         try {
             int value = expr.asInt();
-            if (isMagicNumber(value) && !isInConstantContext(expr) && !isInArrayInitializer(expr)) {
+            if (isMagicNumber(value) && !isInConstantContext(expr) && !isInArrayInitializer(expr)
+                    && !isInArithmeticExpression(expr)) {
                 int line = expr.getBegin().map(p -> p.line).orElse(1);
                 issues.add(createIssue(
                         IssueLevel.MINOR,
@@ -79,7 +82,7 @@ public class MagicNumberChecker extends AbstractLocalChecker {
     private void checkLongLiteral(CheckContext context, LongLiteralExpr expr, List<CheckIssue> issues) {
         try {
             long value = expr.asLong();
-            if (isMagicNumber(value) && !isInConstantContext(expr)) {
+            if (isMagicNumber(value) && !isInConstantContext(expr) && !isInArithmeticExpression(expr)) {
                 int line = expr.getBegin().map(p -> p.line).orElse(1);
                 issues.add(createIssue(
                         IssueLevel.MINOR,
@@ -98,7 +101,7 @@ public class MagicNumberChecker extends AbstractLocalChecker {
     private void checkDoubleLiteral(CheckContext context, DoubleLiteralExpr expr, List<CheckIssue> issues) {
         try {
             double value = expr.asDouble();
-            if (isMagicNumber(value) && !isInConstantContext(expr)) {
+            if (isMagicNumber(value) && !isInConstantContext(expr) && !isInArithmeticExpression(expr)) {
                 int line = expr.getBegin().map(p -> p.line).orElse(1);
                 issues.add(createIssue(
                         IssueLevel.MINOR,
@@ -151,5 +154,32 @@ public class MagicNumberChecker extends AbstractLocalChecker {
      */
     private boolean isInArrayInitializer(Expression expr) {
         return expr.findAncestor(ArrayInitializerExpr.class).isPresent();
+    }
+
+    /**
+     * 判断是否参与算术运算（加减乘除模、移位）：此类字面量带计算语义，如
+     * seconds * 60、bytes / 1024、index % 3、mask << 4，不作为魔法数字报告。
+     * 一元正负号（如 x * -60 中的 60）穿透一层后再判断。
+     */
+    private boolean isInArithmeticExpression(Expression expr) {
+        var parent = expr.getParentNode();
+        if (parent.isPresent() && parent.get() instanceof UnaryExpr unary
+                && (unary.getOperator() == UnaryExpr.Operator.MINUS
+                    || unary.getOperator() == UnaryExpr.Operator.PLUS)) {
+            parent = unary.getParentNode();
+        }
+        return parent.isPresent() && parent.get() instanceof BinaryExpr binary
+                && isArithmeticOperator(binary.getOperator());
+    }
+
+    private boolean isArithmeticOperator(BinaryExpr.Operator op) {
+        return op == BinaryExpr.Operator.PLUS
+                || op == BinaryExpr.Operator.MINUS
+                || op == BinaryExpr.Operator.MULTIPLY
+                || op == BinaryExpr.Operator.DIVIDE
+                || op == BinaryExpr.Operator.REMAINDER
+                || op == BinaryExpr.Operator.LEFT_SHIFT
+                || op == BinaryExpr.Operator.SIGNED_RIGHT_SHIFT
+                || op == BinaryExpr.Operator.UNSIGNED_RIGHT_SHIFT;
     }
 }
