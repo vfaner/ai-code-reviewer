@@ -8,9 +8,9 @@
 (function () {
   'use strict';
 
-  var THEME_KEY = 'aicr-theme';
-  var TZ_COOKIE = 'AICR_TZ';
-  var LANG_COOKIE = 'AICR_LANG';
+  var THEME_KEY = 'jargus-theme';
+  var TZ_COOKIE = 'JARGUS_TZ';
+  var LANG_COOKIE = 'JARGUS_LANG';
 
   /* ─── 主题 ──────────────────────────────────────────────── */
 
@@ -145,7 +145,7 @@
     init();
   }
 
-  window.AicrTheme = {
+  window.JargusTheme = {
     toggle: toggleTheme,
     apply: applyTheme,
     get current() { return document.documentElement.getAttribute('data-theme'); }

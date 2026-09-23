@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# 构建 AI Code Reviewer Docker 镜像
+# 构建 百目 JArgus Docker 镜像
 set -euo pipefail
 
-IMAGE_NAME="ai-code-reviewer"
-IMAGE_TAG="${1:-1.0.0}"
+IMAGE_NAME="jargus"
+IMAGE_TAG="${1:-2.0.0}"
 
 cd "$(dirname "$0")/.."
 

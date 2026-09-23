@@ -1,5 +1,5 @@
 # ============================================================
-# AI Code Reviewer · 全量镜像构建
+# 百目 JArgus · 全量镜像构建
 # 前端为 Thymeleaf 服务端渲染（无 Node 构建步骤），静态资源随 jar 打包。
 # 网络受限环境可通过构建参数使用镜像站，例如：
 #   docker build \
@@ -7,7 +7,7 @@
 #     --build-arg MAVEN_MIRROR_URL=https://maven.aliyun.com/repository/public \
 #     --build-arg JRE_IMAGE=docker.m.daocloud.io/library/eclipse-temurin:17-jre-jammy \
 #     --build-arg APT_MIRROR=mirrors.aliyun.com \
-#     -t ai-code-reviewer:1.0.0 .
+#     -t jargus:2.0.0 .
 # ============================================================
 # 基础镜像（全局 ARG，供各 FROM 使用；默认官方源，可用镜像站覆盖）
 ARG MAVEN_IMAGE=maven:3.9-eclipse-temurin-17
@@ -66,7 +66,7 @@ RUN useradd -r -u 1001 -m -d /app appuser \
     && chown -R appuser:appuser /app
 
 WORKDIR /app
-COPY --from=builder /app/target/ai-code-reviewer.jar /app/app.jar
+COPY --from=builder /app/target/jargus.jar /app/app.jar
 RUN chown appuser:appuser /app/app.jar
 
 USER appuser

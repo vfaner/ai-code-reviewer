@@ -1,5 +1,5 @@
 # ============================================================
-# AI Code Reviewer - 主配置文件
+# 百目 JArgus - 主配置文件
 # ============================================================
 
 server:
@@ -11,7 +11,7 @@ server:
 
 spring:
   application:
-    name: ai-code-reviewer
+    name: jargus
   # 容器环境优雅停机
   lifecycle:
     timeout-per-shutdown-phase: 20s
@@ -44,7 +44,7 @@ spring:
 # MyBatis-Plus
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
-  type-aliases-package: com.aicodereview.entity
+  type-aliases-package: com.qqmu.jargus.entity
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
@@ -58,13 +58,13 @@ mybatis-plus:
 # 应用配置
 app:
   # 版本号（页脚展示）
-  version: 1.0.0
+  version: 2.0.0
   # 静态资源版本号（css/js 缓存刷新，随静态资源改动递增）
-  asset-version: 1.1.19
+  asset-version: 2.0.0
   # 仓库地址（导航 GitHub 图标、打赏弹窗、系统信息页与版本比对）
-  github-url: https://github.com/vfaner/ai-code-reviewer
+  github-url: https://github.com/vfaner/jargus
   # Gitee 镜像地址（系统信息页展示）
-  gitee-url: https://gitee.com/super_rgh/ai-code-reviewer
+  gitee-url: https://gitee.com/super_rgh/jargus
   # 作者联系方式（系统信息页展示）
   contact:
     qq: 817094/2912167928
@@ -85,7 +85,7 @@ app:
   # 是否启用登录认证（false=免登录，便于本地开发/演示）
   auth-enabled: true
   # JWT 密钥（生产环境请修改）
-  jwt-secret: aicodereview-jwt-secret-key-2024-very-long-string-for-security
+  jwt-secret: jargus-jwt-secret-key-2024-very-long-string-for-security
   # JWT 过期时间（小时）
   jwt-expire-hours: 24
   # 对外可访问的基础地址（CI 回调 target_url / webhook URL 拼接）
@@ -123,9 +123,9 @@ management:
 
 info:
   app:
-    name: AI Code Reviewer
-    version: 1.0.0
-    description: 自动化 Java 代码评审平台
+    name: JArgus
+    version: 2.0.0
+    description: 百目 · Java 代码评审平台
 
 # Jasypt 加密
 jasypt:
@@ -137,11 +137,11 @@ jasypt:
 logging:
   level:
     root: INFO
-    com.aicodereview: DEBUG
+    com.qqmu.jargus: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
   file:
-    name: ./logs/ai-code-reviewer.log
+    name: ./logs/jargus.log
 
 # ============================================================
 # 数据库配置 - 默认 H2（开箱即用）
@@ -151,7 +151,7 @@ datasource:
   default:
     type: H2
     driver-class-name: org.h2.Driver
-    url: jdbc:h2:file:./data/aicodereview;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;MODE=MySQL
+    url: jdbc:h2:file:./data/jargus;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;MODE=MySQL
     username: sa
     password:
     hikari:

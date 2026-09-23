@@ -1,5 +1,5 @@
 -- ============================================================
--- AI Code Reviewer - H2 Database Schema
+-- 百目 JArgus - H2 Database Schema
 -- Version: 1.0.0
 -- ============================================================
 
@@ -278,7 +278,7 @@ INSERT INTO schema_version (version, description) VALUES ('1.0.0', '初始版本
 
 -- 插入默认 H2 数据库配置
 INSERT INTO database_config (name, db_type, driver_class, jdbc_url, username, password, dialect, is_custom, is_active, is_initialized, schema_version, sort_order)
-VALUES ('默认 H2 数据库', 'H2', 'org.h2.Driver', 'jdbc:h2:file:./data/aicodereview;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;MODE=MySQL', 'sa', '', 'H2', FALSE, TRUE, TRUE, '1.0.0', 1);
+VALUES ('默认 H2 数据库', 'H2', 'org.h2.Driver', 'jdbc:h2:file:./data/jargus;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE;MODE=MySQL', 'sa', '', 'H2', FALSE, TRUE, TRUE, '1.0.0', 1);
 
 -- 插入内置 LLM 模板
 INSERT INTO llm_template (template_name, provider_name, protocol_type, base_url, auth_type, auth_header_name, request_body_template, response_content_path, response_error_path, default_model, description, is_builtin) VALUES

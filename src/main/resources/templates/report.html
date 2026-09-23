@@ -2,8 +2,8 @@
 <html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <!-- aicr-report-cache-v3 -->
-    <title>AI 代码评审报告</title>
+    <!-- jargus-report-cache-v1 -->
+    <title>百目 · Java 代码评审报告</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -293,8 +293,8 @@
 <div class="report-container">
     <!-- 头部 -->
     <div class="report-header">
-        <h1>AI 代码评审报告</h1>
-        <div class="subtitle">AI Code Review Report</div>
+        <h1>百目 · Java 代码评审报告</h1>
+        <div class="subtitle">JArgus Code Review Report</div>
     </div>
 
     <div class="report-body">
@@ -500,7 +500,7 @@
     </div>
 
     <div class="report-footer">
-        报告由 AI Code Reviewer 自动生成 &nbsp;|&nbsp;
+        报告由 百目 JArgus 自动生成 &nbsp;|&nbsp;
         <span th:text="${#temporals.format(task.completedAt != null ? task.completedAt : task.createdAt, 'yyyy-MM-dd HH:mm:ss')}">-</span>
     </div>
 </div>

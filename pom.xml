@@ -4,13 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.aicodereview</groupId>
-    <artifactId>ai-code-reviewer</artifactId>
-    <version>1.0.0</version>
+    <groupId>com.qqmu.jargus</groupId>
+    <artifactId>jargus</artifactId>
+    <version>2.0.0</version>
     <packaging>jar</packaging>
 
-    <name>AI Code Reviewer</name>
-    <description>AI 代码评审平台 - 单体应用</description>
+    <name>JArgus</name>
+    <description>百目 · Java 代码评审平台（单体应用）</description>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -243,7 +243,7 @@
     </dependencies>
 
     <build>
-        <finalName>ai-code-reviewer</finalName>
+        <finalName>jargus</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

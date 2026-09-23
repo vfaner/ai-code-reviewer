@@ -6,10 +6,10 @@
 (function () {
   'use strict';
 
-  var TOKEN_KEY = 'aicr_token';
+  var TOKEN_KEY = 'jargus_token';
 
   /* 布局里把解析好的 i18n 文案挂在这里 */
-  var messages = window.AicrMessages || {};
+  var messages = window.JargusMessages || {};
 
   function t(key) {
     if (!key) return '';
@@ -415,7 +415,7 @@
       var banner = btn.closest('.default-pw-banner');
       if (banner) banner.remove();
       try {
-        sessionStorage.setItem('aicr-pw-banner-dismissed', '1');
+        sessionStorage.setItem('jargus-pw-banner-dismissed', '1');
       } catch (e) { /* 隐私模式：本次点击仍生效 */ }
     });
   }
@@ -494,7 +494,7 @@
   });
 
   /* 对外工具（各页面内联脚本使用） */
-  window.AicrUI = {
+  window.JargusUI = {
     t: t,
     esc: esc,
     icon: icon,

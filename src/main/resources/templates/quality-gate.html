@@ -306,7 +306,7 @@
 <th:block th:fragment="scripts">
 <script th:if="${isAdmin}" th:inline="javascript">
     (function () {
-        var UI = window.AicrUI;
+        var UI = window.JargusUI;
         var KEYS = ['blockerWeight', 'criticalWeight', 'majorWeight', 'minorWeight', 'infoWeight',
                     'passScore', 'blockerLimit', 'excellent', 'good', 'fair'];
         var MSG_RESET_CONFIRM = /*[[#{gate.resetConfirm}]]*/ 'Restore defaults?';

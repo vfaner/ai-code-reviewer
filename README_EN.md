@@ -1,8 +1,8 @@
-# AI Code Reviewer · AI Code Review Platform
+# JArgus · Java Code Review Platform
 
 [中文](README.md) | [English](README_EN.md)
 
-> An out-of-the-box Java code quality review platform: a local static analysis engine + optional AI semantic review + SonarQube-style five-grade scoring and quality gates.
+> Hundred eyes, nothing escapes — an out-of-the-box Java code quality review platform: a local static analysis engine + optional AI semantic review + SonarQube-style five-grade scoring and quality gates.
 > Shipped as a single JAR / single Docker image with an embedded database — zero external dependencies, fully offline capable, with first-class Chinese UI, rules and reports.
 
 ---
@@ -161,25 +161,25 @@ All screenshots are taken from real running pages; image assets live in the [`im
 
 No clone, no Maven — download the **runnable Jar** attached to a Release (the very same artifact is published on GitHub and Gitee):
 
-- GitHub Releases: <https://github.com/vfaner/ai-code-reviewer/releases>
-- Gitee Releases: <https://gitee.com/super_rgh/ai-code-reviewer/releases>
+- GitHub Releases: <https://github.com/vfaner/jargus/releases>
+- Gitee Releases: <https://gitee.com/super_rgh/jargus/releases>
 
 All you need is **JDK / JRE 17+**:
 
 ```bash
-java -jar ai-code-reviewer-1.0.0.jar
+java -jar jargus-2.0.0.jar
 ```
 
 - First run auto-initializes the embedded H2 database (`data/`), scan snapshots & reports (`work/`) and logs (`logs/`) in the working directory — no external database required
 - Open <http://localhost:8080>, default account `admin / 123456` (change the password after first login)
-- Custom port: `java -jar ai-code-reviewer-1.0.0.jar --server.port=9090`
+- Custom port: `java -jar jargus-2.0.0.jar --server.port=9090`
 - Override the built-in secrets in production: `--app.jwt-secret=<new-jwt-secret> --app.crypto-key=<new-aes-key>`
 
 For source builds and Docker, see [Deployment](#-deployment) below.
 
 ## ⚔️ Comparison
 
-| Dimension | **AI Code Reviewer** | SonarQube (Community) | PMD / SpotBugs / Checkstyle | CodeQL |
+| Dimension | **JArgus** | SonarQube (Community) | PMD / SpotBugs / Checkstyle | CodeQL |
 |-----------|----------------------|-----------------------|------------------------------|--------|
 | Deployment | ⭐ Single JAR / container, embedded DB, up in 1 minute | Server + DB + compute engine, usually needs dedicated ops | Lightweight, but CLI / IDE only — no server or UI | Requires compiling the codebase + dedicated CLI; server only on GitHub |
 | Chinese support | ✅ Native (UI / rules / suggestions / reports) | ❌ English-first | ❌ | ❌ |
@@ -213,7 +213,7 @@ For source builds and Docker, see [Deployment](#-deployment) below.
 mvn package -DskipTests
 
 # Run (data/ database and work/ snapshots are created in the working directory)
-java -jar target/ai-code-reviewer.jar
+java -jar target/jargus.jar
 ```
 
 Open http://localhost:8080. Default accounts (created on first start — **change the passwords immediately**):
@@ -241,21 +241,21 @@ docker compose logs -f     # logs
 
 ```bash
 # Build the image (multi-stage: Maven build → JRE runtime)
-./scripts/docker-build.sh 1.0.0
+./scripts/docker-build.sh 2.0.0
 # In mainland-China networks, build via registry mirrors:
-./scripts/docker-build-cn.sh 1.0.0
+./scripts/docker-build-cn.sh 2.0.0
 
 # Run with persistent volumes
-docker run -d --name ai-code-reviewer \
+docker run -d --name jargus \
   -p 8080:8080 \
-  -v aicr-data:/app/data \
-  -v aicr-work:/app/work \
-  -v aicr-logs:/app/logs \
-  -v aicr-lib:/app/lib \
+  -v jargus-data:/app/data \
+  -v jargus-work:/app/work \
+  -v jargus-logs:/app/logs \
+  -v jargus-lib:/app/lib \
   -e APP_JWT_SECRET="your-own-random-secret-at-least-32-chars" \
   -e APP_CRYPTO_KEY="your-16-char-key" \
   --restart unless-stopped \
-  ai-code-reviewer:1.0.0
+  jargus:2.0.0
 ```
 
 Health check: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
@@ -354,8 +354,8 @@ curl -X POST "<webhook-url>/upload" \
 ## 📁 Project Layout
 
 ```
-ai-code-reviewer/
-├── src/main/java/com/aicodereview/
+jargus/
+├── src/main/java/com/qqmu/jargus/
 │   ├── checker/         # Checker framework + 19 built-in checkers (AST / regex / scan-level)
 │   ├── config/          # Startup initialization, bean config
 │   ├── controller/      # Page controllers + REST API

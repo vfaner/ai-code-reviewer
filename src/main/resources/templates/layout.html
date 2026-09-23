@@ -16,14 +16,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <title th:with="pt=${titleKey != null ? #messages.msg(titleKey) : #messages.msg('app.subtitle')}"
-           th:text="|${pt} · #{app.title}|">AI Code Reviewer</title>
+           th:text="|${pt} · #{app.title}|">JArgus</title>
 
     <!--/* 首屏前应用主题，否则深色用户会看到一帧白底闪烁 */-->
     <script>
         (function () {
             var mode;
             try {
-                mode = localStorage.getItem('aicr-theme');
+                mode = localStorage.getItem('jargus-theme');
             } catch (e) { /* 隐私模式：跟随系统 */ }
             if (mode !== 'dark' && mode !== 'light') {
                 mode = window.matchMedia
@@ -47,9 +47,9 @@
 <header class="nav">
     <div class="nav-inner">
         <a class="logo" th:href="@{/dashboard}">
-            <span class="logo-mark"><svg class="ico"><use href="#code-square"/></svg></span>
+            <span class="logo-mark"><svg class="ico"><use href="#eye"/></svg></span>
             <span class="logo-text">
-                <span th:text="#{app.title}">AI Code Reviewer</span>
+                <span th:text="#{app.title}">JArgus</span>
                 <small th:if="${appVersion}" class="logo-ver" th:text="${appVersion}">vX.Y.Z</small>
             </span>
         </a>
@@ -200,7 +200,7 @@
             var el = document.getElementById('default-pw-banner');
             if (!el) return;
             try {
-                if (sessionStorage.getItem('aicr-pw-banner-dismissed') === '1') {
+                if (sessionStorage.getItem('jargus-pw-banner-dismissed') === '1') {
                     el.remove();
                 }
             } catch (e) { /* 隐私模式：读不到就照常提示 */ }
@@ -229,7 +229,7 @@
 
 <footer class="foot">
     <span>
-        <span th:text="#{app.title}">AI Code Reviewer</span>
+        <span th:text="#{app.title}">JArgus</span>
         <span class="mx-1">·</span>
         <span th:text="#{app.subtitle}">Automated Java Code Review</span>
         <small class="foot-ver mono" th:if="${appVersion}" th:text="${appVersion}">v1.0.0</small>
@@ -349,7 +349,7 @@
 
 <script th:inline="javascript">
     /* 暴露给 app.js / 页面脚本使用的少量文案 */
-    window.AicrMessages = {
+    window.JargusMessages = {
         'error.sessionExpired': /*[[#{error.sessionExpired}]]*/ '',
         'common.done': /*[[#{common.done}]]*/ '',
         'common.saved': /*[[#{common.saved}]]*/ '',
@@ -374,7 +374,7 @@
 <script th:inline="javascript">
     /* 修改密码 + 登出（JWT 无状态：调接口清 Cookie，本地清 token，回登录页） */
     (function () {
-        var UI = window.AicrUI;
+        var UI = window.JargusUI;
 
         var cpForm = document.getElementById('cp-form');
         if (cpForm) {
@@ -422,7 +422,7 @@
 <script>
     /* 重新上传扫描：任意页面上带 data-rescan-id 的按钮打开弹窗，提交后替换快照并重跑 */
     (function () {
-        var UI = window.AicrUI;
+        var UI = window.JargusUI;
         var MODAL = 'rescan-modal';
         var form = document.getElementById('rescan-form');
         if (!form) return;

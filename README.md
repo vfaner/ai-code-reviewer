@@ -1,8 +1,8 @@
-# AI Code Reviewer · AI 代码评审平台
+# 百目 JArgus · Java 代码评审平台
 
 [中文](README.md) | [English](README_EN.md)
 
-> 开箱即用的 Java 代码质量评审平台：本地静态分析引擎 + 可选 AI 语义评审 + SonarQube 式五级评分与质量门禁。
+> 百目所视，无所遁形。开箱即用的 Java 代码质量评审平台：本地静态分析引擎 + 可选 AI 语义评审 + SonarQube 式五级评分与质量门禁。
 > 单个 JAR / 单个 Docker 镜像交付，内嵌数据库零外部依赖，完全离线可用，界面、规则、报告原生中文。
 
 ---
@@ -161,18 +161,18 @@
 
 无需克隆源码、无需安装 Maven，直接下载 Release 附带的**可运行 Jar**（GitHub 与 Gitee 的 Release 为同一个包）：
 
-- GitHub Releases：<https://github.com/vfaner/ai-code-reviewer/releases>
-- Gitee Releases：<https://gitee.com/super_rgh/ai-code-reviewer/releases>
+- GitHub Releases：<https://github.com/vfaner/jargus/releases>
+- Gitee Releases：<https://gitee.com/super_rgh/jargus/releases>
 
 仅需 **JDK / JRE 17+**：
 
 ```bash
-java -jar ai-code-reviewer-1.0.0.jar
+java -jar jargus-2.0.0.jar
 ```
 
 - 首次启动自动在当前目录初始化内嵌 H2 数据库（`data/`）、扫描快照与报告（`work/`）、日志（`logs/`），无需外接数据库
 - 启动后访问 <http://localhost:8080>，默认账号 `admin / 123456`（登录后请尽快修改密码）
-- 换端口：`java -jar ai-code-reviewer-1.0.0.jar --server.port=9090`
+- 换端口：`java -jar jargus-2.0.0.jar --server.port=9090`
 - 生产环境建议覆盖内置密钥：`--app.jwt-secret=<新JWT密钥> --app.crypto-key=<新AES密钥>`
 
 需要源码构建或 Docker 部署见下文 [部署方法](#-部署方法)。
@@ -181,7 +181,7 @@ java -jar ai-code-reviewer-1.0.0.jar
 
 与市面常用工具横向对比：
 
-| 维度 | **AI Code Reviewer** | SonarQube（社区版） | PMD / SpotBugs / Checkstyle | CodeQL |
+| 维度 | **百目 JArgus** | SonarQube（社区版） | PMD / SpotBugs / Checkstyle | CodeQL |
 |------|----------------------|---------------------|------------------------------|--------|
 | 部署复杂度 | ⭐ 单 JAR / 单容器，内嵌数据库，1 分钟起服务 | 服务器 + 数据库 + 计算引擎，通常需要专人运维 | 轻量，但只有 CLI / IDE 插件，无服务端与页面 | 需编译 codebase + 专用 CLI，服务端仅 GitHub |
 | 中文支持 | ✅ 界面 / 规则 / 建议 / 报告原生中文 | ❌ 以英文为主 | ❌ | ❌ |
@@ -215,7 +215,7 @@ java -jar ai-code-reviewer-1.0.0.jar
 mvn package -DskipTests
 
 # 启动（工作目录下自动生成 data/ 数据库、work/ 快照与报告）
-java -jar target/ai-code-reviewer.jar
+java -jar target/jargus.jar
 ```
 
 访问 http://localhost:8080 ，默认账号（首次启动自动创建，**请立即修改密码**）：
@@ -243,21 +243,21 @@ docker compose logs -f     # 跟踪日志
 
 ```bash
 # 构建镜像（多阶段：Maven 打包 → JRE 运行时）
-./scripts/docker-build.sh 1.0.0
+./scripts/docker-build.sh 2.0.0
 # 国内网络环境可用镜像站加速构建：
-./scripts/docker-build-cn.sh 1.0.0
+./scripts/docker-build-cn.sh 2.0.0
 
 # 运行（数据卷持久化）
-docker run -d --name ai-code-reviewer \
+docker run -d --name jargus \
   -p 8080:8080 \
-  -v aicr-data:/app/data \
-  -v aicr-work:/app/work \
-  -v aicr-logs:/app/logs \
-  -v aicr-lib:/app/lib \
+  -v jargus-data:/app/data \
+  -v jargus-work:/app/work \
+  -v jargus-logs:/app/logs \
+  -v jargus-lib:/app/lib \
   -e APP_JWT_SECRET="your-own-random-secret-at-least-32-chars" \
   -e APP_CRYPTO_KEY="your-16-char-key" \
   --restart unless-stopped \
-  ai-code-reviewer:1.0.0
+  jargus:2.0.0
 ```
 
 健康检查：`curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
@@ -356,8 +356,8 @@ curl -X POST "<Webhook地址>/upload" \
 ## 📁 项目结构
 
 ```
-ai-code-reviewer/
-├── src/main/java/com/aicodereview/
+jargus/
+├── src/main/java/com/qqmu/jargus/
 │   ├── checker/         # 检查器框架与 19 个内置检查器（AST / 正则 / 扫描级）
 │   ├── config/          # 启动初始化、Bean 配置
 │   ├── controller/      # 页面控制器 + REST API

@@ -1,10 +1,10 @@
 services:
-  ai-code-reviewer:
+  jargus:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ai-code-reviewer:1.0.0
-    container_name: ai-code-reviewer
+    image: jargus:2.0.0
+    container_name: jargus
     ports:
       - "8080:8080"
     environment:
@@ -13,15 +13,15 @@ services:
       # 是否开启登录鉴权（默认开启）
       APP_AUTH_ENABLED: "true"
       # 生产环境请修改以下两个密钥（可用 .env 文件覆盖）
-      APP_JWT_SECRET: ${APP_JWT_SECRET:-aicodereview-jwt-secret-key-please-change-in-production}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-jargus-jwt-secret-key-please-change-in-production}
       APP_CRYPTO_KEY: ${APP_CRYPTO_KEY:-a1b2c3d4e5f6g7h8}
       # JVM 参数
       JAVA_OPTS: "-XX:MaxRAMPercentage=75.0 -Duser.timezone=Asia/Shanghai"
     volumes:
-      - aicr-data:/app/data
-      - aicr-work:/app/work
-      - aicr-logs:/app/logs
-      - aicr-lib:/app/lib
+      - jargus-data:/app/data
+      - jargus-work:/app/work
+      - jargus-logs:/app/logs
+      - jargus-lib:/app/lib
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
@@ -31,7 +31,7 @@ services:
       start_period: 60s
 
 volumes:
-  aicr-data:
-  aicr-work:
-  aicr-logs:
-  aicr-lib:
+  jargus-data:
+  jargus-work:
+  jargus-logs:
+  jargus-lib:

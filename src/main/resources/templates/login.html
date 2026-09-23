@@ -10,12 +10,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
-    <title th:text="|#{login.title} · #{app.title}|">Sign in · AI Code Reviewer</title>
+    <title th:text="|#{login.title} · #{app.title}|">Sign in · JArgus</title>
 
     <script>
         (function () {
             var mode;
-            try { mode = localStorage.getItem('aicr-theme'); } catch (e) { /* 隐私模式 */ }
+            try { mode = localStorage.getItem('jargus-theme'); } catch (e) { /* 隐私模式 */ }
             if (mode !== 'dark' && mode !== 'light') {
                 mode = window.matchMedia
                     && window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -49,8 +49,8 @@
 <main class="login-wrap">
 
     <div class="login-brand">
-        <span class="login-mark"><svg class="ico ico-xl"><use href="#code-square"/></svg></span>
-        <h1 th:text="#{app.title}">AI Code Reviewer</h1>
+        <span class="login-mark"><svg class="ico ico-xl"><use href="#eye"/></svg></span>
+        <h1 th:text="#{app.title}">JArgus</h1>
         <p th:text="#{login.tagline}">Sign in to continue · works offline</p>
     </div>
 
@@ -146,8 +146,8 @@
 <script th:src="@{/js/app.js(v=${assetVersion})}"></script>
 <script th:inline="javascript">
     (function () {
-        var UI = window.AicrUI;
-        var TOKEN_KEY = 'aicr_token';
+        var UI = window.JargusUI;
+        var TOKEN_KEY = 'jargus_token';
         /* JS 内联注释表达式只能整句赋值：写在三元/拼接里会被 Thymeleaf 吃掉分隔符 */
         var MSG_LOGGING = /*[[#{login.logging}]]*/ 'Signing in…';
         var MSG_SUBMIT = /*[[#{login.submit}]]*/ 'Sign in';
