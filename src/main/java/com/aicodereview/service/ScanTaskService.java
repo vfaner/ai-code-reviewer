@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -258,8 +259,8 @@ public class ScanTaskService {
         if (dir == null || !Files.exists(dir)) {
             return;
         }
-        try (java.util.stream.Stream<Path> walk = Files.walk(dir)) {
-            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+        try (Stream<Path> walk = Files.walk(dir)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
                 try {
                     Files.deleteIfExists(p);
                 } catch (IOException ignored) {
@@ -618,9 +619,9 @@ public class ScanTaskService {
         int total = 0;
         for (Path file : files) {
             // Files.lines 的解码异常在终结操作时以 UncheckedIOException 抛出
-            try (java.util.stream.Stream<String> lines = Files.lines(file)) {
+            try (Stream<String> lines = Files.lines(file)) {
                 total += (int) lines.count();
-            } catch (IOException | java.io.UncheckedIOException ignored) {
+            } catch (IOException | UncheckedIOException ignored) {
                 // 非 UTF-8/二进制文件跳过，不能让一个坏文件搞挂整个任务
             }
         }

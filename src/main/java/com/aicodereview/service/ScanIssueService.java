@@ -18,7 +18,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 扫描问题服务
@@ -76,7 +78,7 @@ public class ScanIssueService {
     /**
      * 获取任务的问题统计
      */
-    public java.util.Map<String, Object> getStats(Long taskId) {
+    public Map<String, Object> getStats(Long taskId) {
         QueryWrapper<ScanIssue> wrapper = new QueryWrapper<>();
         wrapper.eq("task_id", taskId);
 
@@ -97,7 +99,7 @@ public class ScanIssueService {
         );
         long total = blockerCount + criticalCount + majorCount + minorCount + infoCount;
 
-        java.util.Map<String, Object> stats = new java.util.HashMap<>();
+        Map<String, Object> stats = new HashMap<>();
         stats.put("blockerCount", blockerCount);
         stats.put("criticalCount", criticalCount);
         stats.put("majorCount", majorCount);
@@ -107,23 +109,23 @@ public class ScanIssueService {
 
         // 按检查器聚合（selectMaps 保留 COUNT 别名，实体映射会丢弃聚合列）
         try {
-            List<java.util.Map<String, Object>> rows = scanIssueMapper.selectMaps(
+            List<Map<String, Object>> rows = scanIssueMapper.selectMaps(
                     new QueryWrapper<ScanIssue>()
                             .select("checker_type", "MAX(checker_name) AS checker_name",
                                     "issue_level", "COUNT(*) AS cnt")
                             .eq("task_id", taskId)
                             .groupBy("checker_type", "issue_level")
             );
-            List<java.util.Map<String, Object>> byChecker = new java.util.ArrayList<>();
-            for (java.util.Map<String, Object> row : rows) {
+            List<Map<String, Object>> byChecker = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
                 // 列标签大小写因方言而异（H2 大写、MySQL 小写），统一按小写键读取
-                java.util.Map<String, Object> ci = new java.util.HashMap<>();
-                for (java.util.Map.Entry<String, Object> e : row.entrySet()) {
+                Map<String, Object> ci = new HashMap<>();
+                for (Map.Entry<String, Object> e : row.entrySet()) {
                     if (e.getKey() != null) {
                         ci.put(e.getKey().toLowerCase(), e.getValue());
                     }
                 }
-                java.util.Map<String, Object> m = new java.util.HashMap<>();
+                Map<String, Object> m = new HashMap<>();
                 m.put("checkerType", ci.get("checker_type"));
                 m.put("checkerName", ci.get("checker_name"));
                 m.put("level", ci.get("issue_level"));

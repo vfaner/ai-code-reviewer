@@ -5,11 +5,16 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.File;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
+import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
  * 自定义 JDBC 驱动加载器
@@ -92,7 +97,7 @@ public class CustomDriverLoader {
      * 驱动 Shim 类
      * 用于绕过 DriverManager 对驱动类加载器的检查
      */
-    static class DriverShim implements java.sql.Driver {
+    static class DriverShim implements Driver {
 
         private final Driver delegate;
 
@@ -101,7 +106,7 @@ public class CustomDriverLoader {
         }
 
         @Override
-        public java.sql.Connection connect(String url, java.util.Properties info) throws SQLException {
+        public Connection connect(String url, Properties info) throws SQLException {
             return delegate.connect(url, info);
         }
 
@@ -111,7 +116,7 @@ public class CustomDriverLoader {
         }
 
         @Override
-        public java.sql.DriverPropertyInfo[] getPropertyInfo(String url, java.util.Properties info) throws SQLException {
+        public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
             return delegate.getPropertyInfo(url, info);
         }
 
@@ -131,7 +136,7 @@ public class CustomDriverLoader {
         }
 
         @Override
-        public java.util.logging.Logger getParentLogger() throws java.sql.SQLFeatureNotSupportedException {
+        public Logger getParentLogger() throws SQLFeatureNotSupportedException {
             return delegate.getParentLogger();
         }
     }

@@ -5,6 +5,8 @@ import com.aicodereview.entity.SysUser;
 import com.aicodereview.mapper.SysUserMapper;
 import com.aicodereview.util.JwtUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -146,8 +148,8 @@ public class AuthService {
             return "VIEWER";
         }
         try {
-            Map<String, String> mapping = new com.fasterxml.jackson.databind.ObjectMapper()
-                    .readValue(config.getRoleMapping(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+            Map<String, String> mapping = new ObjectMapper()
+                    .readValue(config.getRoleMapping(), new TypeReference<Map<String, String>>() {});
             String mapped = mapping.get(remoteRole.toString());
             return mapped != null ? mapped : "VIEWER";
         } catch (Exception e) {

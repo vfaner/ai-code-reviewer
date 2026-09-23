@@ -3,6 +3,7 @@ package com.aicodereview.controller;
 import com.aicodereview.dto.Result;
 import com.aicodereview.entity.CiScanRecord;
 import com.aicodereview.entity.CiTriggerConfig;
+import com.aicodereview.security.UserContext;
 import com.aicodereview.service.CiTriggerService;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +49,7 @@ public class CiTriggerController {
         CiTriggerConfig config = ciTriggerService.getById(id);
         if (config == null) return Result.error("配置不存在");
         // 密钥仅管理员可取（GET 默认对 VIEWER 开放）
-        if (!com.aicodereview.security.UserContext.isAdmin()) {
+        if (!UserContext.isAdmin()) {
             config.setSecretToken(null);
         }
         return Result.success(config);

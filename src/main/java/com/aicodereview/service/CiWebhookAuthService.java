@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -108,7 +109,7 @@ public class CiWebhookAuthService {
                 sb.append(Character.forDigit(b & 0xF, 16));
             }
             expected = sb.toString();
-        } catch (NoSuchAlgorithmException | java.security.InvalidKeyException e) {
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             throw new IllegalStateException("HMAC 计算失败", e);
         }
         if (!constantTimeEq(expected, signature.trim())) {

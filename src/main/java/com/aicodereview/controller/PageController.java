@@ -17,6 +17,7 @@ import com.aicodereview.service.QualityGateService;
 import com.aicodereview.service.RemoteAuthConfigService;
 import com.aicodereview.service.ReviewRuleService;
 import com.aicodereview.service.ScanTaskService;
+import com.aicodereview.service.version.VersionService;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +32,7 @@ import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +63,7 @@ public class PageController {
     private final CiTriggerService ciTriggerService;
     private final CiTokenService ciTokenService;
     private final RemoteAuthConfigService remoteAuthConfigService;
-    private final com.aicodereview.service.version.VersionService versionService;
+    private final VersionService versionService;
 
     @Value("${app.work-dir:./work}")
     private String workDir;
@@ -290,7 +292,7 @@ public class PageController {
         model.addAttribute("tokens", ciTokenService.list(1, 100, null).getRecords());
         model.addAttribute("records", ciTriggerService.listRecords(1, 50, null).getRecords());
         // 记录按触发器筛选/展示名称用
-        java.util.Map<Long, String> triggerNames = new java.util.HashMap<>();
+        Map<Long, String> triggerNames = new HashMap<>();
         for (var t : triggerList) {
             triggerNames.put(t.getId(), t.getConfigName());
         }

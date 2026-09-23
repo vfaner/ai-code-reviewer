@@ -38,11 +38,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -508,7 +510,7 @@ public class ReportService {
     }
 
     private LocalDateTime toLocalDateTime(Object value) {
-        if (value instanceof java.sql.Timestamp ts) {
+        if (value instanceof Timestamp ts) {
             return ts.toLocalDateTime();
         }
         if (value instanceof LocalDateTime ldt) {
@@ -1184,7 +1186,7 @@ public class ReportService {
     }
 
     private Map<String, Map<String, Integer>> countByChecker(List<ScanIssue> issues) {
-        Map<String, Map<String, Integer>> map = new java.util.LinkedHashMap<>();
+        Map<String, Map<String, Integer>> map = new LinkedHashMap<>();
         for (ScanIssue issue : issues) {
             String checker = issue.getCheckerName() != null ? issue.getCheckerName() : issue.getCheckerType();
             String level = issue.getIssueLevel();

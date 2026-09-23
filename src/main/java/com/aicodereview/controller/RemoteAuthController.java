@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 远端登录配置控制器（管理员功能）
@@ -68,7 +69,7 @@ public class RemoteAuthController {
     }
 
     @PostMapping("/test")
-    public Result<java.util.Map<String, Object>> test(@RequestBody RemoteAuthConfig config) {
+    public Result<Map<String, Object>> test(@RequestBody RemoteAuthConfig config) {
         return Result.success(remoteAuthConfigService.testConnection(config));
     }
 

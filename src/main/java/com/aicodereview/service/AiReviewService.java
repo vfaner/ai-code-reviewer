@@ -68,7 +68,7 @@ public class AiReviewService {
             String systemPrompt = buildSystemPrompt(reviewType);
             String userPrompt = buildUserPrompt(context);
 
-            java.util.Map<String, String> vars = new java.util.HashMap<>();
+            Map<String, String> vars = new HashMap<>();
             vars.put("code", context.getSourceCode());
             vars.put("file_name", context.getCurrentFilePath());
             vars.put("jdk_version", context.getJdkVersion() != null ? context.getJdkVersion() : "");

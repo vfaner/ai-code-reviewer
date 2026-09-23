@@ -4,6 +4,7 @@ import com.aicodereview.checker.CheckContext;
 import com.aicodereview.checker.CheckIssue;
 import com.aicodereview.checker.CheckerType;
 import com.aicodereview.service.CallGraphService;
+import com.github.javaparser.ast.CompilationUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -46,7 +47,7 @@ public class UnusedMethodChecker extends AbstractLocalChecker {
     }
 
     @Override
-    protected void doCheck(CheckContext context, com.github.javaparser.ast.CompilationUnit cu, List<CheckIssue> issues) {
+    protected void doCheck(CheckContext context, CompilationUnit cu, List<CheckIssue> issues) {
         // 这是全局检查器，在 check() 方法中处理
     }
 

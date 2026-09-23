@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import java.nio.file.FileSystems;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -181,15 +182,15 @@ public class IgnoreRuleService {
 
     public IgnoreRule create(IgnoreRule rule) {
         if (rule.getIsEnabled() == null) rule.setIsEnabled(true);
-        rule.setCreatedAt(java.time.LocalDateTime.now());
-        rule.setUpdatedAt(java.time.LocalDateTime.now());
+        rule.setCreatedAt(LocalDateTime.now());
+        rule.setUpdatedAt(LocalDateTime.now());
         ignoreRuleMapper.insert(rule);
         refreshCache();
         return rule;
     }
 
     public boolean update(IgnoreRule rule) {
-        rule.setUpdatedAt(java.time.LocalDateTime.now());
+        rule.setUpdatedAt(LocalDateTime.now());
         int rows = ignoreRuleMapper.updateById(rule);
         if (rows > 0) refreshCache();
         return rows > 0;
@@ -205,7 +206,7 @@ public class IgnoreRuleService {
         IgnoreRule rule = ignoreRuleMapper.selectById(id);
         if (rule == null) return false;
         rule.setIsEnabled(!Boolean.TRUE.equals(rule.getIsEnabled()));
-        rule.setUpdatedAt(java.time.LocalDateTime.now());
+        rule.setUpdatedAt(LocalDateTime.now());
         int rows = ignoreRuleMapper.updateById(rule);
         if (rows > 0) refreshCache();
         return rows > 0;

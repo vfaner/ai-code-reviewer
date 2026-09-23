@@ -6,6 +6,7 @@ import com.aicodereview.mapper.CiTriggerConfigMapper;
 import com.aicodereview.mapper.CiScanRecordMapper;
 import com.aicodereview.util.CryptoUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
@@ -99,7 +100,7 @@ public class CiTriggerService {
         config.setUpdatedAt(LocalDateTime.now());
         boolean ok = triggerConfigMapper.updateById(config) > 0;
         // updateById 默认忽略 null 字段：以下字段需要显式置空
-        var clearWrapper = new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<CiTriggerConfig>()
+        var clearWrapper = new UpdateWrapper<CiTriggerConfig>()
                 .eq("id", id);
         boolean needClear = false;
         if (config.getPlatformUrl() == null) {

@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * AI 检查器基类
@@ -56,7 +57,7 @@ public abstract class AbstractAiChecker implements CodeChecker {
         return 200;
     }
 
-    protected List<CheckIssue> safeCheck(CheckContext context, java.util.function.Function<CheckContext, List<CheckIssue>> reviewer) {
+    protected List<CheckIssue> safeCheck(CheckContext context, Function<CheckContext, List<CheckIssue>> reviewer) {
         try {
             return reviewer.apply(context);
         } catch (Exception e) {

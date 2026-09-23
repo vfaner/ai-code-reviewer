@@ -8,6 +8,7 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -183,7 +184,7 @@ public class ArchitectureChecker extends AbstractLocalChecker {
         }
         String[] parts = pkg.split("\\.");
         int n = Math.min(segments, parts.length);
-        return String.join(".", java.util.Arrays.copyOfRange(parts, 0, n));
+        return String.join(".", Arrays.copyOfRange(parts, 0, n));
     }
 
     private String lowerName(Layer layer) {

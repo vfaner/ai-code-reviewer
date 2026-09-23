@@ -22,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
 
@@ -181,7 +182,7 @@ public class ScanTaskController {
         if (task == null) {
             return Result.error("任务不存在");
         }
-        java.util.Map<String, Object> status = new java.util.HashMap<>();
+        Map<String, Object> status = new HashMap<>();
         status.put("id", task.getId());
         status.put("status", task.getStatus());
         status.put("totalIssues", task.getTotalIssues() != null ? task.getTotalIssues() : 0);

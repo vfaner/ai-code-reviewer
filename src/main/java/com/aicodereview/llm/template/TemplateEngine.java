@@ -2,6 +2,7 @@ package com.aicodereview.llm.template;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -108,8 +109,8 @@ public class TemplateEngine {
                 }
 
                 // 再取索引
-                if (current instanceof java.util.List) {
-                    java.util.List<Object> list = (java.util.List<Object>) current;
+                if (current instanceof List) {
+                    List<Object> list = (List<Object>) current;
                     if (index >= 0 && index < list.size()) {
                         current = list.get(index);
                     } else {

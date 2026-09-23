@@ -9,15 +9,19 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.net.ConnectException;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.net.ssl.SSLException;
 
 /**
  * 远端登录配置服务
@@ -217,20 +221,20 @@ public class RemoteAuthConfigService {
         HttpResponse<String> resp;
         try {
             resp = postJson(url.trim(), body);
-        } catch (java.net.http.HttpTimeoutException e) {
+        } catch (HttpTimeoutException e) {
             result.put("success", false);
             result.put("message", "请求超时（15 秒），请检查网络或地址是否可达");
             return result;
-        } catch (java.net.UnknownHostException e) {
+        } catch (UnknownHostException e) {
             result.put("success", false);
             result.put("message", "域名无法解析：" + e.getMessage());
             return result;
-        } catch (java.net.ConnectException e) {
+        } catch (ConnectException e) {
             result.put("success", false);
             result.put("message", "连接被拒绝（端口未开放或服务未启动）"
                     + (e.getMessage() != null ? "：" + e.getMessage() : ""));
             return result;
-        } catch (javax.net.ssl.SSLException e) {
+        } catch (SSLException e) {
             result.put("success", false);
             result.put("message", "HTTPS 握手失败，请确认地址协议（http/https）与证书是否有效：" + e.getMessage());
             return result;

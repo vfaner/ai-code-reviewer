@@ -225,9 +225,9 @@ public class ProviderConfigService {
         AiProviderConfig config = providerConfigMapper.selectById(id);
         if (config != null) {
             // 解密敏感信息
-            config.setApiKey(com.aicodereview.util.CryptoUtil.decrypt(config.getApiKey()));
+            config.setApiKey(CryptoUtil.decrypt(config.getApiKey()));
             if (config.getSecretKey() != null) {
-                config.setSecretKey(com.aicodereview.util.CryptoUtil.decrypt(config.getSecretKey()));
+                config.setSecretKey(CryptoUtil.decrypt(config.getSecretKey()));
             }
         }
         return config;

@@ -6,6 +6,7 @@ import com.aicodereview.llm.AiChatResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -134,7 +135,7 @@ public class QianfanClient extends AbstractAiClient {
                     .bodyValue(body)
                     .retrieve()
                     .bodyToMono(String.class)
-                    .block(java.time.Duration.ofSeconds(10));
+                    .block(Duration.ofSeconds(10));
 
             if (response == null) return null;
 

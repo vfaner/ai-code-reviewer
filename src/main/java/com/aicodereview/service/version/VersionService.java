@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -55,7 +56,7 @@ public class VersionService {
     private volatile String notesCache;
     private volatile boolean notesLoaded;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public VersionService(GithubReleaseFeed githubFeed, GiteeReleaseFeed giteeFeed,
                           @Value("${app.version:}") String currentVersion,
                           @Value("${app.update-check.enabled:true}") boolean enabled) {

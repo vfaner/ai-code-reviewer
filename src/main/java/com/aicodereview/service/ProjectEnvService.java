@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -171,14 +173,14 @@ public class ProjectEnvService {
         String content = Files.readString(pomPath, StandardCharsets.UTF_8);
 
         // 简单的正则解析 dependency 块
-        java.util.regex.Pattern depPattern = java.util.regex.Pattern.compile(
+        Pattern depPattern = Pattern.compile(
                 "<dependency>\\s*<groupId>(.*?)</groupId>\\s*<artifactId>(.*?)</artifactId>" +
                         "(?:\\s*<version>(.*?)</version>)?" +
                         "(?:\\s*<scope>(.*?)</scope>)?",
-                java.util.regex.Pattern.DOTALL
+                Pattern.DOTALL
         );
 
-        java.util.regex.Matcher matcher = depPattern.matcher(content);
+        Matcher matcher = depPattern.matcher(content);
         while (matcher.find()) {
             deps.add(DependencyInfo.builder()
                     .groupId(matcher.group(1).trim())
@@ -190,9 +192,9 @@ public class ProjectEnvService {
         }
 
         // 提取 parent 中的 Spring Boot 版本
-        java.util.regex.Pattern parentPattern = java.util.regex.Pattern.compile(
+        Pattern parentPattern = Pattern.compile(
                 "<parent>.*?<groupId>(.*?)</groupId>.*?<artifactId>(.*?)</artifactId>.*?<version>(.*?)</version>.*?</parent>",
-                java.util.regex.Pattern.DOTALL
+                Pattern.DOTALL
         );
         matcher = parentPattern.matcher(content);
         if (matcher.find()) {
@@ -214,12 +216,12 @@ public class ProjectEnvService {
         List<DependencyInfo> deps = new ArrayList<>();
         List<String> lines = Files.readAllLines(buildPath, StandardCharsets.UTF_8);
 
-        java.util.regex.Pattern depPattern = java.util.regex.Pattern.compile(
+        Pattern depPattern = Pattern.compile(
                 "(?:implementation|api|compile|compileOnly|runtimeOnly|testImplementation)\\s+[\"\']([^:]+):([^:]+):?([^\"\']*)[\"\']"
         );
 
         for (String line : lines) {
-            java.util.regex.Matcher matcher = depPattern.matcher(line.trim());
+            Matcher matcher = depPattern.matcher(line.trim());
             if (matcher.find()) {
                 String scope = "compile";
                 if (line.contains("test")) scope = "test";
@@ -327,13 +329,13 @@ public class ProjectEnvService {
                 if (pom != null) {
                     String content = Files.readString(pom, StandardCharsets.UTF_8);
                     // 找 maven.compiler.source / java.version 等
-                    java.util.regex.Pattern[] patterns = {
-                            java.util.regex.Pattern.compile("<java\\.version>(.*?)</java\\.version>"),
-                            java.util.regex.Pattern.compile("<maven\\.compiler\\.source>(.*?)</maven\\.compiler\\.source>"),
-                            java.util.regex.Pattern.compile("<source>(.*?)</source>")
+                    Pattern[] patterns = {
+                            Pattern.compile("<java\\.version>(.*?)</java\\.version>"),
+                            Pattern.compile("<maven\\.compiler\\.source>(.*?)</maven\\.compiler\\.source>"),
+                            Pattern.compile("<source>(.*?)</source>")
                     };
-                    for (java.util.regex.Pattern p : patterns) {
-                        java.util.regex.Matcher m = p.matcher(content);
+                    for (Pattern p : patterns) {
+                        Matcher m = p.matcher(content);
                         if (m.find()) {
                             String ver = m.group(1).trim();
                             if (ver.matches("\\d+")) {

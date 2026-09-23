@@ -13,6 +13,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -43,7 +44,7 @@ public class AiSuggestionService {
     private final ScanIssueService scanIssueService;
     private final ReportService reportService;
     /** 自注入代理：@Async 方法必须经 Spring 代理调用，类内 this 直调不会异步 */
-    private final org.springframework.beans.factory.ObjectProvider<AiSuggestionService> selfProvider;
+    private final ObjectProvider<AiSuggestionService> selfProvider;
 
     /** 深度评审进度：taskId → 进度（仅本节点内存态，重启后视为空闲） */
     private final Map<Long, Progress> jobs = new ConcurrentHashMap<>();

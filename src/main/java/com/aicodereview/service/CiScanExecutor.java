@@ -10,9 +10,13 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Comparator;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * CI 异步扫描执行器
@@ -79,7 +83,7 @@ public class CiScanExecutor {
      */
     private void deleteRecursively(Path dir) {
         try (var walk = Files.walk(dir)) {
-            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
                 try {
                     Files.deleteIfExists(p);
                 } catch (Exception e) {
@@ -122,7 +126,7 @@ public class CiScanExecutor {
             }
 
             return workDir;
-        } catch (GitAPIException | java.io.IOException e) {
+        } catch (GitAPIException | IOException e) {
             log.error("克隆仓库失败: url={}, err={}", repoUrl, e.getMessage());
             return null;
         }
@@ -133,14 +137,14 @@ public class CiScanExecutor {
      */
     private byte[] zipDirectory(Path sourceDir) throws Exception {
         Path zipPath = Files.createTempFile("ci-scan-", ".zip");
-        try (var zos = new java.util.zip.ZipOutputStream(Files.newOutputStream(zipPath))) {
+        try (var zos = new ZipOutputStream(Files.newOutputStream(zipPath))) {
             Files.walk(sourceDir)
                     .filter(path -> !Files.isDirectory(path))
                     .forEach(path -> {
                         try {
                             String entryName = sourceDir.relativize(path).toString()
                                     .replace(File.separatorChar, '/');
-                            var entry = new java.util.zip.ZipEntry(entryName);
+                            var entry = new ZipEntry(entryName);
                             zos.putNextEntry(entry);
                             Files.copy(path, zos);
                             zos.closeEntry();

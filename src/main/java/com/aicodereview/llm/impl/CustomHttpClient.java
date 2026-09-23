@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
+import java.time.Duration;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -243,7 +244,7 @@ public class CustomHttpClient extends AbstractAiClient {
             int timeout = config.getTimeoutSeconds() != null ? config.getTimeoutSeconds() : 60;
             return spec.retrieve()
                     .bodyToMono(String.class)
-                    .block(java.time.Duration.ofSeconds(timeout));
+                    .block(Duration.ofSeconds(timeout));
         } catch (Exception e) {
             log.error("HTTP GET 失败: {}", e.getMessage());
             return null;

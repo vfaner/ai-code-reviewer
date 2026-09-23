@@ -10,11 +10,13 @@ import com.aicodereview.service.AdvisoryStore;
 import com.aicodereview.service.ProjectEnvService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.javaparser.ast.CompilationUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -70,7 +72,7 @@ public class DependencyVulnChecker extends AbstractLocalChecker implements PostS
     }
 
     @Override
-    protected void doCheck(CheckContext context, com.github.javaparser.ast.CompilationUnit cu,
+    protected void doCheck(CheckContext context, CompilationUnit cu,
                            List<CheckIssue> issues) {
         // 依赖扫描与单个 Java 文件无关，统一在 postScanCheck 执行
     }
@@ -228,7 +230,7 @@ public class DependencyVulnChecker extends AbstractLocalChecker implements PostS
         }
         try {
             Path rel = sourceRoot.relativize(buildFile);
-            String s = rel.toString().replace(java.io.File.separatorChar, '/');
+            String s = rel.toString().replace(File.separatorChar, '/');
             return s.isEmpty() ? buildFile.getFileName().toString() : s;
         } catch (Exception e) {
             return buildFile.getFileName().toString();

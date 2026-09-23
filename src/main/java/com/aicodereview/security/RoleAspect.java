@@ -8,6 +8,7 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Controller;
 
 import java.lang.reflect.Method;
 
@@ -57,9 +58,9 @@ public class RoleAspect {
             String lowerMethodName = method.getName().toLowerCase();
             // 只对 RestController 方法做启发式判断；Controller 页面方法默认 viewer 可访问，
             // 管理员专属页面在 PageController 内显式重定向（服务端二次校验）。
-            boolean isPageController = org.springframework.stereotype.Controller.class.isAssignableFrom(targetClass)
+            boolean isPageController = Controller.class.isAssignableFrom(targetClass)
                     || (targetClass.getSuperclass() != null
-                        && org.springframework.stereotype.Controller.class.isAssignableFrom(targetClass.getSuperclass()));
+                        && Controller.class.isAssignableFrom(targetClass.getSuperclass()));
             if (isPageController) {
                 // 页面 GET 请求全放行；写操作走 /api REST 接口，由 RestController 启发式判断
                 requiredRole = "VIEWER";

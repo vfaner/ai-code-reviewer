@@ -5,6 +5,7 @@ import com.aicodereview.checker.CheckIssue;
 import com.aicodereview.checker.CheckerType;
 import com.aicodereview.checker.IssueLevel;
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.NameExpr;
@@ -111,7 +112,7 @@ public class ResourceLeakChecker extends AbstractLocalChecker {
         String varName = var.getNameAsString();
 
         // 找到包含此变量的方法
-        var methodOpt = var.findAncestor(com.github.javaparser.ast.body.MethodDeclaration.class);
+        var methodOpt = var.findAncestor(MethodDeclaration.class);
         if (methodOpt.isEmpty()) {
             return false;
         }

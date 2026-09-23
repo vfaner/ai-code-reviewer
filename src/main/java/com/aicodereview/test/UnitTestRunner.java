@@ -14,6 +14,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 单元测试执行器
@@ -244,10 +246,10 @@ public class UnitTestRunner {
         int skipped = 0;
 
         // 匹配 Maven Surefire 输出格式: Tests run: X, Failures: Y, Errors: Z, Skipped: W
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+        Pattern pattern = Pattern.compile(
                 "Tests run:\\s*(\\d+),\\s*Failures:\\s*(\\d+),\\s*Errors:\\s*(\\d+),\\s*Skipped:\\s*(\\d+)"
         );
-        java.util.regex.Matcher matcher = pattern.matcher(output);
+        Matcher matcher = pattern.matcher(output);
         while (matcher.find()) {
             testsRun += Integer.parseInt(matcher.group(1));
             failures += Integer.parseInt(matcher.group(2));
@@ -275,8 +277,8 @@ public class UnitTestRunner {
         int failed = 0;
 
         // 简单解析
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d+) tests? completed");
-        java.util.regex.Matcher matcher = pattern.matcher(output);
+        Pattern pattern = Pattern.compile("(\\d+) tests? completed");
+        Matcher matcher = pattern.matcher(output);
         if (matcher.find()) {
             tests = Integer.parseInt(matcher.group(1));
         }

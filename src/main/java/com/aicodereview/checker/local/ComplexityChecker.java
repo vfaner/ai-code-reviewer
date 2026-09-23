@@ -7,6 +7,7 @@ import com.aicodereview.checker.IssueLevel;
 import com.aicodereview.service.CheckerParamsService;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.expr.BinaryExpr;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.CatchClause;
 import com.github.javaparser.ast.stmt.DoStmt;
@@ -126,10 +127,10 @@ public class ComplexityChecker extends AbstractLocalChecker {
         body.walk(ConditionalExpr.class, condExpr -> complexity.incrementAndGet());
 
         // 统计 && 和 || 运算符（每个算 1）
-        body.walk(com.github.javaparser.ast.expr.BinaryExpr.class, binaryExpr -> {
+        body.walk(BinaryExpr.class, binaryExpr -> {
             var op = binaryExpr.getOperator();
-            if (op == com.github.javaparser.ast.expr.BinaryExpr.Operator.AND
-                    || op == com.github.javaparser.ast.expr.BinaryExpr.Operator.OR) {
+            if (op == BinaryExpr.Operator.AND
+                    || op == BinaryExpr.Operator.OR) {
                 complexity.incrementAndGet();
             }
         });

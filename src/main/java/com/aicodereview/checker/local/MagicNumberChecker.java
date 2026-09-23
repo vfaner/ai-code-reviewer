@@ -5,6 +5,7 @@ import com.aicodereview.checker.CheckIssue;
 import com.aicodereview.checker.CheckerType;
 import com.aicodereview.checker.IssueLevel;
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.expr.ArrayInitializerExpr;
 import com.github.javaparser.ast.expr.AssignExpr;
 import com.github.javaparser.ast.expr.BinaryExpr;
@@ -148,7 +149,7 @@ public class MagicNumberChecker extends AbstractLocalChecker {
         var parent = expr.getParentNode();
         while (parent.isPresent()) {
             var node = parent.get();
-            if (node instanceof com.github.javaparser.ast.body.FieldDeclaration field) {
+            if (node instanceof FieldDeclaration field) {
                 return field.isStatic() && field.isFinal();
             }
             // 如果遇到赋值表达式，不往上找了

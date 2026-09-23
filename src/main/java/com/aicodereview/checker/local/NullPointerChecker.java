@@ -17,6 +17,8 @@ import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.expr.NullLiteralExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.expr.UnaryExpr;
+import com.github.javaparser.ast.stmt.BreakStmt;
+import com.github.javaparser.ast.stmt.ContinueStmt;
 import com.github.javaparser.ast.stmt.IfStmt;
 import com.github.javaparser.ast.stmt.ReturnStmt;
 import com.github.javaparser.ast.stmt.ThrowStmt;
@@ -283,8 +285,8 @@ public class NullPointerChecker extends AbstractLocalChecker implements PostScan
                         && target.getNameAsString().equals(varName)) {
                     guarded[0] = true;
                 }
-                if (node instanceof com.github.javaparser.ast.stmt.ContinueStmt
-                        || node instanceof com.github.javaparser.ast.stmt.BreakStmt) {
+                if (node instanceof ContinueStmt
+                        || node instanceof BreakStmt) {
                     guarded[0] = true;
                 }
             });
