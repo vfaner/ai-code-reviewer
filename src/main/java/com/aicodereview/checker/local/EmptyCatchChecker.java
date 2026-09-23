@@ -1,21 +1,34 @@
 package com.aicodereview.checker.local;
 
-import com.aicodereview.checker.*;
+import com.aicodereview.checker.CheckContext;
+import com.aicodereview.checker.CheckIssue;
+import com.aicodereview.checker.CheckerType;
+import com.aicodereview.checker.IssueLevel;
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.CatchClause;
+import com.github.javaparser.ast.stmt.EmptyStmt;
 import com.github.javaparser.ast.stmt.Statement;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * 空 catch 块检查器
  *
- * 检测 catch 块为空或只有注释的情况。
- * 空的 catch 块会吞掉异常，导致问题难以排查。
+ * 检测「空且无任何说明」的 catch 块——异常被静默吞掉，问题难以排查。
+ * 两种业界通行的显式意图信号不报（R42 收紧）：
+ * 1. 异常变量命名为 ignored / ignore / expected（IntelliJ 同款约定，命名即声明故意忽略）；
+ * 2. catch 体内有注释说明忽略原因（与本项目修复建议「确需忽略时注释说明原因」一致）。
+ * 其余空 catch（含只有空语句的）一律上报。
  */
 @Component
 public class EmptyCatchChecker extends AbstractLocalChecker {
+
+    /** 显式声明故意忽略的异常变量命名约定 */
+    private static final Set<String> EXPLICIT_IGNORED_NAMES = Set.of("ignored", "ignore", "expected");
 
     @Override
     public CheckerType getCheckerType() {
@@ -30,7 +43,12 @@ public class EmptyCatchChecker extends AbstractLocalChecker {
     @Override
     protected void doCheck(CheckContext context, CompilationUnit cu, List<CheckIssue> issues) {
         cu.findAll(CatchClause.class).forEach(catchClause -> {
-            // 检查 catch 块是否为空
+            // 命名约定即显式意图：ignored / expected 等不报
+            if (EXPLICIT_IGNORED_NAMES.contains(
+                    catchClause.getParameter().getNameAsString().toLowerCase(Locale.ROOT))) {
+                return;
+            }
+            // 检查 catch 块是否为空且无说明
             if (isEmptyBody(catchClause.getBody())) {
                 int line = catchClause.getBegin().map(p -> p.line).orElse(1);
                 String exceptionType = catchClause.getParameter().getType().asString();
@@ -49,23 +67,16 @@ public class EmptyCatchChecker extends AbstractLocalChecker {
     }
 
     /**
-     * 判断 catch 块是否为空（或只有注释）
+     * 判断 catch 块是否为「空且无说明」：无实际语句（仅空语句）且体内没有任何注释。
+     * 有注释说明忽略原因的空 catch 视为已文档化的故意忽略，不报。
      */
-    private boolean isEmptyBody(com.github.javaparser.ast.stmt.BlockStmt body) {
-        if (body.getStatements().isEmpty()) {
-            return true;
-        }
-
-        // 检查所有语句是否都只是注释（空语句等）
+    private boolean isEmptyBody(BlockStmt body) {
         for (Statement stmt : body.getStatements()) {
-            // 如果只有空语句、注释，不算有效代码
-            if (stmt instanceof com.github.javaparser.ast.stmt.EmptyStmt) {
-                continue;
+            // 空语句不算有效代码，其余实际语句一律视为已处理
+            if (!(stmt instanceof EmptyStmt)) {
+                return false;
             }
-            // 有实际语句
-            return false;
         }
-
-        return true;
+        return body.getAllContainedComments().isEmpty();
     }
 }

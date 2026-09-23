@@ -1,6 +1,9 @@
 package com.aicodereview.checker.local;
 
-import com.aicodereview.checker.*;
+import com.aicodereview.checker.CheckContext;
+import com.aicodereview.checker.CheckIssue;
+import com.aicodereview.checker.CheckerType;
+import com.aicodereview.checker.IssueLevel;
 import com.aicodereview.service.CheckerParamsService;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;

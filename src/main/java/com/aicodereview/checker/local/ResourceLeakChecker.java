@@ -1,14 +1,19 @@
 package com.aicodereview.checker.local;
 
-import com.aicodereview.checker.*;
+import com.aicodereview.checker.CheckContext;
+import com.aicodereview.checker.CheckIssue;
+import com.aicodereview.checker.CheckerType;
+import com.aicodereview.checker.IssueLevel;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.VariableDeclarator;
-import com.github.javaparser.ast.expr.*;
-import com.github.javaparser.ast.stmt.*;
-import com.github.javaparser.ast.type.ClassOrInterfaceType;
+import com.github.javaparser.ast.expr.MethodCallExpr;
+import com.github.javaparser.ast.expr.NameExpr;
+import com.github.javaparser.ast.stmt.BlockStmt;
+import com.github.javaparser.ast.stmt.TryStmt;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.List;
+import java.util.Set;
 
 /**
  * 资源泄露检测检查器

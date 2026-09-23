@@ -1,7 +1,12 @@
 package com.aicodereview.service;
 
-import com.aicodereview.callgraph.*;
-import com.aicodereview.checker.*;
+import com.aicodereview.callgraph.AsmCallGraphBuilder;
+import com.aicodereview.callgraph.AstCallGraphBuilder;
+import com.aicodereview.callgraph.CallGraph;
+import com.aicodereview.callgraph.MethodInfo;
+import com.aicodereview.checker.CheckIssue;
+import com.aicodereview.checker.CheckerType;
+import com.aicodereview.checker.IssueLevel;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseResult;
@@ -11,9 +16,12 @@ import org.springframework.stereotype.Service;
 
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

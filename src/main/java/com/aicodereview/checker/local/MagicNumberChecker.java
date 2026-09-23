@@ -1,8 +1,19 @@
 package com.aicodereview.checker.local;
 
-import com.aicodereview.checker.*;
+import com.aicodereview.checker.CheckContext;
+import com.aicodereview.checker.CheckIssue;
+import com.aicodereview.checker.CheckerType;
+import com.aicodereview.checker.IssueLevel;
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.expr.*;
+import com.github.javaparser.ast.expr.ArrayInitializerExpr;
+import com.github.javaparser.ast.expr.AssignExpr;
+import com.github.javaparser.ast.expr.BinaryExpr;
+import com.github.javaparser.ast.expr.DoubleLiteralExpr;
+import com.github.javaparser.ast.expr.Expression;
+import com.github.javaparser.ast.expr.IntegerLiteralExpr;
+import com.github.javaparser.ast.expr.LiteralExpr;
+import com.github.javaparser.ast.expr.LongLiteralExpr;
+import com.github.javaparser.ast.expr.UnaryExpr;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;

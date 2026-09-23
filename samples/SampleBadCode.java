@@ -27,8 +27,8 @@ public class SampleBadCode {
         try {
             int x = Integer.parseInt(input);
             System.out.println(x);
+        // 空 catch，吞掉异常（注释在体外：catch 体本身空且无说明，供 EMPTY_CATCH 规则演示）
         } catch (Exception e) {
-            // 空 catch，吞掉异常
         }
     }
 

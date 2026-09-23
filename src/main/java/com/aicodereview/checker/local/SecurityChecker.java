@@ -1,19 +1,31 @@
 package com.aicodereview.checker.local;
 
-import com.aicodereview.checker.*;
+import com.aicodereview.checker.CheckContext;
+import com.aicodereview.checker.CheckIssue;
+import com.aicodereview.checker.CheckerType;
+import com.aicodereview.checker.IssueLevel;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
-import com.github.javaparser.ast.expr.*;
+import com.github.javaparser.ast.expr.AssignExpr;
+import com.github.javaparser.ast.expr.BinaryExpr;
+import com.github.javaparser.ast.expr.EnclosedExpr;
+import com.github.javaparser.ast.expr.Expression;
+import com.github.javaparser.ast.expr.FieldAccessExpr;
+import com.github.javaparser.ast.expr.MethodCallExpr;
+import com.github.javaparser.ast.expr.NameExpr;
+import com.github.javaparser.ast.expr.ObjectCreationExpr;
+import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.stmt.BlockStmt;
-import com.github.javaparser.ast.stmt.Statement;
 import org.springframework.stereotype.Component;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -32,10 +44,19 @@ public class SecurityChecker extends AbstractLocalChecker {
     private static final Pattern SECRET_NAME = Pattern.compile(
             "(?i)(password|passwd|pwd|secret|apikey|api_key|accesskey|access_key|" +
             "token|credential|privatekey|private_key)");
-    /** 明显不是真实密钥的占位值 */
+    /** 明显不是真实密钥的占位值（含 __xxx__ 双下划线哨兵：连通性探针等场景的假凭据约定值） */
     private static final Pattern SECRET_PLACEHOLDER = Pattern.compile(
-            "(?i)^\\s*$|\\$\\{|^(null|none|empty|undefined|example|sample|placeholder|" +
+            "(?i)^\\s*$|\\$\\{|^__\\w+__$|^(null|none|empty|undefined|example|sample|placeholder|" +
             "your[-_]?|changeme|todo|test|xxx+|\\*+|<[^>]*>|\\{\\{).*");
+    /** 公开端点 URL（如 OAuth token 地址）不是秘密值 */
+    private static final Pattern PUBLIC_URL = Pattern.compile("(?i)^https?://");
+    /** 但 URL 里内嵌 user:pass@ 凭据仍是泄密，照常上报 */
+    private static final Pattern URL_WITH_CREDENTIALS = Pattern.compile("(?i)^https?://[^/]*@");
+    /** 标识名自称 URL/端点语义——URL 豁免仅对它生效（webhookSecret 等名字装 URL 值的照报，Slack webhook URL 本身就是密钥） */
+    private static final Pattern URL_NAME = Pattern.compile("(?i)(url|uri|endpoint)");
+    /** MD5/SHA-1 用作内容指纹/去重的语境（类名或方法名指明用途），不做安全承诺 */
+    private static final Pattern FINGERPRINT_CONTEXT = Pattern.compile(
+            "(?i)(fingerprint|checksum|dedup|duplicate|cpd|simhash)");
     /** SQL 关键字 */
     private static final Pattern SQL_KEYWORD = Pattern.compile(
             "(?i)\\b(select|insert\\s+into|update|delete\\s+from|from|where|union|drop\\s+table|" +
@@ -79,7 +100,8 @@ public class SecurityChecker extends AbstractLocalChecker {
             if (!SECRET_NAME.matcher(vd.getNameAsString()).find()) return;
             vd.getInitializer().filter(StringLiteralExpr.class::isInstance)
                     .map(StringLiteralExpr.class::cast)
-                    .ifPresent(lit -> reportSecret(context, lit, "变量 '" + vd.getNameAsString() + "'", issues));
+                    .ifPresent(lit -> reportSecret(context, lit, vd.getNameAsString(),
+                            "变量 '" + vd.getNameAsString() + "'", issues));
         });
         // 1b. 赋值：this.password = "xxx"
         cu.findAll(AssignExpr.class).forEach(assign -> {
@@ -88,7 +110,7 @@ public class SecurityChecker extends AbstractLocalChecker {
             String simpleName = dot >= 0 ? target.substring(dot + 1) : target;
             if (!SECRET_NAME.matcher(simpleName).find()) return;
             if (assign.getValue() instanceof StringLiteralExpr lit) {
-                reportSecret(context, lit, "变量 '" + simpleName + "'", issues);
+                reportSecret(context, lit, simpleName, "变量 '" + simpleName + "'", issues);
             }
         });
         // 1c. Map.put("password", "xxx") / setProperty / addHeader 等
@@ -102,15 +124,25 @@ public class SecurityChecker extends AbstractLocalChecker {
             if (!(call.getArgument(0) instanceof StringLiteralExpr keyLit)) return;
             if (!SECRET_NAME.matcher(keyLit.getValue()).find()) return;
             if (call.getArgument(1) instanceof StringLiteralExpr valLit) {
-                reportSecret(context, valLit, "键 '" + keyLit.getValue() + "'", issues);
+                reportSecret(context, valLit, keyLit.getValue(), "键 '" + keyLit.getValue() + "'", issues);
             }
         });
     }
 
-    private void reportSecret(CheckContext context, StringLiteralExpr lit, String where,
+    private void reportSecret(CheckContext context, StringLiteralExpr lit, String identName, String where,
                               List<CheckIssue> issues) {
         String value = lit.getValue();
         if (value == null || value.length() < 6 || SECRET_PLACEHOLDER.matcher(value).find()) {
+            return;
+        }
+        // R44 收紧：标识名自称 URL/端点、且值是不含内嵌凭据的公开 URL（如 OAuth token 地址）才豁免；
+        // 名字不带 url/uri/endpoint 的（如 webhookSecret）照报——此类 URL 本身可能就是密钥
+        if (PUBLIC_URL.matcher(value).find() && !URL_WITH_CREDENTIALS.matcher(value).find()
+                && URL_NAME.matcher(identName).find()) {
+            return;
+        }
+        // R44 收紧：值与标识名共享实义词 → Cookie 名/头名等公开标识常量（真密钥不会复读自己的变量名）
+        if (echoesIdentifier(identName, value)) {
             return;
         }
         int line = lineOf(lit);
@@ -122,6 +154,42 @@ public class SecurityChecker extends AbstractLocalChecker {
                 context.getCurrentFilePath(), line, line);
         issue.setSuggestion("将敏感信息移出代码，改用环境变量、配置中心或加密存储（本系统对数据库密码/API Key 均做 AES 加密）");
         issues.add(issue);
+    }
+
+    /**
+     * 值与标识名共享 ≥4 字符的实义词即视为「名称复读」：
+     * 真实密钥不会长得像自己的变量名，这类字面量几乎都是 Cookie 名/请求头名等公开标识常量
+     * （如 TOKEN_COOKIE = "aicr_token"）。
+     * 值只有单个实义词时不豁免——password="password" 这种整词弱口令必须照报。
+     */
+    private boolean echoesIdentifier(String identName, String value) {
+        Set<String> nameTokens = significantTokens(identName);
+        if (nameTokens.isEmpty()) {
+            return false;
+        }
+        Set<String> valueTokens = significantTokens(value);
+        if (valueTokens.size() < 2) {
+            return false;
+        }
+        for (String token : valueTokens) {
+            if (nameTokens.contains(token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 按驼峰与非字母数字边界拆词，取小写后长度 ≥4 的实义词 */
+    private Set<String> significantTokens(String text) {
+        Set<String> tokens = new HashSet<>();
+        for (String part : text.split("[^A-Za-z0-9]+")) {
+            for (String word : part.split("(?<=[a-z0-9])(?=[A-Z])")) {
+                if (word.length() >= 4) {
+                    tokens.add(word.toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+        return tokens;
     }
 
     // ---------------------------------------------------------------- 规则 2：SQL 注入
@@ -259,6 +327,10 @@ public class SecurityChecker extends AbstractLocalChecker {
             String problem = null;
             if (scope.contains("MessageDigest")
                     && (algo.equals("MD5") || algo.equals("SHA-1") || algo.equals("SHA1"))) {
+                // R44 收紧：内容指纹/去重用途的 MD5 不做安全承诺（如重复代码检测的滑动窗口指纹），不报弱加密
+                if (isFingerprintContext(call)) {
+                    return;
+                }
                 problem = "哈希算法 " + lit.getValue() + " 已被证明可碰撞，不能用于安全场景";
             } else if (scope.contains("Cipher")
                     && (algo.startsWith("DES/") || algo.equals("DES") || algo.startsWith("DESEDE")
@@ -278,6 +350,16 @@ public class SecurityChecker extends AbstractLocalChecker {
             issue.setSuggestion("哈希使用 SHA-256 及以上（口令存储用 BCrypt/PBKDF2）；对称加密使用 AES/GCM/NoPadding，密钥长度 ≥ 128 位");
             issues.add(issue);
         });
+    }
+
+    /** 所在类名或方法名指明指纹/校验和/去重用途 → 非密码学语境，弱哈希不构成安全问题 */
+    private boolean isFingerprintContext(MethodCallExpr call) {
+        String methodName = call.findAncestor(MethodDeclaration.class)
+                .map(MethodDeclaration::getNameAsString).orElse("");
+        String className = call.findAncestor(ClassOrInterfaceDeclaration.class)
+                .map(ClassOrInterfaceDeclaration::getNameAsString).orElse("");
+        return FINGERPRINT_CONTEXT.matcher(methodName).find()
+                || FINGERPRINT_CONTEXT.matcher(className).find();
     }
 
     // ---------------------------------------------------------------- 规则 6：不安全随机数

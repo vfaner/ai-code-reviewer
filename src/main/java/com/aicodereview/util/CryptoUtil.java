@@ -17,7 +17,13 @@ public class CryptoUtil {
     private static final String ALGORITHM = "AES";
     private static final String TRANSFORMATION = "AES/ECB/PKCS5Padding";
 
-    private static String secretKey = "a1b2c3d4e5f6g7h8";
+    /**
+     * 源码内置默认密钥：仅在未配置 app.crypto-key 时兜底，随源码公开可知。
+     * 自扫对本行报 SEC_HARDCODED_SECRET 属有意保留的真命中，提醒生产部署务必覆盖。
+     */
+    private static final String DEFAULT_SECRET_KEY = "a1b2c3d4e5f6g7h8";
+
+    private static String secretKey = DEFAULT_SECRET_KEY;
 
     /**
      * 设置加密密钥
@@ -26,6 +32,11 @@ public class CryptoUtil {
         if (key != null && key.length() >= 16) {
             secretKey = key.substring(0, 16);
         }
+    }
+
+    /** 当前是否仍在使用内置默认密钥（EncryptionConfig 启动时据此打警告日志） */
+    public static boolean isDefaultKeyInUse() {
+        return DEFAULT_SECRET_KEY.equals(secretKey);
     }
 
     /**

@@ -1,6 +1,10 @@
 package com.aicodereview.checker.local;
 
-import com.aicodereview.checker.*;
+import com.aicodereview.checker.CheckContext;
+import com.aicodereview.checker.CheckIssue;
+import com.aicodereview.checker.CheckerType;
+import com.aicodereview.checker.IssueLevel;
+import com.aicodereview.checker.PostScanChecker;
 import com.aicodereview.service.CheckerParamsService;
 import com.github.javaparser.JavaToken;
 import com.github.javaparser.Range;
@@ -19,7 +23,14 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * 重复代码检测器（CPD 思路）

@@ -1,6 +1,10 @@
 package com.aicodereview.checker.local;
 
-import com.aicodereview.checker.*;
+import com.aicodereview.checker.CheckContext;
+import com.aicodereview.checker.CheckIssue;
+import com.aicodereview.checker.CheckerType;
+import com.aicodereview.checker.IssueLevel;
+import com.aicodereview.checker.PostScanChecker;
 import com.aicodereview.env.DependencyInfo;
 import com.aicodereview.service.AdvisoryStore;
 import com.aicodereview.service.ProjectEnvService;
@@ -19,7 +23,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 依赖漏洞扫描器（扫描级检查，PostScanChecker）

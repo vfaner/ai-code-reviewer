@@ -3,7 +3,6 @@ package com.aicodereview.llm.template;
 import lombok.Builder;
 import lombok.Data;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**

@@ -397,8 +397,12 @@ public class CiCallbackService {
         }
         String host = "";
         try {
-            host = URI.create(base).getHost();
-        } catch (Exception ignored) {
+            String parsedHost = URI.create(base).getHost();
+            // 无主机段的地址（如 "github"）getHost() 返回 null 且不抛异常，归一为空串避免 null 流入下方比较
+            host = parsedHost != null ? parsedHost : "";
+        } catch (IllegalArgumentException e) {
+            // 平台地址配置非法：降级按自建平台拼接 API 地址，记日志避免静默吞掉难以排查
+            log.warn("平台地址不是合法 URI，API 基地址回退按自建平台拼接: {}", base);
         }
         return switch (platform) {
             case "GITHUB" -> "github.com".equalsIgnoreCase(host)

@@ -1,6 +1,8 @@
 package com.aicodereview.checker.ai;
 
-import com.aicodereview.checker.*;
+import com.aicodereview.checker.CheckContext;
+import com.aicodereview.checker.CheckIssue;
+import com.aicodereview.checker.CodeChecker;
 import com.aicodereview.service.AiReviewService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
