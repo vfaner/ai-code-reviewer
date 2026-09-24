@@ -30,6 +30,7 @@ import com.github.javaparser.ast.stmt.TryStmt;
 import com.github.javaparser.ast.stmt.WhileStmt;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -107,94 +108,120 @@ public class DuplicateCodeChecker extends AbstractLocalChecker implements PostSc
                 return;
             }
             Map<String, Object> globalData = context.getGlobalData();
-            if (globalData == null) {
-                return;
-            }
-            int windowCount = globalData.get(GD_WINDOW_COUNT) instanceof Integer c ? c : 0;
-            if (windowCount >= MAX_TOTAL_WINDOWS) {
+            if (globalData == null || currentWindowCount(globalData) >= MAX_TOTAL_WINDOWS) {
                 return;
             }
 
             int minTokens = checkerParamsService.getInt(
                     CheckerType.DUPLICATE_CODE.getCode(), "minTokens", DEFAULT_MIN_TOKENS);
 
-            // 语句级控制流行区间：仅含控制流的匹配窗口才报告（见 postScanCheck 判定，R48）
-            List<int[]> controlRanges = controlFlowRanges(cu);
-
-            // package 声明与 import 列表不参与重复判定：
-            // 企业规范通常禁止通配符导入，各文件 import 写法天然雷同，属于误报高发区
-            Set<Integer> excludedLines = new HashSet<>();
-            cu.getPackageDeclaration().ifPresent(pd ->
-                    pd.getTokenRange().ifPresent(r -> addCoveredLines(r, excludedLines)));
-            cu.getImports().forEach(im ->
-                    im.getTokenRange().ifPresent(r -> addCoveredLines(r, excludedLines)));
-            // getter/setter 与构造方法属语言样板，逐字雷同是必然结果而非复制粘贴，同样排除
-            excludeBoilerplate(cu, excludedLines);
-            // 均匀数据链（连续 ≥3 条同接收者同方法名调用，如 map.put(...) 序列表）是数据声明而非逻辑，
-            // 其自相似滑动窗口会在每个偏移量上自匹配，产生成串误报（R48）
-            excludeUniformChains(cu, excludedLines);
-            // 均匀参数表（Map.ofEntries(Map.entry(...), ...) 等单表达式数据表）同属数据声明（R48）
-            excludeUniformArgTables(cu, excludedLines);
-            // 判断分支内、且同文件其他条件下存在异参调用的方法调用属条件分派：
-            // 相同 (方法, 实参) 在不同分支命中只是条件覆盖的巧合，不算克隆（R48 用户裁定）
-            excludeConditionalDispatch(cu, excludedLines);
-
-            // 1. 收集有效 Token 并归一化
-            List<String> normalized = new ArrayList<>();
-            List<Integer> lines = new ArrayList<>();
-            for (JavaToken token : cu.getTokenRange().get()) {
-                if (token.getCategory() == JavaToken.Category.COMMENT) {
-                    continue;
-                }
-                int tokenLine = token.getRange().map(r -> r.begin.line).orElse(-1);
-                if (tokenLine > 0 && excludedLines.contains(tokenLine)) {
-                    continue;
-                }
-                String text = token.getText();
-                if (text == null || text.isBlank()) {
-                    continue;
-                }
-                // 字面量与标识符均保留原文参与指纹（PMD CPD 默认 verbatim 口径）：
-                // 集合添加/方法调用"方法名同而传值不同"（如逐 severity 建表的 addCell 链）
-                // 在字面量归一化下会哈希相同、成串互配误报，业务裁定传值不同即不算重复（R48）；
-                // 标识符同样保留，避免样板"关键字+标点骨架"互配。代价：改常量/改名的克隆不检出。
-                normalized.add(text);
-                lines.add(tokenLine);
-            }
-
-            int n = normalized.size();
-            if (n < minTokens) {
+            Set<Integer> excludedLines = collectExcludedLines(cu);
+            TokenBag bag = collectTokenBag(cu, excludedLines);
+            if (bag.texts().size() < minTokens) {
                 return;
             }
 
-            // 2. 滑动窗口指纹
-            Map<String, List<Occurrence>> fingerprints =
-                    (Map<String, List<Occurrence>>) globalData.computeIfAbsent(GD_FINGERPRINTS,
-                            k -> new HashMap<>());
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            String filePath = context.getCurrentFilePath();
-            StringBuilder window = new StringBuilder();
-            for (int i = 0; i + minTokens <= n; i++) {
-                window.setLength(0);
-                for (int j = i; j < i + minTokens; j++) {
-                    window.append(normalized.get(j)).append(' ');
-                }
-                String hash = toHex(md.digest(window.toString().getBytes(StandardCharsets.UTF_8)));
-                int winStart = lines.get(i);
-                int winEnd = lines.get(i + minTokens - 1);
-                fingerprints.computeIfAbsent(hash, k -> new ArrayList<>())
-                        .add(new Occurrence(filePath, i, winStart, winEnd,
-                                overlapsControl(controlRanges, winStart, winEnd)));
-                windowCount++;
-                if (windowCount >= MAX_TOTAL_WINDOWS) {
-                    log.warn("重复代码指纹窗口数达到上限 {}，本文件后续窗口不再收集", MAX_TOTAL_WINDOWS);
-                    break;
-                }
-            }
+            // 语句级控制流行区间：仅含控制流的匹配窗口才报告（见 postScanCheck 判定，R48）
+            List<int[]> controlRanges = controlFlowRanges(cu);
+            int windowCount = collectWindowFingerprints(
+                    context, globalData, bag, controlRanges, minTokens);
             globalData.put(GD_WINDOW_COUNT, windowCount);
         } catch (Exception e) {
             log.debug("文件 {} 重复代码指纹收集失败: {}", context.getCurrentFilePath(), e.getMessage());
         }
+    }
+
+    /** 全局已累计的指纹窗口数（跨文件预算） */
+    private int currentWindowCount(@NonNull Map<String, Object> globalData) {
+        return globalData.get(GD_WINDOW_COUNT) instanceof Integer c ? c : 0;
+    }
+
+    /**
+     * 汇总不参与重复判定的行：package/import、语言样板、均匀数据链/参数表、条件分派调用。
+     * package 声明与 import 列表不参与重复判定：
+     * 企业规范通常禁止通配符导入，各文件 import 写法天然雷同，属于误报高发区
+     */
+    private Set<Integer> collectExcludedLines(CompilationUnit cu) {
+        Set<Integer> excludedLines = new HashSet<>();
+        cu.getPackageDeclaration().ifPresent(pd ->
+                pd.getTokenRange().ifPresent(r -> addCoveredLines(r, excludedLines)));
+        cu.getImports().forEach(im ->
+                im.getTokenRange().ifPresent(r -> addCoveredLines(r, excludedLines)));
+        // getter/setter 与构造方法属语言样板，逐字雷同是必然结果而非复制粘贴，同样排除
+        excludeBoilerplate(cu, excludedLines);
+        // 均匀数据链（连续 ≥3 条同接收者同方法名调用，如 map.put(...) 序列表）是数据声明而非逻辑，
+        // 其自相似滑动窗口会在每个偏移量上自匹配，产生成串误报（R48）
+        excludeUniformChains(cu, excludedLines);
+        // 均匀参数表（Map.ofEntries(Map.entry(...), ...) 等单表达式数据表）同属数据声明（R48）
+        excludeUniformArgTables(cu, excludedLines);
+        // 判断分支内、且同文件其他条件下存在异参调用的方法调用属条件分派：
+        // 相同 (方法, 实参) 在不同分支命中只是条件覆盖的巧合，不算克隆（R48 用户裁定）
+        excludeConditionalDispatch(cu, excludedLines);
+        return excludedLines;
+    }
+
+    /** 参与指纹的逐字 Token 文本与其行号 */
+    private record TokenBag(List<String> texts, List<Integer> lines) {}
+
+    /** 收集参与指纹的逐字 Token（注释、排除行、空白 Token 跳过） */
+    private TokenBag collectTokenBag(CompilationUnit cu, Set<Integer> excludedLines) {
+        List<String> normalized = new ArrayList<>();
+        List<Integer> lines = new ArrayList<>();
+        for (JavaToken token : cu.getTokenRange().get()) {
+            if (token.getCategory() == JavaToken.Category.COMMENT) {
+                continue;
+            }
+            int tokenLine = token.getRange().map(r -> r.begin.line).orElse(-1);
+            if (tokenLine > 0 && excludedLines.contains(tokenLine)) {
+                continue;
+            }
+            String text = token.getText();
+            if (text == null || text.isBlank()) {
+                continue;
+            }
+            // 字面量与标识符均保留原文参与指纹（PMD CPD 默认 verbatim 口径）：
+            // 集合添加/方法调用"方法名同而传值不同"（如逐 severity 建表的 addCell 链）
+            // 在字面量归一化下会哈希相同、成串互配误报，业务裁定传值不同即不算重复（R48）；
+            // 标识符同样保留，避免样板"关键字+标点骨架"互配。代价：改常量/改名的克隆不检出。
+            normalized.add(text);
+            lines.add(tokenLine);
+        }
+        return new TokenBag(normalized, lines);
+    }
+
+    /** 滑动窗口指纹收集，返回累计窗口数（达到跨文件上限即停） */
+    @SuppressWarnings("unchecked")
+    private int collectWindowFingerprints(CheckContext context, Map<String, Object> globalData,
+                                          TokenBag bag, List<int[]> controlRanges, int minTokens)
+            throws Exception {
+        Map<String, List<Occurrence>> fingerprints =
+                (Map<String, List<Occurrence>>) globalData.computeIfAbsent(GD_FINGERPRINTS,
+                        k -> new HashMap<>());
+        MessageDigest md = MessageDigest.getInstance("MD5");
+        String filePath = context.getCurrentFilePath();
+        List<String> normalized = bag.texts();
+        List<Integer> lines = bag.lines();
+        int n = normalized.size();
+        StringBuilder window = new StringBuilder();
+        int windowCount = currentWindowCount(globalData);
+        for (int i = 0; i + minTokens <= n; i++) {
+            window.setLength(0);
+            for (int j = i; j < i + minTokens; j++) {
+                window.append(normalized.get(j)).append(' ');
+            }
+            String hash = toHex(md.digest(window.toString().getBytes(StandardCharsets.UTF_8)));
+            int winStart = lines.get(i);
+            int winEnd = lines.get(i + minTokens - 1);
+            fingerprints.computeIfAbsent(hash, k -> new ArrayList<>())
+                    .add(new Occurrence(filePath, i, winStart, winEnd,
+                            overlapsControl(controlRanges, winStart, winEnd)));
+            windowCount++;
+            if (windowCount >= MAX_TOTAL_WINDOWS) {
+                log.warn("重复代码指纹窗口数达到上限 {}，本文件后续窗口不再收集", MAX_TOTAL_WINDOWS);
+                break;
+            }
+        }
+        return windowCount;
     }
 
     @Override
@@ -215,7 +242,21 @@ public class DuplicateCodeChecker extends AbstractLocalChecker implements PostSc
         int minTokens = checkerParamsService.getInt(
                 CheckerType.DUPLICATE_CODE.getCode(), "minTokens", DEFAULT_MIN_TOKENS);
 
-        // 1. 收集所有重复窗口对（同一 hash 出现 ≥2 处）
+        List<CandidatePair> candidates =
+                dedupeContinuations(collectRawPairs(fingerprints, minTokens));
+
+        for (CandidatePair pair : candidates) {
+            issues.add(buildDupIssue(pair, templateContext, minTokens));
+        }
+        if (!issues.isEmpty()) {
+            log.info("重复代码检测发现 {} 处重复块", issues.size());
+        }
+        return issues;
+    }
+
+    /** 1. 收集所有重复窗口对（同一 hash 出现 ≥2 处） */
+    private List<CandidatePair> collectRawPairs(@NonNull Map<String, List<Occurrence>> fingerprints,
+                                                int minTokens) {
         List<CandidatePair> rawPairs = new ArrayList<>();
         for (List<Occurrence> occ : fingerprints.values()) {
             if (occ.size() < 2) {
@@ -242,9 +283,14 @@ public class DuplicateCodeChecker extends AbstractLocalChecker implements PostSc
                 }
             }
         }
+        return rawPairs;
+    }
 
-        // 2. 按位置排序后做连续窗口链去重：若 (aIdx-1, bIdx-1) 也是重复窗口对，
-        //    说明当前窗口只是上一个窗口的滑动延续，不单独报告
+    /**
+     * 2. 按位置排序后做连续窗口链去重：若 (aIdx-1, bIdx-1) 也是重复窗口对，
+     *    说明当前窗口只是上一个窗口的滑动延续，不单独报告
+     */
+    private List<CandidatePair> dedupeContinuations(List<CandidatePair> rawPairs) {
         rawPairs.sort(Comparator.comparing((CandidatePair p) -> p.a().file())
                 .thenComparingInt(p -> p.a().tokenIdx())
                 .thenComparing(p -> p.b().file())
@@ -267,33 +313,31 @@ public class DuplicateCodeChecker extends AbstractLocalChecker implements PostSc
                 }
             }
         }
+        return candidates;
+    }
 
-        for (CandidatePair pair : candidates) {
-            Occurrence a = pair.a();
-            Occurrence b = pair.b();
-            int lines = Math.max(1, a.endLine() - a.startLine() + 1);
-            String description = "检测到约 " + lines + " 行（≥" + minTokens
-                    + " 个有效 Token）的重复代码块：\n"
-                    + "  位置一：" + a.file() + ":" + a.startLine() + "-" + a.endLine() + "\n"
-                    + "  位置二：" + b.file() + ":" + b.startLine() + "-" + b.endLine()
-                    + "\n重复代码会增加维护成本，建议提取公共方法或抽象基类。";
-            CheckIssue issue = createIssue(
-                    IssueLevel.MAJOR,
-                    "DUP_CODE_BLOCK",
-                    "重复代码块",
-                    description,
-                    a.file(),
-                    a.startLine(),
-                    a.endLine()
-            );
-            issue.setCodeSnippet(readSnippet(templateContext, a.file(), a.startLine(), a.endLine()));
-            issue.setSuggestion("将重复逻辑提取为公共方法、工具类或抽象基类，两处改为复用同一实现");
-            issues.add(issue);
-        }
-        if (!issues.isEmpty()) {
-            log.info("重复代码检测发现 {} 处重复块", issues.size());
-        }
-        return issues;
+    /** 3. 候选对转问题条目（描述含双位置与行数估计） */
+    private CheckIssue buildDupIssue(CandidatePair pair, CheckContext templateContext, int minTokens) {
+        Occurrence a = pair.a();
+        Occurrence b = pair.b();
+        int lines = Math.max(1, a.endLine() - a.startLine() + 1);
+        String description = "检测到约 " + lines + " 行（≥" + minTokens
+                + " 个有效 Token）的重复代码块：\n"
+                + "  位置一：" + a.file() + ":" + a.startLine() + "-" + a.endLine() + "\n"
+                + "  位置二：" + b.file() + ":" + b.startLine() + "-" + b.endLine()
+                + "\n重复代码会增加维护成本，建议提取公共方法或抽象基类。";
+        CheckIssue issue = createIssue(
+                IssueLevel.MAJOR,
+                "DUP_CODE_BLOCK",
+                "重复代码块",
+                description,
+                a.file(),
+                a.startLine(),
+                a.endLine()
+        );
+        issue.setCodeSnippet(readSnippet(templateContext, a.file(), a.startLine(), a.endLine()));
+        issue.setSuggestion("将重复逻辑提取为公共方法、工具类或抽象基类，两处改为复用同一实现");
+        return issue;
     }
 
     private record CandidatePair(Occurrence a, Occurrence b) {}
@@ -441,9 +485,8 @@ public class DuplicateCodeChecker extends AbstractLocalChecker implements PostSc
      */
     private boolean isTrivialAccessor(MethodDeclaration md) {
         String name = md.getNameAsString();
-        boolean getterShape = (name.startsWith("get") && name.length() > 3)
-                || (name.startsWith("is") && name.length() > 2);
-        boolean setterShape = name.startsWith("set") && name.length() > 3;
+        boolean getterShape = isGetterShape(name);
+        boolean setterShape = isSetterShape(name);
         if (!getterShape && !setterShape || md.getBody().isEmpty()) {
             return false;
         }
@@ -455,19 +498,35 @@ public class DuplicateCodeChecker extends AbstractLocalChecker implements PostSc
         if (md.getParameters().size() != 1) {
             return false;
         }
-        if (stmts.size() == 1) {
-            return stmts.get(0) instanceof ExpressionStmt
-                    && ((ExpressionStmt) stmts.get(0)).getExpression() instanceof AssignExpr;
-        }
-        // 流式 setter：this.x = x; return this;
-        if (stmts.size() == 2) {
-            boolean assign = stmts.get(0) instanceof ExpressionStmt
-                    && ((ExpressionStmt) stmts.get(0)).getExpression() instanceof AssignExpr;
-            boolean retThis = stmts.get(1) instanceof ReturnStmt rs
-                    && "this".equals(rs.getExpression().toString());
-            return assign && retThis;
-        }
-        return false;
+        return isSingleAssignSetter(stmts) || isFluentSetter(stmts);
+    }
+
+    /** getter 形态：get/is 前缀且前缀后还有名字 */
+    private boolean isGetterShape(String name) {
+        return (name.startsWith("get") && name.length() > 3)
+                || (name.startsWith("is") && name.length() > 2);
+    }
+
+    /** setter 形态：set 前缀且前缀后还有名字 */
+    private boolean isSetterShape(String name) {
+        return name.startsWith("set") && name.length() > 3;
+    }
+
+    /** 单语句赋值 setter：方法体仅一条赋值表达式语句 */
+    private boolean isSingleAssignSetter(@NonNull List<Statement> stmts) {
+        return stmts.size() == 1 && isAssignStmt(stmts.get(0));
+    }
+
+    /** 流式 setter：this.x = x; return this; 两条语句 */
+    private boolean isFluentSetter(@NonNull List<Statement> stmts) {
+        return stmts.size() == 2 && isAssignStmt(stmts.get(0))
+                && stmts.get(1) instanceof ReturnStmt rs
+                && "this".equals(rs.getExpression().toString());
+    }
+
+    /** 单条赋值表达式语句 */
+    private boolean isAssignStmt(Statement stmt) {
+        return stmt instanceof ExpressionStmt es && es.getExpression() instanceof AssignExpr;
     }
 
     /** 把一个 AST 节点 TokenRange 覆盖到的行号全部记入排除集合（import 偶有跨行写法） */

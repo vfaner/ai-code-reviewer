@@ -122,14 +122,7 @@ public class CiCallbackService {
             return;
         }
 
-        QualityGateResult gate = null;
-        if ("SUCCESS".equals(status) && record.getTaskId() != null) {
-            try {
-                gate = qualityGateService.evaluateTask(record.getTaskId());
-            } catch (Exception e) {
-                log.warn("CI 回调计算质量门禁失败: taskId={}, err={}", record.getTaskId(), e.getMessage());
-            }
-        }
+        QualityGateResult gate = evaluateGateSafely(record, status);
 
         String commitId = sanitizeCommitId(record.getCommitId());
         if (commitId != null) {
@@ -141,6 +134,19 @@ public class CiCallbackService {
         String mrPrId = sanitizeMrPrId(record.getMrPrId());
         if (Boolean.TRUE.equals(config.getAutoComment()) && mrPrId != null) {
             postMrComment(platform, config, token, ownerRepo, mrPrId, status, gate, record);
+        }
+    }
+
+    /** 扫描成功且带任务时计算质量门禁；计算失败不阻断回调，按无门禁处理 */
+    private QualityGateResult evaluateGateSafely(CiScanRecord record, String status) {
+        if (!"SUCCESS".equals(status) || record.getTaskId() == null) {
+            return null;
+        }
+        try {
+            return qualityGateService.evaluateTask(record.getTaskId());
+        } catch (Exception e) {
+            log.warn("CI 回调计算质量门禁失败: taskId={}, err={}", record.getTaskId(), e.getMessage());
+            return null;
         }
     }
 

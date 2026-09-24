@@ -75,6 +75,26 @@ public class AuthService {
      * - 首次登录 → 自动创建 source=REMOTE 的用户
      */
     public LoginResult loginRemote(String username, String password, Long configId) {
+        RemoteAuthConfig config = requireEnabledConfig(configId);
+
+        // 调用 OA 登录接口
+        Map<String, Object> resp = remoteAuthConfigService.invokeLogin(config, username, password);
+        if (resp == null) {
+            throw new RuntimeException("远端认证服务无响应");
+        }
+        String remoteUsername = resolveRemoteUsername(resp, config, username);
+        String nickname = resolveNickname(resp, config, remoteUsername);
+        String role = mapRemoteRole(config, RemoteAuthConfigService.extractField(resp, config.getRoleField()));
+
+        // 查询或自动创建本地用户
+        SysUser user = upsertRemoteUser(remoteUsername, nickname, role);
+
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        return new LoginResult(token, toUserInfo(user));
+    }
+
+    /** 远端登录配置校验：必选、存在、已启用、loginUrl 已配置 */
+    private RemoteAuthConfig requireEnabledConfig(Long configId) {
         if (configId == null) {
             throw new RuntimeException("请选择远端登录方式");
         }
@@ -85,34 +105,37 @@ public class AuthService {
         if (config.getLoginUrl() == null || config.getLoginUrl().isBlank()) {
             throw new RuntimeException("远端登录接口未配置");
         }
+        return config;
+    }
 
-        // 调用 OA 登录接口
-        Map<String, Object> resp = remoteAuthConfigService.invokeLogin(config, username, password);
-        if (resp == null) {
-            throw new RuntimeException("远端认证服务无响应");
-        }
+    /** 远端用户名：按 usernameField 取值；缺失时透传 OA 侧错误信息后抛异常 */
+    private String resolveRemoteUsername(Map<String, Object> resp, RemoteAuthConfig config, String username) {
         Object remoteUserObj = config.getUsernameField() != null && !config.getUsernameField().isBlank()
                 ? RemoteAuthConfigService.extractField(resp, config.getUsernameField())
                 : username;
-        if (remoteUserObj == null || remoteUserObj.toString().isBlank()) {
-            // 尝试透传 OA 侧返回的错误信息
-            Object errMsg = resp.get("message");
-            if (errMsg == null) errMsg = resp.get("msg");
-            if (errMsg == null) errMsg = resp.get("error");
-            throw new RuntimeException(errMsg != null && !errMsg.toString().isBlank()
-                    ? "远端登录失败：" + errMsg
-                    : "远端登录失败：返回结果中未找到用户信息");
+        if (remoteUserObj != null && !remoteUserObj.toString().isBlank()) {
+            return remoteUserObj.toString();
         }
-        String remoteUsername = remoteUserObj.toString();
+        // 尝试透传 OA 侧返回的错误信息
+        Object errMsg = resp.get("message");
+        if (errMsg == null) errMsg = resp.get("msg");
+        if (errMsg == null) errMsg = resp.get("error");
+        throw new RuntimeException(errMsg != null && !errMsg.toString().isBlank()
+                ? "远端登录失败：" + errMsg
+                : "远端登录失败：返回结果中未找到用户信息");
+    }
 
-        String nickname = remoteUsername;
+    /** 昵称：优先 nicknameField，空则回退用户名 */
+    private String resolveNickname(Map<String, Object> resp, RemoteAuthConfig config, String remoteUsername) {
         Object nickObj = RemoteAuthConfigService.extractField(resp, config.getNicknameField());
         if (nickObj != null && !nickObj.toString().isBlank()) {
-            nickname = nickObj.toString();
+            return nickObj.toString();
         }
-        String role = mapRemoteRole(config, RemoteAuthConfigService.extractField(resp, config.getRoleField()));
+        return remoteUsername;
+    }
 
-        // 查询或自动创建本地用户
+    /** 查询或自动创建本地远端用户，并回写昵称/角色/登录时间 */
+    private SysUser upsertRemoteUser(String remoteUsername, String nickname, String role) {
         SysUser user = sysUserMapper.selectOne(
                 new QueryWrapper<SysUser>().eq("username", remoteUsername)
         );
@@ -135,9 +158,7 @@ public class AuthService {
         } else {
             sysUserMapper.updateById(user);
         }
-
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
-        return new LoginResult(token, toUserInfo(user));
+        return user;
     }
 
     /**

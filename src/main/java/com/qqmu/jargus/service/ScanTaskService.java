@@ -17,6 +17,7 @@ import com.qqmu.jargus.util.IssuePoints;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.NonNull;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -429,32 +431,8 @@ public class ScanTaskService {
      */
     private ScanIssue persistMergedIssue(Long taskId, List<CheckIssue> hits, boolean ignored) {
         // 以行号最早的命中为代表，列号等元数据沿用它
-        CheckIssue rep = hits.get(0);
-        for (CheckIssue h : hits) {
-            if (h.getLineStart() < rep.getLineStart()) {
-                rep = h;
-            }
-        }
-        List<int[]> rawPoints = new ArrayList<>();
-        boolean anyAi = false;
-        int maxSeverity = 1;
-        String snippet = null;
-        String suggestion = null;
-        for (CheckIssue h : hits) {
-            // 行号 1-based：个别检查器文件级问题可能漏设为 0，归到第 1 行避免合并后区间为空
-            int s = Math.max(1, h.getLineStart());
-            int e = Math.max(s, h.getLineEnd());
-            rawPoints.add(new int[]{s, e});
-            anyAi |= h.isAiGenerated();
-            maxSeverity = Math.max(maxSeverity, h.getSeverity());
-            if (snippet == null && h.getCodeSnippet() != null && !h.getCodeSnippet().isBlank()) {
-                snippet = h.getCodeSnippet();
-            }
-            if (suggestion == null && h.getSuggestion() != null && !h.getSuggestion().isBlank()) {
-                suggestion = h.getSuggestion();
-            }
-        }
-        List<int[]> points = IssuePoints.merge(rawPoints);
+        CheckIssue rep = pickEarliestHit(hits);
+        List<int[]> points = IssuePoints.merge(collectRawPoints(hits));
 
         ScanIssue scanIssue = new ScanIssue();
         scanIssue.setTaskId(taskId);
@@ -469,35 +447,13 @@ public class ScanTaskService {
         scanIssue.setCheckerName(rep.getCheckerName());
         scanIssue.setRuleCode(rep.getRuleCode());
         scanIssue.setTitle(rep.getTitle());
-        if (hits.size() == 1) {
-            scanIssue.setDescription(rep.getDescription());
-        } else {
-            StringBuilder desc = new StringBuilder(rep.getDescription());
-            // DUP 合并时保留各条的重复对象：非代表条的"位置二"追加为"其他位置"行
-            if ("DUP_CODE_BLOCK".equals(rep.getRuleCode())) {
-                Set<String> partners = new LinkedHashSet<>();
-                for (CheckIssue h : hits) {
-                    if (h == rep) {
-                        continue;
-                    }
-                    String partner = IssueMergeService.extractPartnerLocation(h.getDescription());
-                    if (partner != null) {
-                        partners.add(partner);
-                    }
-                }
-                for (String partner : partners) {
-                    desc.append("\n  其他位置：").append(partner);
-                }
-            }
-            desc.append("\n本文件同类问题共 ").append(hits.size())
-                    .append(" 处，涉及行号：").append(IssuePoints.format(points));
-            scanIssue.setDescription(desc.toString());
-        }
-        scanIssue.setCodeSnippet(snippet);
+        scanIssue.setDescription(buildMergedDescription(rep, hits, points));
+        scanIssue.setCodeSnippet(firstNonBlankText(hits, CheckIssue::getCodeSnippet));
+        String suggestion = firstNonBlankText(hits, CheckIssue::getSuggestion);
         scanIssue.setSuggestion(suggestion != null ? suggestion
                 : SuggestionCatalog.get(rep.getRuleCode()));
-        scanIssue.setSeverity(maxSeverity);
-        scanIssue.setIsAiGenerated(anyAi);
+        scanIssue.setSeverity(maxSeverityOf(hits));
+        scanIssue.setIsAiGenerated(anyAiOf(hits));
         scanIssue.setOccurrenceCount(hits.size());
         // 多点才写 linePoints（单点直接用 line_start/line_end，保持旧数据形态一致）
         if (hits.size() > 1) {
@@ -511,6 +467,90 @@ public class ScanTaskService {
         scanIssue.setCreatedAt(LocalDateTime.now());
         scanIssueMapper.insert(scanIssue);
         return scanIssue;
+    }
+
+    /** 代表命中：行号最早者（列号等元数据沿用它） */
+    private CheckIssue pickEarliestHit(List<CheckIssue> hits) {
+        CheckIssue rep = hits.get(0);
+        for (CheckIssue h : hits) {
+            if (h.getLineStart() < rep.getLineStart()) {
+                rep = h;
+            }
+        }
+        return rep;
+    }
+
+    /** 各命中的行区间（行号 1-based：个别检查器文件级问题可能漏设为 0，归到第 1 行避免合并后区间为空） */
+    private List<int[]> collectRawPoints(List<CheckIssue> hits) {
+        List<int[]> rawPoints = new ArrayList<>();
+        for (CheckIssue h : hits) {
+            int s = Math.max(1, h.getLineStart());
+            int e = Math.max(s, h.getLineEnd());
+            rawPoints.add(new int[]{s, e});
+        }
+        return rawPoints;
+    }
+
+    /** 合并后描述：单条沿用原文；多条追加 DUP"其他位置"行与本文件同类问题计数 */
+    private String buildMergedDescription(@NonNull CheckIssue rep, @NonNull List<CheckIssue> hits,
+                                          List<int[]> points) {
+        if (hits.size() == 1) {
+            return rep.getDescription();
+        }
+        StringBuilder desc = new StringBuilder(rep.getDescription());
+        // DUP 合并时保留各条的重复对象：非代表条的"位置二"追加为"其他位置"行
+        if ("DUP_CODE_BLOCK".equals(rep.getRuleCode())) {
+            for (String partner : collectDupPartners(rep, hits)) {
+                desc.append("\n  其他位置：").append(partner);
+            }
+        }
+        desc.append("\n本文件同类问题共 ").append(hits.size())
+                .append(" 处，涉及行号：").append(IssuePoints.format(points));
+        return desc.toString();
+    }
+
+    /** 非代表条目的重复对象（去重且保持首次出现顺序） */
+    private Set<String> collectDupPartners(CheckIssue rep, List<CheckIssue> hits) {
+        Set<String> partners = new LinkedHashSet<>();
+        for (CheckIssue h : hits) {
+            if (h == rep) {
+                continue;
+            }
+            String partner = IssueMergeService.extractPartnerLocation(h.getDescription());
+            if (partner != null) {
+                partners.add(partner);
+            }
+        }
+        return partners;
+    }
+
+    /** 命中里的最高 severity（秩从 1 起） */
+    private int maxSeverityOf(List<CheckIssue> hits) {
+        int maxSeverity = 1;
+        for (CheckIssue h : hits) {
+            maxSeverity = Math.max(maxSeverity, h.getSeverity());
+        }
+        return maxSeverity;
+    }
+
+    /** 是否存在 AI 生成的命中 */
+    private boolean anyAiOf(List<CheckIssue> hits) {
+        boolean anyAi = false;
+        for (CheckIssue h : hits) {
+            anyAi |= h.isAiGenerated();
+        }
+        return anyAi;
+    }
+
+    /** 按给定访问器取命中里首个非空白文本（全空白返回 null） */
+    private String firstNonBlankText(List<CheckIssue> hits, Function<CheckIssue, String> getter) {
+        for (CheckIssue h : hits) {
+            String text = getter.apply(h);
+            if (text != null && !text.isBlank()) {
+                return text;
+            }
+        }
+        return null;
     }
 
     /**

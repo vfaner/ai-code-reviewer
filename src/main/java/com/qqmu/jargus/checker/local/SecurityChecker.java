@@ -19,6 +19,7 @@ import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.stmt.BlockStmt;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -94,7 +95,13 @@ public class SecurityChecker extends AbstractLocalChecker {
     // ---------------------------------------------------------------- 规则 1：硬编码密钥
 
     private void checkHardcodedSecrets(CheckContext context, CompilationUnit cu, List<CheckIssue> issues) {
-        // 1a. 字段/局部变量声明：String password = "xxx"
+        checkSecretDeclarations(context, cu, issues);
+        checkSecretAssignments(context, cu, issues);
+        checkSecretMapPuts(context, cu, issues);
+    }
+
+    /** 1a. 字段/局部变量声明：String password = "xxx" */
+    private void checkSecretDeclarations(CheckContext context, CompilationUnit cu, List<CheckIssue> issues) {
         cu.findAll(VariableDeclarator.class).forEach(vd -> {
             if (!isStringType(vd.getTypeAsString())) return;
             if (!SECRET_NAME.matcher(vd.getNameAsString()).find()) return;
@@ -103,7 +110,10 @@ public class SecurityChecker extends AbstractLocalChecker {
                     .ifPresent(lit -> reportSecret(context, lit, vd.getNameAsString(),
                             "变量 '" + vd.getNameAsString() + "'", issues));
         });
-        // 1b. 赋值：this.password = "xxx"
+    }
+
+    /** 1b. 赋值：this.password = "xxx"（带作用域前缀时按末段名匹配） */
+    private void checkSecretAssignments(CheckContext context, CompilationUnit cu, List<CheckIssue> issues) {
         cu.findAll(AssignExpr.class).forEach(assign -> {
             String target = assign.getTarget().toString();
             int dot = target.lastIndexOf('.');
@@ -113,13 +123,12 @@ public class SecurityChecker extends AbstractLocalChecker {
                 reportSecret(context, lit, simpleName, "变量 '" + simpleName + "'", issues);
             }
         });
-        // 1c. Map.put("password", "xxx") / setProperty / addHeader 等
+    }
+
+    /** 1c. Map.put("password", "xxx") / setProperty / addHeader 等键值写入 */
+    private void checkSecretMapPuts(CheckContext context, CompilationUnit cu, List<CheckIssue> issues) {
         cu.findAll(MethodCallExpr.class).forEach(call -> {
-            String name = call.getNameAsString();
-            if (!name.equals("put") && !name.equals("setProperty") && !name.equals("set")
-                    && !name.equals("addHeader") && !name.equals("header") && !name.equals("addParameter")) {
-                return;
-            }
+            if (!isSecretCarrierMethod(call.getNameAsString())) return;
             if (call.getArguments().size() < 2) return;
             if (!(call.getArgument(0) instanceof StringLiteralExpr keyLit)) return;
             if (!SECRET_NAME.matcher(keyLit.getValue()).find()) return;
@@ -127,6 +136,12 @@ public class SecurityChecker extends AbstractLocalChecker {
                 reportSecret(context, valLit, keyLit.getValue(), "键 '" + keyLit.getValue() + "'", issues);
             }
         });
+    }
+
+    /** 键值写入类方法名白名单 */
+    private boolean isSecretCarrierMethod(String name) {
+        return name.equals("put") || name.equals("setProperty") || name.equals("set")
+                || name.equals("addHeader") || name.equals("header") || name.equals("addParameter");
     }
 
     private void reportSecret(CheckContext context, StringLiteralExpr lit, String identName, String where,
@@ -326,22 +341,7 @@ public class SecurityChecker extends AbstractLocalChecker {
                     || !(call.getArgument(0) instanceof StringLiteralExpr lit)) {
                 return;
             }
-            String algo = lit.getValue().toUpperCase();
-            String problem = null;
-            if (scope.contains("MessageDigest")
-                    && (algo.equals("MD5") || algo.equals("SHA-1") || algo.equals("SHA1"))) {
-                // R44 收紧：内容指纹/去重用途的 MD5 不做安全承诺（如重复代码检测的滑动窗口指纹），不报弱加密
-                if (isFingerprintContext(call)) {
-                    return;
-                }
-                problem = "哈希算法 " + lit.getValue() + " 已被证明可碰撞，不能用于安全场景";
-            } else if (scope.contains("Cipher")
-                    && (algo.startsWith("DES/") || algo.equals("DES") || algo.startsWith("DESEDE")
-                        || algo.contains("/ECB/"))) {
-                problem = "加密算法/模式 " + lit.getValue() + " 强度不足（DES/3DES 可暴力破解，ECB 模式泄露明文模式）";
-            } else if (scope.contains("KeyPairGenerator") && algo.equals("RSA") ) {
-                return; // RSA 本身不报
-            }
+            String problem = classifyWeakCrypto(scope, lit.getValue(), call);
             if (problem == null) return;
             int line = lineOf(call);
             CheckIssue issue = createIssue(
@@ -353,6 +353,28 @@ public class SecurityChecker extends AbstractLocalChecker {
             issue.setSuggestion("哈希使用 SHA-256 及以上（口令存储用 BCrypt/PBKDF2）；对称加密使用 AES/GCM/NoPadding，密钥长度 ≥ 128 位");
             issues.add(issue);
         });
+    }
+
+    /**
+     * 弱算法归类：MessageDigest 的弱哈希、Cipher 的弱加密/模式返回问题描述；
+     * 其余返回 null 不报（KeyPairGenerator 的 RSA 本身不报——无问题描述即不报，无需显式排除）
+     */
+    private String classifyWeakCrypto(String scope, @NonNull String algoLiteral, MethodCallExpr call) {
+        String algo = algoLiteral.toUpperCase();
+        if (scope.contains("MessageDigest")
+                && (algo.equals("MD5") || algo.equals("SHA-1") || algo.equals("SHA1"))) {
+            // R44 收紧：内容指纹/去重用途的 MD5 不做安全承诺（如重复代码检测的滑动窗口指纹），不报弱加密
+            if (isFingerprintContext(call)) {
+                return null;
+            }
+            return "哈希算法 " + algoLiteral + " 已被证明可碰撞，不能用于安全场景";
+        }
+        if (scope.contains("Cipher")
+                && (algo.startsWith("DES/") || algo.equals("DES") || algo.startsWith("DESEDE")
+                    || algo.contains("/ECB/"))) {
+            return "加密算法/模式 " + algoLiteral + " 强度不足（DES/3DES 可暴力破解，ECB 模式泄露明文模式）";
+        }
+        return null;
     }
 
     /** 所在类名或方法名指明指纹/校验和/去重用途 → 非密码学语境，弱哈希不构成安全问题 */

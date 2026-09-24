@@ -152,27 +152,14 @@ public class ScanIssueService {
         ScanTask task = scanTaskMapper.selectById(issue.getTaskId());
         if (task == null) return buildFromSnippet(issue);
 
-        String snapshotPath = task.getSnapshotPath();
         String filePath = issue.getFilePath();
         int lineStart = issue.getLineStart() != null ? issue.getLineStart() : 1;
         int lineEnd = issue.getLineEnd() != null ? issue.getLineEnd() : lineStart;
 
         try {
-            // 先尝试直接从 snapshotPath + filePath 读取
-            Path file = Paths.get(snapshotPath, filePath);
-            if (!Files.exists(file)) {
-                // 尝试 filePath 为绝对路径
-                file = Paths.get(filePath);
-            }
-            if (!Files.exists(file)) {
-                // 尝试相对 snapshotPath
-                Path relPath = Paths.get(filePath);
-                if (!relPath.isAbsolute()) {
-                    file = Paths.get(snapshotPath).resolve(filePath).normalize();
-                }
-            }
-
-            if (!Files.exists(file)) {
+            // 先尝试直接从 snapshotPath + filePath 读取，找不到文件时回退代码片段
+            Path file = resolveSnapshotFile(task.getSnapshotPath(), filePath);
+            if (file == null) {
                 return buildFromSnippet(issue);
             }
 
@@ -181,61 +168,12 @@ public class ScanIssueService {
 
             // 同文件同规则可能合并了多个问题点：取每个点上下各 ctx 行的窗口，
             // 窗口重叠或相邻时并成一段，段间不相邻的部分用省略占位（gapBefore > 0）
-            List<int[]> rawPoints = IssuePoints.toRanges(issue.getLinePoints());
-            List<int[]> points = new ArrayList<>();
-            if (!rawPoints.isEmpty()) {
-                for (int[] p : IssuePoints.merge(rawPoints)) {
-                    points.add(new int[]{Math.max(1, p[0]), Math.min(total, p[1])});
-                }
-            } else {
-                points.add(new int[]{Math.max(1, Math.min(lineStart, total)),
-                        Math.max(1, Math.min(lineEnd, total))});
-            }
-            List<int[]> windows = new ArrayList<>();
-            for (int[] p : points) {
-                int from = Math.max(1, p[0] - ctx);
-                int to = Math.min(total, p[1] + ctx);
-                if (!windows.isEmpty() && from <= windows.get(windows.size() - 1)[1] + 1) {
-                    windows.get(windows.size() - 1)[1] = Math.max(windows.get(windows.size() - 1)[1], to);
-                } else {
-                    windows.add(new int[]{from, to});
-                }
-            }
+            List<int[]> points = collectIssuePoints(issue, lineStart, lineEnd, total);
+            List<int[]> windows = mergeContextWindows(points, ctx, total);
 
             int firstFrom = windows.get(0)[0];
             int lastTo = windows.get(windows.size() - 1)[1];
-            List<FileContext.LineInfo> lineInfos = new ArrayList<>();
-            int prevTo = 0;
-            for (int[] seg : windows) {
-                int gapBefore = prevTo > 0 ? seg[0] - prevTo - 1 : 0;
-                for (int lineNum = seg[0]; lineNum <= seg[1]; lineNum++) {
-                    boolean isIssue = false;
-                    String marker = null;
-                    for (int[] p : points) {
-                        if (lineNum >= p[0] && lineNum <= p[1]) {
-                            isIssue = true;
-                            if (p[0] == p[1] && lineNum == p[0]) {
-                                marker = "single";
-                            } else if (lineNum == p[0]) {
-                                marker = "start";
-                            } else if (lineNum == p[1]) {
-                                marker = "end";
-                            }
-                            break;
-                        }
-                    }
-                    FileContext.LineInfo.LineInfoBuilder b = FileContext.LineInfo.builder()
-                            .lineNumber(lineNum)
-                            .content(allLines.get(lineNum - 1))
-                            .issueLine(isIssue)
-                            .issueMarker(marker);
-                    if (lineNum == seg[0] && gapBefore > 0) {
-                        b.gapBefore(gapBefore);
-                    }
-                    lineInfos.add(b.build());
-                }
-                prevTo = seg[1];
-            }
+            List<FileContext.LineInfo> lineInfos = buildLineInfos(windows, points, allLines);
 
             int occurrenceCount = issue.getOccurrenceCount() != null
                     ? Math.max(1, issue.getOccurrenceCount()) : 1;
@@ -259,6 +197,105 @@ public class ScanIssueService {
             log.warn("获取文件上下文失败: {}", e.getMessage());
             return buildFromSnippet(issue);
         }
+    }
+
+    /** 解析快照文件：snapshot 相对 → 绝对路径 → snapshot resolve 归一化；均不存在返回 null */
+    private Path resolveSnapshotFile(String snapshotPath, String filePath) {
+        // 先尝试直接从 snapshotPath + filePath 读取
+        Path file = Paths.get(snapshotPath, filePath);
+        if (!Files.exists(file)) {
+            // 尝试 filePath 为绝对路径
+            file = Paths.get(filePath);
+        }
+        if (!Files.exists(file)) {
+            // 尝试相对 snapshotPath
+            Path relPath = Paths.get(filePath);
+            if (!relPath.isAbsolute()) {
+                file = Paths.get(snapshotPath).resolve(filePath).normalize();
+            }
+        }
+        return Files.exists(file) ? file : null;
+    }
+
+    /** 问题点区间：优先 linePoints 合并点，缺失时回退 lineStart/lineEnd，均钳制到 [1,total] */
+    private List<int[]> collectIssuePoints(ScanIssue issue, int lineStart, int lineEnd, int total) {
+        List<int[]> points = new ArrayList<>();
+        List<int[]> rawPoints = IssuePoints.toRanges(issue.getLinePoints());
+        if (!rawPoints.isEmpty()) {
+            for (int[] p : IssuePoints.merge(rawPoints)) {
+                points.add(new int[]{Math.max(1, p[0]), Math.min(total, p[1])});
+            }
+        } else {
+            points.add(new int[]{Math.max(1, Math.min(lineStart, total)),
+                    Math.max(1, Math.min(lineEnd, total))});
+        }
+        return points;
+    }
+
+    /** 每个问题点上下各 ctx 行的上下文窗口，窗口重叠或相邻时合并 */
+    private List<int[]> mergeContextWindows(List<int[]> points, int ctx, int total) {
+        List<int[]> windows = new ArrayList<>();
+        for (int[] p : points) {
+            int from = Math.max(1, p[0] - ctx);
+            int to = Math.min(total, p[1] + ctx);
+            if (!windows.isEmpty() && from <= windows.get(windows.size() - 1)[1] + 1) {
+                windows.get(windows.size() - 1)[1] = Math.max(windows.get(windows.size() - 1)[1], to);
+            } else {
+                windows.add(new int[]{from, to});
+            }
+        }
+        return windows;
+    }
+
+    /** 按窗口逐行构建行信息：落在问题点区间的行打标记，段间不相邻处以省略行数前缀 */
+    private List<FileContext.LineInfo> buildLineInfos(List<int[]> windows, List<int[]> points, List<String> allLines) {
+        List<FileContext.LineInfo> lineInfos = new ArrayList<>();
+        int prevTo = 0;
+        for (int[] seg : windows) {
+            int gapBefore = prevTo > 0 ? seg[0] - prevTo - 1 : 0;
+            for (int lineNum = seg[0]; lineNum <= seg[1]; lineNum++) {
+                FileContext.LineInfo.LineInfoBuilder b = FileContext.LineInfo.builder()
+                        .lineNumber(lineNum)
+                        .content(allLines.get(lineNum - 1))
+                        .issueLine(isIssueLine(points, lineNum))
+                        .issueMarker(markerOf(points, lineNum));
+                if (lineNum == seg[0] && gapBefore > 0) {
+                    b.gapBefore(gapBefore);
+                }
+                lineInfos.add(b.build());
+            }
+            prevTo = seg[1];
+        }
+        return lineInfos;
+    }
+
+    /** 行号是否落在任一问题点区间内 */
+    private boolean isIssueLine(List<int[]> points, int lineNum) {
+        for (int[] p : points) {
+            if (lineNum >= p[0] && lineNum <= p[1]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 问题行标记：单行 single、多行区间首尾 start/end，非问题行或区间中间行为 null（取首个命中点） */
+    private String markerOf(List<int[]> points, int lineNum) {
+        for (int[] p : points) {
+            if (lineNum >= p[0] && lineNum <= p[1]) {
+                if (p[0] == p[1] && lineNum == p[0]) {
+                    return "single";
+                }
+                if (lineNum == p[0]) {
+                    return "start";
+                }
+                if (lineNum == p[1]) {
+                    return "end";
+                }
+                return null;
+            }
+        }
+        return null;
     }
 
     /**

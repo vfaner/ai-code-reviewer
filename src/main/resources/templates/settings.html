@@ -86,7 +86,7 @@
     </div>
 </div>
 
-<!-- 项目地址（GitHub + Gitee）与作者联系方式 -->
+<!-- 项目地址（官网 + GitHub + Gitee，标签列为图标、值列为超链接）与作者联系方式 -->
 <div class="card">
     <div class="card-head">
         <h3 th:text="#{settings.projectAuthor}">Project &amp; author</h3>
@@ -94,20 +94,29 @@
     <div class="card-body dl-grid-2">
         <div class="dl-list">
             <div class="dl-row">
-                <dt th:text="#{settings.githubUrl}">GitHub</dt>
+                <dt><img th:src="@{/assets/github.svg}" th:alt="#{settings.githubUrl}" th:title="#{settings.githubUrl}"
+                         width="17" height="17" class="gh-ico"></dt>
                 <dd>
                     <a class="repo-link" th:href="${githubUrl}" target="_blank" rel="noopener noreferrer">
-                        <img th:src="@{/assets/github.svg}" alt="" width="15" height="15" class="gh-ico">
                         <span class="mono" th:text="${githubUrl}">https://github.com/...</span>
                     </a>
                 </dd>
             </div>
             <div class="dl-row" th:if="${giteeUrl != null and giteeUrl != ''}">
-                <dt th:text="#{settings.giteeUrl}">Gitee</dt>
+                <dt><img th:src="@{/assets/gitee.ico}" th:alt="#{settings.giteeUrl}" th:title="#{settings.giteeUrl}"
+                         width="17" height="17" class="brand-ico"></dt>
                 <dd>
                     <a class="repo-link" th:href="${giteeUrl}" target="_blank" rel="noopener noreferrer">
-                        <img th:src="@{/assets/gitee.ico}" alt="" width="15" height="15" class="gh-ico">
                         <span class="mono" th:text="${giteeUrl}">https://gitee.com/...</span>
+                    </a>
+                </dd>
+            </div>
+            <div class="dl-row" th:if="${websiteUrl != null and websiteUrl != ''}">
+                <dt><img th:src="@{/assets/website.svg}" th:alt="#{settings.websiteUrl}" th:title="#{settings.websiteUrl}"
+                         width="17" height="17" class="gh-ico"></dt>
+                <dd>
+                    <a class="repo-link" th:href="${websiteUrl}" target="_blank" rel="noopener noreferrer">
+                        <span class="mono" th:text="${websiteUrl}">https://jargus.qqmu.com</span>
                     </a>
                 </dd>
             </div>

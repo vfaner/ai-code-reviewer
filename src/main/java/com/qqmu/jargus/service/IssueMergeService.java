@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -161,11 +162,7 @@ public class IssueMergeService {
      * 其余被并条目的重复对象提取为"其他位置"行追加进描述，避免同文件刷出大量重复行。
      */
     private int mergeSameFileIssues(List<ScanIssue> all, Set<Long> affectedTasks) {
-        Map<String, List<ScanIssue>> groups = new LinkedHashMap<>();
-        for (ScanIssue issue : all) {
-            String key = issue.getTaskId() + "|" + issue.getFilePath() + "|" + issue.getRuleCode();
-            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(issue);
-        }
+        Map<String, List<ScanIssue>> groups = groupByTaskFileRule(all);
 
         int removed = 0;
         for (List<ScanIssue> group : groups.values()) {
@@ -173,87 +170,22 @@ public class IssueMergeService {
                 continue;
             }
             List<ScanIssue> active = group.stream().filter(i -> !Boolean.TRUE.equals(i.getIsIgnored())).toList();
-            boolean allIgnored = active.isEmpty();
-            List<ScanIssue> contributors = allIgnored ? group : active;
+            List<ScanIssue> contributors = active.isEmpty() ? group : active;
 
-            ScanIssue target = contributors.get(0);
-            for (ScanIssue i : contributors) {
-                if (i.getId() < target.getId()) {
-                    target = i;
-                }
-            }
-            List<int[]> points = new ArrayList<>();
-            int severity = target.getSeverity() != null ? target.getSeverity() : 1;
-            boolean anyAi = Boolean.TRUE.equals(target.getIsAiGenerated());
-            for (ScanIssue i : contributors) {
-                List<int[]> existing = IssuePoints.toRanges(i.getLinePoints());
-                if (!existing.isEmpty()) {
-                    points.addAll(existing);
-                } else if (i.getLineStart() != null) {
-                    points.add(new int[]{i.getLineStart(),
-                            i.getLineEnd() != null ? i.getLineEnd() : i.getLineStart()});
-                }
-                if (i.getSeverity() != null) {
-                    severity = Math.max(severity, i.getSeverity());
-                }
-                anyAi |= Boolean.TRUE.equals(i.getIsAiGenerated());
-            }
-            List<int[]> mergedPoints = IssuePoints.merge(points);
+            ScanIssue target = pickRepresentative(contributors);
+            List<int[]> mergedPoints = IssuePoints.merge(collectPoints(contributors));
             if (mergedPoints.isEmpty()) {
                 continue;
             }
-            target.setLineStart(mergedPoints.get(0)[0]);
-            target.setLineEnd(mergedPoints.get(mergedPoints.size() - 1)[1]);
-            target.setLinePoints(mergedPoints.size() > 1 ? IssuePoints.toLists(mergedPoints) : null);
-            target.setOccurrenceCount(contributors.size());
-            target.setSeverity(severity);
-            target.setIsAiGenerated(anyAi);
-            // AI 增强结果若主记录缺失则从被合并记录里保留一条，避免用户已消耗的 token 白费
-            if (target.getAiSuggestion() == null) {
-                for (ScanIssue i : contributors) {
-                    if (!i.getId().equals(target.getId()) && i.getAiSuggestion() != null) {
-                        target.setAiSuggestion(i.getAiSuggestion());
-                        target.setAiSuggestionAt(i.getAiSuggestionAt());
-                        break;
-                    }
-                }
-            }
-            // DUP 合并时保留各条目的重复对象：非代表条的"位置二"追加为"其他位置"行
-            if (DUP_RULE.equals(target.getRuleCode()) && contributors.size() > 1
-                    && target.getDescription() != null
-                    && !target.getDescription().contains("其他位置：")) {
-                Set<String> partners = new LinkedHashSet<>();
-                for (ScanIssue i : contributors) {
-                    if (i.getId().equals(target.getId())) {
-                        continue;
-                    }
-                    String partner = extractPartnerLocation(i.getDescription());
-                    if (partner != null) {
-                        partners.add(partner);
-                    }
-                }
-                StringBuilder desc = new StringBuilder(target.getDescription());
-                for (String partner : partners) {
-                    desc.append(OTHER_LOCATION_PREFIX).append(partner);
-                }
-                target.setDescription(desc.toString());
-            }
-            if (contributors.size() > 1 && target.getDescription() != null
-                    && !target.getDescription().contains("本文件同类问题共")) {
-                target.setDescription(target.getDescription()
-                        + "\n本文件同类问题共 " + contributors.size() + " 处，涉及行号："
-                        + IssuePoints.format(mergedPoints));
-            }
+            applyMergedGeometry(target, contributors, mergedPoints);
+            carryOverAiSuggestion(target, contributors);
+            appendDupPartners(target, contributors);
+            appendCountSuffix(target, contributors.size(), mergedPoints);
             scanIssueMapper.updateById(target);
 
             // 非全忽略时被忽略的逐点记录直接丢弃（与新扫描"行级忽略点不并入"一致），
             // 其余点全部并入 target
-            List<Long> deleteIds = new ArrayList<>();
-            for (ScanIssue i : group) {
-                if (!i.getId().equals(target.getId())) {
-                    deleteIds.add(i.getId());
-                }
-            }
+            List<Long> deleteIds = collectDeleteIds(group, target);
             if (!deleteIds.isEmpty()) {
                 scanIssueMapper.deleteBatchIds(deleteIds);
                 removed += deleteIds.size();
@@ -261,6 +193,121 @@ public class IssueMergeService {
             affectedTasks.add(target.getTaskId());
         }
         return removed;
+    }
+
+    /** 同任务+同文件+同规则码分组（保留首次出现顺序） */
+    private Map<String, List<ScanIssue>> groupByTaskFileRule(List<ScanIssue> all) {
+        Map<String, List<ScanIssue>> groups = new LinkedHashMap<>();
+        for (ScanIssue issue : all) {
+            String key = issue.getTaskId() + "|" + issue.getFilePath() + "|" + issue.getRuleCode();
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(issue);
+        }
+        return groups;
+    }
+
+    /** 代表条：组内 id 最小者（列号等元数据沿用它） */
+    private ScanIssue pickRepresentative(@NonNull List<ScanIssue> contributors) {
+        ScanIssue target = contributors.get(0);
+        for (ScanIssue i : contributors) {
+            if (i.getId() < target.getId()) {
+                target = i;
+            }
+        }
+        return target;
+    }
+
+    /** 收集各条目的行区间（优先 linePoints，回退 lineStart/lineEnd） */
+    private List<int[]> collectPoints(List<ScanIssue> contributors) {
+        List<int[]> points = new ArrayList<>();
+        for (ScanIssue i : contributors) {
+            List<int[]> existing = IssuePoints.toRanges(i.getLinePoints());
+            if (!existing.isEmpty()) {
+                points.addAll(existing);
+            } else if (i.getLineStart() != null) {
+                points.add(new int[]{i.getLineStart(),
+                        i.getLineEnd() != null ? i.getLineEnd() : i.getLineStart()});
+            }
+        }
+        return points;
+    }
+
+    /** 合并后的几何与聚合属性写回代表条：行区间、出现次数、最高 severity、AI 标记 */
+    private void applyMergedGeometry(@NonNull ScanIssue target, @NonNull List<ScanIssue> contributors,
+                                     @NonNull List<int[]> mergedPoints) {
+        int severity = target.getSeverity() != null ? target.getSeverity() : 1;
+        boolean anyAi = Boolean.TRUE.equals(target.getIsAiGenerated());
+        for (ScanIssue i : contributors) {
+            if (i.getSeverity() != null) {
+                severity = Math.max(severity, i.getSeverity());
+            }
+            anyAi |= Boolean.TRUE.equals(i.getIsAiGenerated());
+        }
+        target.setLineStart(mergedPoints.get(0)[0]);
+        target.setLineEnd(mergedPoints.get(mergedPoints.size() - 1)[1]);
+        target.setLinePoints(mergedPoints.size() > 1 ? IssuePoints.toLists(mergedPoints) : null);
+        target.setOccurrenceCount(contributors.size());
+        target.setSeverity(severity);
+        target.setIsAiGenerated(anyAi);
+    }
+
+    /** AI 增强结果若主记录缺失则从被合并记录里保留一条，避免用户已消耗的 token 白费 */
+    private void carryOverAiSuggestion(@NonNull ScanIssue target, @NonNull List<ScanIssue> contributors) {
+        if (target.getAiSuggestion() != null) {
+            return;
+        }
+        for (ScanIssue i : contributors) {
+            if (!i.getId().equals(target.getId()) && i.getAiSuggestion() != null) {
+                target.setAiSuggestion(i.getAiSuggestion());
+                target.setAiSuggestionAt(i.getAiSuggestionAt());
+                return;
+            }
+        }
+    }
+
+    /** DUP 合并时保留各条目的重复对象：非代表条的"位置二"追加为"其他位置"行 */
+    private void appendDupPartners(@NonNull ScanIssue target, @NonNull List<ScanIssue> contributors) {
+        if (!DUP_RULE.equals(target.getRuleCode()) || contributors.size() < 2
+                || target.getDescription() == null
+                || target.getDescription().contains("其他位置：")) {
+            return;
+        }
+        Set<String> partners = new LinkedHashSet<>();
+        for (ScanIssue i : contributors) {
+            if (i.getId().equals(target.getId())) {
+                continue;
+            }
+            String partner = extractPartnerLocation(i.getDescription());
+            if (partner != null) {
+                partners.add(partner);
+            }
+        }
+        StringBuilder desc = new StringBuilder(target.getDescription());
+        for (String partner : partners) {
+            desc.append(OTHER_LOCATION_PREFIX).append(partner);
+        }
+        target.setDescription(desc.toString());
+    }
+
+    /** 合并条描述追加"本文件同类问题共 N 处"行（仅多条且尚未追加过时） */
+    private void appendCountSuffix(@NonNull ScanIssue target, int count, @NonNull List<int[]> mergedPoints) {
+        if (count < 2 || target.getDescription() == null
+                || target.getDescription().contains("本文件同类问题共")) {
+            return;
+        }
+        target.setDescription(target.getDescription()
+                + "\n本文件同类问题共 " + count + " 处，涉及行号："
+                + IssuePoints.format(mergedPoints));
+    }
+
+    /** 组内除代表条外的 id 列表（待删除的被并记录） */
+    private List<Long> collectDeleteIds(List<ScanIssue> group, @NonNull ScanIssue target) {
+        List<Long> deleteIds = new ArrayList<>();
+        for (ScanIssue i : group) {
+            if (!i.getId().equals(target.getId())) {
+                deleteIds.add(i.getId());
+            }
+        }
+        return deleteIds;
     }
 
     /** 按五级模型重算任务问题计数（忽略项不计），一次 GROUP BY 完成，供扫描落库与启动迁移共用 */

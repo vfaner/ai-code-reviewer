@@ -755,16 +755,19 @@ fieldset.bare { border: 0; padding: 0; margin: 0; min-width: 0; }
 /* 主色按钮上是白字，图标也得是纯白 */
 .gh-ico-on-brand,
 [data-theme="dark"] .gh-ico-on-brand { filter: brightness(0) invert(1); }
+/* 品牌色徽标（Gitee 红标等）不能被 gh-ico 滤镜压成剪影——
+   brightness(0) 会把红色与标内白色负形一起压黑，只剩一团实心圆，故原色展示 */
+.brand-ico { display: block; opacity: .92; }
+/* 系统信息页标签列图标：与值列文字光学对齐 */
+.dl-row dt .gh-ico, .dl-row dt .brand-ico { margin: 1px 0; }
 
-/* 系统信息页：项目地址行 */
+/* 系统信息页：项目地址行（标签列为图标，值列为纯超链接） */
 .repo-link {
   display: inline-flex; align-items: center; gap: 7px;
-  color: var(--ink); text-decoration: none; max-width: 100%;
+  color: var(--brand); text-decoration: none; max-width: 100%;
 }
 .repo-link span { overflow: hidden; text-overflow: ellipsis; }
-.repo-link:hover { color: var(--brand); }
-.repo-link:hover .gh-ico { filter: none; }
-[data-theme="dark"] .repo-link:hover .gh-ico { filter: brightness(0) invert(1); }
+.repo-link:hover { text-decoration: underline; }
 
 .sec-tag {
   display: inline-block; padding: 4px 12px; border-radius: 999px;

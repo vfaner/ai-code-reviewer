@@ -84,39 +84,40 @@ public class ArchitectureChecker extends AbstractLocalChecker {
             }
 
             int line = imp.getBegin().map(p -> p.line).orElse(1);
-            String ruleCode = null;
-            String title = null;
-            String description = null;
-            String suggestion = null;
-
-            if (ownLayer == Layer.CONTROLLER && targetLayer == Layer.DAO) {
-                ruleCode = "ARCH_LAYER_SKIP";
-                title = "架构越层依赖";
-                description = "Controller 越过 Service 层直接依赖 DAO/Mapper（" + fqcn + "），破坏分层架构";
-                suggestion = "在 Service 层封装数据访问逻辑，Controller 只依赖 Service 接口";
-            } else if ((ownLayer == Layer.SERVICE || ownLayer == Layer.DAO)
-                    && targetLayer == Layer.CONTROLLER) {
-                ruleCode = "ARCH_LAYER_REVERSE";
-                title = "架构反向依赖";
-                description = lowerName(ownLayer) + " 层反向依赖 Controller（" + fqcn + "），依赖方向应为 controller → service → dao";
-                suggestion = "将 Controller 中被下层引用的逻辑下沉到 Service，或通过事件/接口回调解耦";
-            } else if (ownLayer == Layer.ENTITY
-                    && (targetLayer == Layer.CONTROLLER || targetLayer == Layer.SERVICE
-                        || targetLayer == Layer.DAO)) {
-                ruleCode = "ARCH_ENTITY_LEAK";
-                title = "实体层依赖上层";
-                description = "Entity/领域对象依赖 " + lowerName(targetLayer) + " 层（" + fqcn + "），实体应保持纯净、无基础设施依赖";
-                suggestion = "移除实体对上层/基础设施的引用，业务逻辑放入 Service，展示转换使用 DTO/VO";
-            }
-
-            if (ruleCode != null) {
+            ArchRule rule = layerRule(ownLayer, targetLayer, fqcn);
+            if (rule != null) {
                 CheckIssue issue = createIssue(
-                        IssueLevel.MAJOR, ruleCode, title, description,
+                        IssueLevel.MAJOR, rule.code(), rule.title(), rule.description(),
                         context.getCurrentFilePath(), line, line);
-                issue.setSuggestion(suggestion);
+                issue.setSuggestion(rule.suggestion());
                 issues.add(issue);
             }
         }
+    }
+
+    /** 越层/反向/实体外泄三条分层规则 */
+    private record ArchRule(String code, String title, String description, String suggestion) {}
+
+    /** 分层规则匹配：命中返回规则四元组，未命中返回 null */
+    private ArchRule layerRule(Layer ownLayer, Layer targetLayer, String fqcn) {
+        if (ownLayer == Layer.CONTROLLER && targetLayer == Layer.DAO) {
+            return new ArchRule("ARCH_LAYER_SKIP", "架构越层依赖",
+                    "Controller 越过 Service 层直接依赖 DAO/Mapper（" + fqcn + "），破坏分层架构",
+                    "在 Service 层封装数据访问逻辑，Controller 只依赖 Service 接口");
+        }
+        if ((ownLayer == Layer.SERVICE || ownLayer == Layer.DAO) && targetLayer == Layer.CONTROLLER) {
+            return new ArchRule("ARCH_LAYER_REVERSE", "架构反向依赖",
+                    lowerName(ownLayer) + " 层反向依赖 Controller（" + fqcn + "），依赖方向应为 controller → service → dao",
+                    "将 Controller 中被下层引用的逻辑下沉到 Service，或通过事件/接口回调解耦");
+        }
+        if (ownLayer == Layer.ENTITY
+                && (targetLayer == Layer.CONTROLLER || targetLayer == Layer.SERVICE
+                    || targetLayer == Layer.DAO)) {
+            return new ArchRule("ARCH_ENTITY_LEAK", "实体层依赖上层",
+                    "Entity/领域对象依赖 " + lowerName(targetLayer) + " 层（" + fqcn + "），实体应保持纯净、无基础设施依赖",
+                    "移除实体对上层/基础设施的引用，业务逻辑放入 Service，展示转换使用 DTO/VO");
+        }
+        return null;
     }
 
     /**

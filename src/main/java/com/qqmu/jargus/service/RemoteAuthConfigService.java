@@ -182,22 +182,42 @@ public class RemoteAuthConfigService {
      * @return success + message
      */
     public Map<String, Object> testConnection(RemoteAuthConfig form) {
-        Map<String, Object> result = new HashMap<>();
         String url = form.getLoginUrl();
         if (url == null || url.isBlank()) {
-            result.put("success", false);
-            result.put("message", "登录接口 URL 不能为空");
-            return result;
+            return fail("登录接口 URL 不能为空");
         }
         try {
             URI.create(url.trim()).toURL();
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", "URL 格式不正确：" + url);
-            return result;
+            return fail("URL 格式不正确：" + url);
         }
 
         // 编辑态密钥留空/掩码时使用库里已保存的密钥
+        HttpOutcome outcome = postForTest(url, buildTestBody(form, resolveTestSecret(form)));
+        if (outcome.failure() != null) {
+            return outcome.failure();
+        }
+        return classifyStatus(outcome.response().statusCode());
+    }
+
+    /** 连通测试结果（success + message） */
+    private Map<String, Object> outcome(boolean success, String message) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", success);
+        result.put("message", message);
+        return result;
+    }
+
+    private Map<String, Object> fail(String message) {
+        return outcome(false, message);
+    }
+
+    private Map<String, Object> pass(String message) {
+        return outcome(true, message);
+    }
+
+    /** 编辑态密钥：留空/掩码时取库中已存密钥；纯掩码视为未提供 */
+    private String resolveTestSecret(RemoteAuthConfig form) {
         String secret = form.getClientSecret();
         if (form.getId() != null
                 && (secret == null || secret.isBlank() || secret.contains("****"))) {
@@ -207,7 +227,11 @@ public class RemoteAuthConfigService {
             }
         }
         if (secret != null && secret.contains("****")) secret = null;
+        return secret;
+    }
 
+    /** 连通测试请求体：固定测试账号，clientId/clientSecret 非空才附 */
+    private Map<String, Object> buildTestBody(RemoteAuthConfig form, String secret) {
         Map<String, Object> body = new HashMap<>();
         body.put("username", "__connectivity_test__");
         body.put("password", "__connectivity_test__");
@@ -217,55 +241,49 @@ public class RemoteAuthConfigService {
         if (secret != null && !secret.isBlank()) {
             body.put("client_secret", secret);
         }
+        return body;
+    }
 
-        HttpResponse<String> resp;
+    /** 连通测试请求结果：成功带响应，网络层异常统一归为失败结果 */
+    private record HttpOutcome(HttpResponse<String> response, Map<String, Object> failure) {}
+
+    /** 发起连通测试请求，各网络层异常分类为对应失败提示 */
+    private HttpOutcome postForTest(String url, Map<String, Object> body) {
         try {
-            resp = postJson(url.trim(), body);
+            return new HttpOutcome(postJson(url.trim(), body), null);
         } catch (HttpTimeoutException e) {
-            result.put("success", false);
-            result.put("message", "请求超时（15 秒），请检查网络或地址是否可达");
-            return result;
+            return new HttpOutcome(null, fail("请求超时（15 秒），请检查网络或地址是否可达"));
         } catch (UnknownHostException e) {
-            result.put("success", false);
-            result.put("message", "域名无法解析：" + e.getMessage());
-            return result;
+            return new HttpOutcome(null, fail("域名无法解析：" + e.getMessage()));
         } catch (ConnectException e) {
-            result.put("success", false);
-            result.put("message", "连接被拒绝（端口未开放或服务未启动）"
-                    + (e.getMessage() != null ? "：" + e.getMessage() : ""));
-            return result;
+            return new HttpOutcome(null, fail("连接被拒绝（端口未开放或服务未启动）"
+                    + (e.getMessage() != null ? "：" + e.getMessage() : "")));
         } catch (SSLException e) {
-            result.put("success", false);
-            result.put("message", "HTTPS 握手失败，请确认地址协议（http/https）与证书是否有效：" + e.getMessage());
-            return result;
+            return new HttpOutcome(null, fail("HTTPS 握手失败，请确认地址协议（http/https）与证书是否有效：" + e.getMessage()));
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", "请求失败：" + e.getMessage());
-            return result;
+            return new HttpOutcome(null, fail("请求失败：" + e.getMessage()));
         }
+    }
 
-        int sc = resp.statusCode();
+    /** HTTP 状态码分类：2xx 连通 / 401·403 可达 / 404 / 重定向 / 其余 4xx 可达 / 5xx 对端异常 */
+    private Map<String, Object> classifyStatus(int sc) {
         if (sc >= 200 && sc < 300) {
-            result.put("success", true);
-            result.put("message", "接口连通正常（HTTP " + sc + "，未校验账号密码），建议在登录页用真实账号验证一次");
-        } else if (sc == 401 || sc == 403) {
-            result.put("success", true);
-            result.put("message", "接口可达（HTTP " + sc + "）：测试账号被拒绝属正常现象，地址与网络没有问题");
-        } else if (sc == 404) {
-            result.put("success", false);
-            result.put("message", "接口返回 404，请检查登录接口 URL 是否正确");
-        } else if (sc >= 300 && sc < 400) {
-            result.put("success", false);
-            result.put("message", "接口返回重定向（HTTP " + sc
-                    + "），地址可能填成了页面地址，请确认填写的是登录 API 而非网页链接");
-        } else if (sc >= 400 && sc < 500) {
-            result.put("success", true);
-            result.put("message", "接口可达（HTTP " + sc + "），建议用真实账号验证字段映射是否正确");
-        } else {
-            result.put("success", false);
-            result.put("message", "对端服务异常（HTTP " + sc + "）");
+            return pass("接口连通正常（HTTP " + sc + "，未校验账号密码），建议在登录页用真实账号验证一次");
         }
-        return result;
+        if (sc == 401 || sc == 403) {
+            return pass("接口可达（HTTP " + sc + "）：测试账号被拒绝属正常现象，地址与网络没有问题");
+        }
+        if (sc == 404) {
+            return fail("接口返回 404，请检查登录接口 URL 是否正确");
+        }
+        if (sc >= 300 && sc < 400) {
+            return fail("接口返回重定向（HTTP " + sc
+                    + "），地址可能填成了页面地址，请确认填写的是登录 API 而非网页链接");
+        }
+        if (sc >= 400 && sc < 500) {
+            return pass("接口可达（HTTP " + sc + "），建议用真实账号验证字段映射是否正确");
+        }
+        return fail("对端服务异常（HTTP " + sc + "）");
     }
 
     private HttpResponse<String> postJson(String url, Map<String, Object> body) throws Exception {

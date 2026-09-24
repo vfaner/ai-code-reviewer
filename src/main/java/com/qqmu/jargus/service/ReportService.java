@@ -27,6 +27,7 @@ import com.lowagie.text.pdf.PdfWriter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
@@ -105,233 +106,19 @@ public class ReportService {
             writer.setPageEvent(new PageBgEvent());
             document.open();
 
-            // 中文字体（getChineseFont 理论恒非空，显式断言失败快于后续 20+ 处解引用）
-            BaseFont bfChinese = Objects.requireNonNull(getChineseFont(), "PDF 中文字体初始化失败");
-            /* 配色与 templates/report.html 的 CSS 保持一致 */
-            Font sectionFont = new Font(bfChinese, 13, Font.BOLD, new Color(30, 58, 138));
-            Font labelFont = new Font(bfChinese, 8.5f, Font.NORMAL, new Color(107, 114, 128));
-            // 9pt：四等分列宽约 127pt，10pt 时"2026-09-20 15:21:57"/"启用（16 条已 AI 增强）"会折行，HTML 里均为单行
-            Font valueFont = new Font(bfChinese, 9, Font.BOLD, new Color(31, 41, 55));
-            Font normalFont = new Font(bfChinese, 10, Font.NORMAL, new Color(55, 65, 81));
-            Font smallFont = new Font(bfChinese, 9, Font.NORMAL, new Color(107, 114, 128));
+            PdfFonts fonts = buildFonts();
 
-            // ====== 头部横幅（对齐 HTML 报告 .report-header 渐变） ======
-            PdfPTable header = new PdfPTable(1);
-            // 铺满白色卡片容器（容器比内容列每侧宽 28pt），顶部两角随容器圆角
-            header.setTotalWidth(PageSize.A4.getWidth() - 32);
-            PdfPCell headerCell = new PdfPCell();
-            headerCell.setCellEvent(new GradientEvent(new Color(30, 58, 138), new Color(59, 130, 246), 12, 12, 0, 0));
-            headerCell.setBorder(Rectangle.NO_BORDER);
-            headerCell.setPadding(28);
-            Paragraph h1 = new Paragraph("百目 · Java 代码评审报告", new Font(bfChinese, 20, Font.BOLD, Color.WHITE));
-            h1.setSpacingAfter(4);
-            headerCell.addElement(h1);
-            headerCell.addElement(new Paragraph("JArgus Code Review Report",
-                    new Font(bfChinese, 10, Font.NORMAL, new Color(219, 234, 254))));
-            header.addCell(headerCell);
-            // 全幅出血：OpenPDF 的 PdfPTable 无负缩进 API，用绝对坐标写入使横幅贴齐容器左右边缘，
-            // 再以固定行距占位段在文档流中让出「横幅高度 + 20pt 间距」
-            float bannerEndY = header.writeSelectedRows(0, -1, 16, document.top(), writer.getDirectContent());
-            Paragraph bannerSpacer = new Paragraph(" ");
-            bannerSpacer.setLeading(document.top() - bannerEndY + 20);
-            document.add(bannerSpacer);
+            writeHeaderBanner(document, writer, fonts);
 
-            // ====== 一、评审概览（对齐 HTML .info-grid 四列卡片） ======
-            addSectionTitle(document, "一、评审概览", sectionFont);
-            String[][] info = {
-                    {"任务名称", task.getTaskName()},
-                    {"项目名称", task.getProjectName() != null ? task.getProjectName() : "-"},
-                    {"来源类型", task.getSourceType()},
-                    {"评审状态", task.getStatus()},
-                    {"文件数量", String.valueOf(task.getTotalFiles() != null ? task.getTotalFiles() : 0)},
-                    {"代码行数", String.valueOf(task.getTotalLines() != null ? task.getTotalLines() : 0)},
-                    {"开始时间", task.getStartedAt() != null ? task.getStartedAt().format(DATE_FMT) : "-"},
-                    {"完成时间", task.getCompletedAt() != null ? task.getCompletedAt().format(DATE_FMT) : "-"},
-                    {"JDK 版本", task.getJdkVersion() != null ? task.getJdkVersion() : "-"},
-                    {"Spring Boot", task.getSpringBootVersion() != null ? task.getSpringBootVersion() : "-"},
-                    {"AI 评审", aiReviewStatus(task, issues)},
-                    {"耗时", (task.getDurationSeconds() != null ? task.getDurationSeconds() : 0) + " 秒"},
-            };
-            PdfPTable infoTable = new PdfPTable(4);
-            infoTable.setWidthPercentage(100);
-            // 圆角外框 + 白底由表事件绘制（对齐 HTML .info-grid overflow:hidden 圆角）
-            infoTable.setTableEvent(new RoundedFrameEvent(Color.WHITE, new Color(229, 231, 235), 8));
-            for (int i = 0; i < info.length; i++) {
-                PdfPCell c = new PdfPCell();
-                // 内部分隔线用浅色 #f3f4f6（对齐 HTML .info-item），外边线交给圆角外框
-                int mask = 0;
-                if (i % 4 != 3) mask |= Rectangle.RIGHT;
-                if (i < info.length - 4) mask |= Rectangle.BOTTOM;
-                c.setBorder(mask);
-                c.setBorderColor(new Color(243, 244, 246));
-                c.setPaddingLeft(10);
-                c.setPaddingRight(10);
-                c.setPaddingTop(8);
-                c.setPaddingBottom(8);
-                Paragraph lp = new Paragraph(info[i][0], labelFont);
-                lp.setSpacingAfter(3);
-                c.addElement(lp);
-                c.addElement(new Paragraph(info[i][1] != null ? info[i][1] : "-", valueFont));
-                infoTable.addCell(c);
-            }
-            infoTable.setSpacingAfter(4);
-            document.add(infoTable);
+            writeInfoSection(document, task, issues, fonts);
 
-            // ====== 二、质量评分（对齐 HTML .quality-box：评分圆环 + 门禁 + 四项统计） ======
-            addSectionTitle(document, "二、质量评分", sectionFont);
-            PdfPTable qBox = new PdfPTable(1);
-            qBox.setWidthPercentage(100);
-            PdfPCell qCell = new PdfPCell();
-            qCell.setCellEvent(new QualityPanelEvent(new Color(239, 246, 255), new Color(219, 234, 254),
-                    scoreColor(quality.getLevel()), String.valueOf(quality.getScore()),
-                    getLevelText(quality.getLevel()), bfChinese));
-            qCell.setBorder(Rectangle.NO_BORDER);
-            qCell.setPadding(14);
+            writeQualitySection(document, quality, fonts);
 
-            PdfPTable qInner = new PdfPTable(2);
-            qInner.setWidthPercentage(100);
-            qInner.setWidths(new float[]{26, 74});
+            writeCategorySection(document, issues, fonts);
 
-            // 左列仅作占位：圆盘由 qCell 的 QualityPanelEvent 统一绘制
-            // （嵌套表格的单元格事件画布不生效）
-            PdfPCell circleCell = new PdfPCell();
-            circleCell.setBorder(Rectangle.NO_BORDER);
-            circleCell.setFixedHeight(96);
-            qInner.addCell(circleCell);
+            writeIssuesSection(document, issues, fonts, writer);
 
-            PdfPCell rightCell = new PdfPCell();
-            rightCell.setBorder(Rectangle.NO_BORDER);
-            rightCell.setPaddingLeft(10);
-            Paragraph gate = new Paragraph(quality.isPassed() ? "✓ 质量门禁通过" : "✗ 质量门禁未通过",
-                    new Font(bfChinese, 12, Font.BOLD,
-                            quality.isPassed() ? new Color(5, 150, 105) : new Color(220, 38, 38)));
-            gate.setSpacingAfter(8);
-            rightCell.addElement(gate);
-
-            PdfPTable stats = new PdfPTable(7);
-            stats.setWidthPercentage(100);
-            // 技术债列加宽（"2小时30分"等文案单行放下），其余六列均分
-            stats.setWidths(new float[]{1, 1, 1, 1, 1, 1, 1.75f});
-            stats.addCell(statCell(String.valueOf(quality.getBlockerCount()), "阻断", new Color(185, 28, 28), bfChinese));
-            stats.addCell(statCell(String.valueOf(quality.getCriticalCount()), "严重", new Color(239, 68, 68), bfChinese));
-            stats.addCell(statCell(String.valueOf(quality.getMajorCount()), "主要", new Color(245, 158, 11), bfChinese));
-            stats.addCell(statCell(String.valueOf(quality.getMinorCount()), "次要", new Color(14, 165, 233), bfChinese));
-            stats.addCell(statCell(String.valueOf(quality.getInfoCount()), "提示", new Color(107, 114, 128), bfChinese));
-            stats.addCell(statCell(String.valueOf(quality.getTotalIssues()), "总计", new Color(55, 65, 81), bfChinese));
-            String debtText = quality.getDebtText() != null && !quality.getDebtText().isEmpty()
-                    ? quality.getDebtText() : "0分";
-            stats.addCell(statCell(debtText, "技术债", new Color(124, 58, 237), bfChinese));
-            stats.setSpacingAfter(8);
-            rightCell.addElement(stats);
-
-            String detailText = "说明：" + (quality.getDetail() != null ? quality.getDetail() : "-");
-            if (quality.getIgnoredCount() > 0) {
-                detailText += "；已忽略 " + quality.getIgnoredCount() + " 条";
-            }
-            rightCell.addElement(new Paragraph(detailText, smallFont));
-            qInner.addCell(rightCell);
-
-            qCell.addElement(qInner);
-            qBox.addCell(qCell);
-            qBox.setSpacingAfter(4);
-            document.add(qBox);
-
-            // ====== 三、问题分类统计（对齐 HTML .category-table 深蓝表头） ======
-            addSectionTitle(document, "三、问题分类统计", sectionFont);
-            Map<String, Map<String, Integer>> byChecker = countByChecker(issues);
-            PdfPTable catTable = new PdfPTable(6);
-            catTable.setWidthPercentage(100);
-            catTable.setWidths(new float[]{10, 2, 2, 2, 2, 2});
-            // 圆角外框（对齐 HTML .category-table 圆角），深色表头两端的圆角在单元格级实现
-            catTable.setTableEvent(new RoundedFrameEvent(Color.WHITE, new Color(229, 231, 235), 8));
-
-            Font thFont = new Font(bfChinese, 10, Font.BOLD, Color.WHITE);
-            String[] heads = {"检查器", "阻断", "严重", "主要", "次要", "提示"};
-            for (int i = 0; i < heads.length; i++) {
-                PdfPCell hc = new PdfPCell(new Phrase(heads[i], thFont));
-                Color thBg = new Color(30, 58, 138);
-                if (i == 0) {
-                    hc.setCellEvent(new RoundedCellEvent(thBg, null, 0, 8, 0, 0, 0));
-                } else if (i == heads.length - 1) {
-                    hc.setCellEvent(new RoundedCellEvent(thBg, null, 0, 0, 8, 0, 0));
-                } else {
-                    hc.setBackgroundColor(thBg);
-                }
-                hc.setBorder(Rectangle.NO_BORDER);
-                hc.setPadding(8);
-                if (i > 0) {
-                    hc.setHorizontalAlignment(Element.ALIGN_CENTER);
-                }
-                catTable.addCell(hc);
-            }
-
-            // 计数列按等级着色（对齐 HTML .category-table 各列内联 color）
-            Font[] countFonts = {
-                    new Font(bfChinese, 10, Font.NORMAL, new Color(185, 28, 28)),    // BLOCKER
-                    new Font(bfChinese, 10, Font.NORMAL, new Color(239, 68, 68)),    // CRITICAL
-                    new Font(bfChinese, 10, Font.NORMAL, new Color(217, 119, 6)),    // MAJOR
-                    new Font(bfChinese, 10, Font.NORMAL, new Color(2, 132, 199)),    // MINOR
-                    new Font(bfChinese, 10, Font.NORMAL, new Color(107, 114, 128))   // INFO
-            };
-            // 无数据时仅保留深蓝表头（HTML 的 tbody 为空即此效果）
-            int row = 0;
-            int total = byChecker.size();
-            for (Map.Entry<String, Map<String, Integer>> entry : byChecker.entrySet()) {
-                boolean last = ++row == total;
-                catTable.addCell(catBodyCell(entry.getKey(), normalFont, last, Element.ALIGN_LEFT));
-                catTable.addCell(catBodyCell(String.valueOf(entry.getValue().getOrDefault("BLOCKER", 0)), countFonts[0], last, Element.ALIGN_CENTER));
-                catTable.addCell(catBodyCell(String.valueOf(entry.getValue().getOrDefault("CRITICAL", 0)), countFonts[1], last, Element.ALIGN_CENTER));
-                catTable.addCell(catBodyCell(String.valueOf(entry.getValue().getOrDefault("MAJOR", 0)), countFonts[2], last, Element.ALIGN_CENTER));
-                catTable.addCell(catBodyCell(String.valueOf(entry.getValue().getOrDefault("MINOR", 0)), countFonts[3], last, Element.ALIGN_CENTER));
-                catTable.addCell(catBodyCell(String.valueOf(entry.getValue().getOrDefault("INFO", 0)), countFonts[4], last, Element.ALIGN_CENTER));
-            }
-            catTable.setSpacingAfter(4);
-            document.add(catTable);
-
-            // ====== 四、问题详情（对齐 HTML .issue-item 卡片） ======
-            addSectionTitle(document, "四、问题详情", sectionFont);
-            if (issues.isEmpty()) {
-                // 对齐 HTML .empty-state：居中彩带图标 + 灰字
-                PdfPTable empty = new PdfPTable(1);
-                empty.setWidthPercentage(100);
-                PdfPCell ec = new PdfPCell();
-                ec.setBorder(Rectangle.NO_BORDER);
-                ec.setPadding(14);
-                ec.setCellEvent(new EmptyStateEvent());
-                // 空字符串 chunk 不占行高，用空格占出图标绘制区
-                Paragraph spacer = new Paragraph(new Phrase(" ", new Font(bfChinese, 9)));
-                spacer.setLeading(34f);
-                spacer.setSpacingAfter(6);
-                ec.addElement(spacer);
-                Paragraph ep = new Paragraph("未发现代码问题",
-                        new Font(bfChinese, 10.5f, Font.NORMAL, new Color(107, 114, 128)));
-                ep.setAlignment(Element.ALIGN_CENTER);
-                ec.addElement(ep);
-                empty.addCell(ec);
-                empty.setSpacingAfter(4);
-                document.add(empty);
-            } else {
-                int idx = 1;
-                for (ScanIssue issue : issues) {
-                    document.add(buildIssueCard(issue, idx++, bfChinese, writer));
-                }
-            }
-
-            // ====== 页脚（对齐 HTML .report-footer：顶部分隔线 + 灰色居中文字 + 时间戳） ======
-            PdfPTable footerTable = new PdfPTable(1);
-            footerTable.setWidthPercentage(100);
-            PdfPCell fc = new PdfPCell();
-            fc.setBorder(Rectangle.TOP);
-            fc.setBorderColor(new Color(229, 231, 235));
-            fc.setPadding(10);
-            LocalDateTime footerTime = task.getCompletedAt() != null ? task.getCompletedAt() : task.getCreatedAt();
-            Paragraph footer = new Paragraph("报告由 百目 JArgus 自动生成  |  "
-                    + (footerTime != null ? footerTime.format(DATE_FMT) : "-"),
-                    new Font(bfChinese, 9, Font.NORMAL, new Color(156, 163, 175)));
-            footer.setAlignment(Element.ALIGN_CENTER);
-            fc.addElement(footer);
-            footerTable.addCell(fc);
-            document.add(footerTable);
+            writeFooter(document, task, fonts);
 
             document.close();
         }
@@ -342,6 +129,265 @@ public class ReportService {
 
         log.info("PDF 报告生成成功: taskId={}, path={}", taskId, pdfPath);
         return pdfPath.toAbsolutePath().toString();
+    }
+
+    /** PDF 报告中文字体套装（配色与 templates/report.html 的 CSS 保持一致） */
+    private record PdfFonts(BaseFont chinese, Font section, Font label, Font value, Font normal, Font small) {}
+
+    private PdfFonts buildFonts() {
+        // 中文字体（getChineseFont 理论恒非空，显式断言失败快于后续 20+ 处解引用）
+        BaseFont bfChinese = Objects.requireNonNull(getChineseFont(), "PDF 中文字体初始化失败");
+        Font sectionFont = new Font(bfChinese, 13, Font.BOLD, new Color(30, 58, 138));
+        Font labelFont = new Font(bfChinese, 8.5f, Font.NORMAL, new Color(107, 114, 128));
+        // 9pt：四等分列宽约 127pt，10pt 时"2026-09-20 15:21:57"/"启用（16 条已 AI 增强）"会折行，HTML 里均为单行
+        Font valueFont = new Font(bfChinese, 9, Font.BOLD, new Color(31, 41, 55));
+        Font normalFont = new Font(bfChinese, 10, Font.NORMAL, new Color(55, 65, 81));
+        Font smallFont = new Font(bfChinese, 9, Font.NORMAL, new Color(107, 114, 128));
+        return new PdfFonts(bfChinese, sectionFont, labelFont, valueFont, normalFont, smallFont);
+    }
+
+    /** 头部横幅（对齐 HTML 报告 .report-header 渐变） */
+    private void writeHeaderBanner(Document document, @NonNull PdfWriter writer, PdfFonts fonts) {
+        BaseFont bfChinese = fonts.chinese();
+        PdfPTable header = new PdfPTable(1);
+        // 铺满白色卡片容器（容器比内容列每侧宽 28pt），顶部两角随容器圆角
+        header.setTotalWidth(PageSize.A4.getWidth() - 32);
+        PdfPCell headerCell = new PdfPCell();
+        headerCell.setCellEvent(new GradientEvent(new Color(30, 58, 138), new Color(59, 130, 246), 12, 12, 0, 0));
+        headerCell.setBorder(Rectangle.NO_BORDER);
+        headerCell.setPadding(28);
+        Paragraph h1 = new Paragraph("百目 · Java 代码评审报告", new Font(bfChinese, 20, Font.BOLD, Color.WHITE));
+        h1.setSpacingAfter(4);
+        headerCell.addElement(h1);
+        headerCell.addElement(new Paragraph("JArgus Code Review Report",
+                new Font(bfChinese, 10, Font.NORMAL, new Color(219, 234, 254))));
+        header.addCell(headerCell);
+        // 全幅出血：OpenPDF 的 PdfPTable 无负缩进 API，用绝对坐标写入使横幅贴齐容器左右边缘，
+        // 再以固定行距占位段在文档流中让出「横幅高度 + 20pt 间距」
+        float bannerEndY = header.writeSelectedRows(0, -1, 16, document.top(), writer.getDirectContent());
+        Paragraph bannerSpacer = new Paragraph(" ");
+        bannerSpacer.setLeading(document.top() - bannerEndY + 20);
+        document.add(bannerSpacer);
+    }
+
+    /** 一、评审概览（对齐 HTML .info-grid 四列卡片） */
+    private void writeInfoSection(Document document, ScanTask task, List<ScanIssue> issues, PdfFonts fonts)
+            throws Exception {
+        addSectionTitle(document, "一、评审概览", fonts.section());
+        String[][] info = buildInfoRows(task, issues);
+        PdfPTable infoTable = new PdfPTable(4);
+        infoTable.setWidthPercentage(100);
+        // 圆角外框 + 白底由表事件绘制（对齐 HTML .info-grid overflow:hidden 圆角）
+        infoTable.setTableEvent(new RoundedFrameEvent(Color.WHITE, new Color(229, 231, 235), 8));
+        for (int i = 0; i < info.length; i++) {
+            PdfPCell c = new PdfPCell();
+            // 内部分隔线用浅色 #f3f4f6（对齐 HTML .info-item），外边线交给圆角外框
+            int mask = 0;
+            if (i % 4 != 3) mask |= Rectangle.RIGHT;
+            if (i < info.length - 4) mask |= Rectangle.BOTTOM;
+            c.setBorder(mask);
+            c.setBorderColor(new Color(243, 244, 246));
+            c.setPaddingLeft(10);
+            c.setPaddingRight(10);
+            c.setPaddingTop(8);
+            c.setPaddingBottom(8);
+            Paragraph lp = new Paragraph(info[i][0], fonts.label());
+            lp.setSpacingAfter(3);
+            c.addElement(lp);
+            c.addElement(new Paragraph(info[i][1] != null ? info[i][1] : "-", fonts.value()));
+            infoTable.addCell(c);
+        }
+        infoTable.setSpacingAfter(4);
+        document.add(infoTable);
+    }
+
+    /** 概览十二项信息（标签/值），空值一律以 "-" 展示 */
+    private String[][] buildInfoRows(ScanTask task, List<ScanIssue> issues) {
+        return new String[][]{
+                {"任务名称", task.getTaskName()},
+                {"项目名称", task.getProjectName() != null ? task.getProjectName() : "-"},
+                {"来源类型", task.getSourceType()},
+                {"评审状态", task.getStatus()},
+                {"文件数量", String.valueOf(task.getTotalFiles() != null ? task.getTotalFiles() : 0)},
+                {"代码行数", String.valueOf(task.getTotalLines() != null ? task.getTotalLines() : 0)},
+                {"开始时间", task.getStartedAt() != null ? task.getStartedAt().format(DATE_FMT) : "-"},
+                {"完成时间", task.getCompletedAt() != null ? task.getCompletedAt().format(DATE_FMT) : "-"},
+                {"JDK 版本", task.getJdkVersion() != null ? task.getJdkVersion() : "-"},
+                {"Spring Boot", task.getSpringBootVersion() != null ? task.getSpringBootVersion() : "-"},
+                {"AI 评审", aiReviewStatus(task, issues)},
+                {"耗时", (task.getDurationSeconds() != null ? task.getDurationSeconds() : 0) + " 秒"},
+        };
+    }
+
+    /** 二、质量评分（对齐 HTML .quality-box：评分圆环 + 门禁 + 四项统计） */
+    private void writeQualitySection(Document document, QualityGateResult quality, PdfFonts fonts)
+            throws Exception {
+        BaseFont bfChinese = fonts.chinese();
+        addSectionTitle(document, "二、质量评分", fonts.section());
+        PdfPTable qBox = new PdfPTable(1);
+        qBox.setWidthPercentage(100);
+        PdfPCell qCell = new PdfPCell();
+        qCell.setCellEvent(new QualityPanelEvent(new Color(239, 246, 255), new Color(219, 234, 254),
+                scoreColor(quality.getLevel()), String.valueOf(quality.getScore()),
+                getLevelText(quality.getLevel()), bfChinese));
+        qCell.setBorder(Rectangle.NO_BORDER);
+        qCell.setPadding(14);
+
+        PdfPTable qInner = new PdfPTable(2);
+        qInner.setWidthPercentage(100);
+        qInner.setWidths(new float[]{26, 74});
+
+        // 左列仅作占位：圆盘由 qCell 的 QualityPanelEvent 统一绘制
+        // （嵌套表格的单元格事件画布不生效）
+        PdfPCell circleCell = new PdfPCell();
+        circleCell.setBorder(Rectangle.NO_BORDER);
+        circleCell.setFixedHeight(96);
+        qInner.addCell(circleCell);
+
+        PdfPCell rightCell = new PdfPCell();
+        rightCell.setBorder(Rectangle.NO_BORDER);
+        rightCell.setPaddingLeft(10);
+        Paragraph gate = new Paragraph(quality.isPassed() ? "✓ 质量门禁通过" : "✗ 质量门禁未通过",
+                new Font(bfChinese, 12, Font.BOLD,
+                        quality.isPassed() ? new Color(5, 150, 105) : new Color(220, 38, 38)));
+        gate.setSpacingAfter(8);
+        rightCell.addElement(gate);
+
+        PdfPTable stats = new PdfPTable(7);
+        stats.setWidthPercentage(100);
+        // 技术债列加宽（"2小时30分"等文案单行放下），其余六列均分
+        stats.setWidths(new float[]{1, 1, 1, 1, 1, 1, 1.75f});
+        stats.addCell(statCell(String.valueOf(quality.getBlockerCount()), "阻断", new Color(185, 28, 28), bfChinese));
+        stats.addCell(statCell(String.valueOf(quality.getCriticalCount()), "严重", new Color(239, 68, 68), bfChinese));
+        stats.addCell(statCell(String.valueOf(quality.getMajorCount()), "主要", new Color(245, 158, 11), bfChinese));
+        stats.addCell(statCell(String.valueOf(quality.getMinorCount()), "次要", new Color(14, 165, 233), bfChinese));
+        stats.addCell(statCell(String.valueOf(quality.getInfoCount()), "提示", new Color(107, 114, 128), bfChinese));
+        stats.addCell(statCell(String.valueOf(quality.getTotalIssues()), "总计", new Color(55, 65, 81), bfChinese));
+        String debtText = quality.getDebtText() != null && !quality.getDebtText().isEmpty()
+                ? quality.getDebtText() : "0分";
+        stats.addCell(statCell(debtText, "技术债", new Color(124, 58, 237), bfChinese));
+        stats.setSpacingAfter(8);
+        rightCell.addElement(stats);
+
+        String detailText = "说明：" + (quality.getDetail() != null ? quality.getDetail() : "-");
+        if (quality.getIgnoredCount() > 0) {
+            detailText += "；已忽略 " + quality.getIgnoredCount() + " 条";
+        }
+        rightCell.addElement(new Paragraph(detailText, fonts.small()));
+        qInner.addCell(rightCell);
+
+        qCell.addElement(qInner);
+        qBox.addCell(qCell);
+        qBox.setSpacingAfter(4);
+        document.add(qBox);
+    }
+
+    /** 三、问题分类统计（对齐 HTML .category-table 深蓝表头） */
+    private void writeCategorySection(Document document, List<ScanIssue> issues, PdfFonts fonts)
+            throws Exception {
+        BaseFont bfChinese = fonts.chinese();
+        addSectionTitle(document, "三、问题分类统计", fonts.section());
+        Map<String, Map<String, Integer>> byChecker = countByChecker(issues);
+        PdfPTable catTable = new PdfPTable(6);
+        catTable.setWidthPercentage(100);
+        catTable.setWidths(new float[]{10, 2, 2, 2, 2, 2});
+        // 圆角外框（对齐 HTML .category-table 圆角），深色表头两端的圆角在单元格级实现
+        catTable.setTableEvent(new RoundedFrameEvent(Color.WHITE, new Color(229, 231, 235), 8));
+
+        Font thFont = new Font(bfChinese, 10, Font.BOLD, Color.WHITE);
+        String[] heads = {"检查器", "阻断", "严重", "主要", "次要", "提示"};
+        for (int i = 0; i < heads.length; i++) {
+            PdfPCell hc = new PdfPCell(new Phrase(heads[i], thFont));
+            Color thBg = new Color(30, 58, 138);
+            if (i == 0) {
+                hc.setCellEvent(new RoundedCellEvent(thBg, null, 0, 8, 0, 0, 0));
+            } else if (i == heads.length - 1) {
+                hc.setCellEvent(new RoundedCellEvent(thBg, null, 0, 0, 8, 0, 0));
+            } else {
+                hc.setBackgroundColor(thBg);
+            }
+            hc.setBorder(Rectangle.NO_BORDER);
+            hc.setPadding(8);
+            if (i > 0) {
+                hc.setHorizontalAlignment(Element.ALIGN_CENTER);
+            }
+            catTable.addCell(hc);
+        }
+
+        // 计数列按等级着色（对齐 HTML .category-table 各列内联 color）
+        Font[] countFonts = {
+                new Font(bfChinese, 10, Font.NORMAL, new Color(185, 28, 28)),    // BLOCKER
+                new Font(bfChinese, 10, Font.NORMAL, new Color(239, 68, 68)),    // CRITICAL
+                new Font(bfChinese, 10, Font.NORMAL, new Color(217, 119, 6)),    // MAJOR
+                new Font(bfChinese, 10, Font.NORMAL, new Color(2, 132, 199)),    // MINOR
+                new Font(bfChinese, 10, Font.NORMAL, new Color(107, 114, 128))   // INFO
+        };
+        // 无数据时仅保留深蓝表头（HTML 的 tbody 为空即此效果）
+        int row = 0;
+        int total = byChecker.size();
+        for (Map.Entry<String, Map<String, Integer>> entry : byChecker.entrySet()) {
+            boolean last = ++row == total;
+            catTable.addCell(catBodyCell(entry.getKey(), fonts.normal(), last, Element.ALIGN_LEFT));
+            catTable.addCell(catBodyCell(String.valueOf(entry.getValue().getOrDefault("BLOCKER", 0)), countFonts[0], last, Element.ALIGN_CENTER));
+            catTable.addCell(catBodyCell(String.valueOf(entry.getValue().getOrDefault("CRITICAL", 0)), countFonts[1], last, Element.ALIGN_CENTER));
+            catTable.addCell(catBodyCell(String.valueOf(entry.getValue().getOrDefault("MAJOR", 0)), countFonts[2], last, Element.ALIGN_CENTER));
+            catTable.addCell(catBodyCell(String.valueOf(entry.getValue().getOrDefault("MINOR", 0)), countFonts[3], last, Element.ALIGN_CENTER));
+            catTable.addCell(catBodyCell(String.valueOf(entry.getValue().getOrDefault("INFO", 0)), countFonts[4], last, Element.ALIGN_CENTER));
+        }
+        catTable.setSpacingAfter(4);
+        document.add(catTable);
+    }
+
+    /** 四、问题详情（对齐 HTML .issue-item 卡片）；无问题时展示空态 */
+    private void writeIssuesSection(Document document, List<ScanIssue> issues, PdfFonts fonts, PdfWriter writer)
+            throws Exception {
+        BaseFont bfChinese = fonts.chinese();
+        addSectionTitle(document, "四、问题详情", fonts.section());
+        if (issues.isEmpty()) {
+            // 对齐 HTML .empty-state：居中彩带图标 + 灰字
+            PdfPTable empty = new PdfPTable(1);
+            empty.setWidthPercentage(100);
+            PdfPCell ec = new PdfPCell();
+            ec.setBorder(Rectangle.NO_BORDER);
+            ec.setPadding(14);
+            ec.setCellEvent(new EmptyStateEvent());
+            // 空字符串 chunk 不占行高，用空格占出图标绘制区
+            Paragraph spacer = new Paragraph(new Phrase(" ", new Font(bfChinese, 9)));
+            spacer.setLeading(34f);
+            spacer.setSpacingAfter(6);
+            ec.addElement(spacer);
+            Paragraph ep = new Paragraph("未发现代码问题",
+                    new Font(bfChinese, 10.5f, Font.NORMAL, new Color(107, 114, 128)));
+            ep.setAlignment(Element.ALIGN_CENTER);
+            ec.addElement(ep);
+            empty.addCell(ec);
+            empty.setSpacingAfter(4);
+            document.add(empty);
+        } else {
+            int idx = 1;
+            for (ScanIssue issue : issues) {
+                document.add(buildIssueCard(issue, idx++, bfChinese, writer));
+            }
+        }
+    }
+
+    /** 页脚（对齐 HTML .report-footer：顶部分隔线 + 灰色居中文字 + 时间戳） */
+    private void writeFooter(Document document, ScanTask task, PdfFonts fonts) throws Exception {
+        BaseFont bfChinese = fonts.chinese();
+        PdfPTable footerTable = new PdfPTable(1);
+        footerTable.setWidthPercentage(100);
+        PdfPCell fc = new PdfPCell();
+        fc.setBorder(Rectangle.TOP);
+        fc.setBorderColor(new Color(229, 231, 235));
+        fc.setPadding(10);
+        LocalDateTime footerTime = task.getCompletedAt() != null ? task.getCompletedAt() : task.getCreatedAt();
+        Paragraph footer = new Paragraph("报告由 百目 JArgus 自动生成  |  "
+                + (footerTime != null ? footerTime.format(DATE_FMT) : "-"),
+                new Font(bfChinese, 9, Font.NORMAL, new Color(156, 163, 175)));
+        footer.setAlignment(Element.ALIGN_CENTER);
+        fc.addElement(footer);
+        footerTable.addCell(fc);
+        document.add(footerTable);
     }
 
     /**
@@ -425,46 +471,7 @@ public class ReportService {
             }
             Map<Long, LocalDateTime> lastAiByTask = lastAiSuggestionTimes();
             for (File file : files) {
-                String name = file.getName();
-                if (!name.startsWith("scan-report-")) {
-                    continue;
-                }
-                String rest = name.substring("scan-report-".length());
-                int dot = rest.lastIndexOf('.');
-                if (dot <= 0) {
-                    continue;
-                }
-                Long taskId;
-                try {
-                    taskId = Long.parseLong(rest.substring(0, dot));
-                } catch (NumberFormatException e) {
-                    continue;
-                }
-                boolean stale = false;
-                if (name.endsWith(".html")) {
-                    try {
-                        String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
-                        stale = !content.substring(0, Math.min(content.length(), 4096)).contains(REPORT_CACHE_MARKER);
-                    } catch (Exception e) {
-                        stale = true;
-                    }
-                }
-                if (!stale) {
-                    LocalDateTime lastAi = lastAiByTask.get(taskId);
-                    if (lastAi != null) {
-                        LocalDateTime mtime = LocalDateTime.ofInstant(
-                                Files.getLastModifiedTime(file.toPath()).toInstant(), ZoneId.systemDefault());
-                        stale = mtime.isBefore(lastAi);
-                    }
-                }
-                if (stale && file.delete()) {
-                    purged++;
-                    File sibling = new File(file.getParentFile(), "scan-report-" + taskId
-                            + (name.endsWith(".html") ? ".pdf" : ".html"));
-                    if (sibling.exists() && sibling.delete()) {
-                        purged++;
-                    }
-                }
+                purged += purgeOneReportFile(file, lastAiByTask);
             }
         } catch (Exception e) {
             log.warn("报告缓存对账失败: {}", e.getMessage());
@@ -473,6 +480,62 @@ public class ReportService {
             log.info("已清理过期报告缓存 {} 个文件", purged);
         }
         return purged;
+    }
+
+    /** 单个报告缓存文件对账：过期则删除，并连带删除同任务成对的另一格式；返回删除文件数 */
+    private int purgeOneReportFile(File file, Map<Long, LocalDateTime> lastAiByTask) throws Exception {
+        Long taskId = parseReportTaskId(file.getName());
+        if (taskId == null) {
+            return 0;
+        }
+        if (!isStaleReport(file, taskId, lastAiByTask) || !file.delete()) {
+            return 0;
+        }
+        int purged = 1;
+        File sibling = new File(file.getParentFile(), "scan-report-" + taskId
+                + (file.getName().endsWith(".html") ? ".pdf" : ".html"));
+        if (sibling.exists() && sibling.delete()) {
+            purged++;
+        }
+        return purged;
+    }
+
+    /** 从 scan-report-{taskId}.{ext} 文件名解析任务 ID；非报告文件或名字不合法返回 null */
+    private Long parseReportTaskId(@NonNull String name) {
+        if (!name.startsWith("scan-report-")) {
+            return null;
+        }
+        String rest = name.substring("scan-report-".length());
+        int dot = rest.lastIndexOf('.');
+        if (dot <= 0) {
+            return null;
+        }
+        try {
+            return Long.parseLong(rest.substring(0, dot));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** 过期判定：HTML 缺当前版本标记（或读不出），或文件修改时间早于该任务最后一条 AI 建议落库时间 */
+    private boolean isStaleReport(File file, Long taskId, Map<Long, LocalDateTime> lastAiByTask) throws Exception {
+        if (file.getName().endsWith(".html")) {
+            try {
+                String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+                if (!content.substring(0, Math.min(content.length(), 4096)).contains(REPORT_CACHE_MARKER)) {
+                    return true;
+                }
+            } catch (Exception e) {
+                return true;
+            }
+        }
+        LocalDateTime lastAi = lastAiByTask.get(taskId);
+        if (lastAi == null) {
+            return false;
+        }
+        LocalDateTime mtime = LocalDateTime.ofInstant(
+                Files.getLastModifiedTime(file.toPath()).toInstant(), ZoneId.systemDefault());
+        return mtime.isBefore(lastAi);
     }
 
     /**
@@ -663,6 +726,15 @@ public class ReportService {
         // 圆角外框（对齐 HTML .issue-item 圆角）
         card.setTableEvent(new RoundedFrameEvent(Color.WHITE, border, 8));
 
+        addIssueCardHeader(card, issue, idx, bf);
+        addIssueCardBody(card, issue, bf);
+        addIssueCardTags(card, issue, bf);
+        card.setSpacingAfter(10);
+        return card;
+    }
+
+    /** 表头行：序号 / 等级胶囊 / 标题（三个顶层单元，不做嵌套——带 event 的复合单元内嵌套表底色会丢失） */
+    private void addIssueCardHeader(PdfPTable card, ScanIssue issue, int idx, @NonNull BaseFont bf) {
         Color headBg = new Color(249, 250, 251);
         PdfPCell ic = new PdfPCell(new Phrase("#" + idx,
                 new Font(bf, 9, Font.NORMAL, new Color(107, 114, 128))));
@@ -698,9 +770,11 @@ public class ReportService {
         tc.setPaddingTop(8);
         tc.setPaddingBottom(8);
         card.addCell(tc);
+    }
 
-        // body 按内容块拆成独立行：页面铺满时卡片可按行跨页（续页不重复表头，
-        // 避免「下一页开头再写一遍上一页的标题」）；各行左右内边距 16 对齐 HTML .issue-body
+    /** body 按内容块拆成独立行：页面铺满时卡片可按行跨页（续页不重复表头，
+     * 避免「下一页开头再写一遍上一页的标题」）；各行左右内边距 16 对齐 HTML .issue-body */
+    private void addIssueCardBody(PdfPTable card, ScanIssue issue, BaseFont bf) {
         PdfPCell metaCell = bodyCell(16, 0);
         Paragraph meta = new Paragraph("文件：" + (issue.getFilePath() != null ? issue.getFilePath() : "-")
                 + "  |  第 " + issue.getLineLabel() + " 行"
@@ -760,7 +834,10 @@ public class ReportService {
         if (aiMd != null && !aiMd.isEmpty()) {
             addAiSuggestionRows(card, aiMd, bf);
         }
-        // 标签胶囊行（对齐 HTML .issue-tag：灰底 r4 小标签；AI 生成用紫色变体）
+    }
+
+    /** 标签胶囊行（对齐 HTML .issue-tag：灰底 r4 小标签；AI 生成用紫色变体） */
+    private void addIssueCardTags(PdfPTable card, ScanIssue issue, @NonNull BaseFont bf) {
         List<String[]> chips = new ArrayList<>();
         chips.add(new String[]{"检查器：" + (issue.getCheckerName() != null ? issue.getCheckerName() : "-"), "tag"});
         chips.add(new String[]{"规则：" + (issue.getRuleCode() != null ? issue.getRuleCode() : "-"), "tag"});
@@ -805,8 +882,6 @@ public class ReportService {
         tagsCell.setHorizontalAlignment(Element.ALIGN_LEFT);  // HTML .issue-tags 为 flex 左起，不居中
         tagsCell.addElement(tagRow);
         card.addCell(tagsCell);
-        card.setSpacingAfter(10);
-        return card;
     }
 
     /** 问题卡片 body 行单元：无边框（外框由 RoundedFrameEvent 统一绘制），左右内边距 16 对齐 HTML .issue-body */

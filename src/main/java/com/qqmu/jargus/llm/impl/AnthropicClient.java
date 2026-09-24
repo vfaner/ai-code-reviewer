@@ -52,67 +52,80 @@ public class AnthropicClient extends AbstractAiClient {
     public AiChatResponse chat(AiChatRequest request) {
         long startTime = System.currentTimeMillis();
         try {
-            String model = request.getModel() != null ? request.getModel() : getDefaultModel();
-
-            Map<String, Object> body = new HashMap<>();
-            body.put("model", model);
-
-            Integer maxTokens = effectiveMaxTokens(request);
-            body.put("max_tokens", maxTokens != null ? maxTokens : DEFAULT_MAX_TOKENS);
-
-            if (request.getTemperature() != null) {
-                body.put("temperature", request.getTemperature());
-            }
-            if (request.getSystemPrompt() != null && !request.getSystemPrompt().isEmpty()) {
-                body.put("system", request.getSystemPrompt());
-            }
-            body.put("messages", List.of(Map.of("role", "user", "content", request.getUserPrompt())));
-
-            Map<String, String> headers = new HashMap<>();
-            String apiKey = getDecryptedApiKey();
-            if (apiKey != null && !apiKey.isEmpty()) {
-                // 两种鉴权头都带：官方走 x-api-key，方舟等网关走 Authorization: Bearer
-                headers.put("x-api-key", apiKey);
-                headers.put("Authorization", "Bearer " + apiKey);
-            }
-            headers.put("anthropic-version", "2023-06-01");
-
-            String responseBody = httpPost(resolveMessagesPath(), objectMapper.writeValueAsString(body), headers);
+            String responseBody = httpPost(resolveMessagesPath(),
+                    objectMapper.writeValueAsString(buildRequestBody(request)),
+                    buildAuthHeaders());
             if (responseBody == null) {
                 return AiChatResponse.failure("请求失败，无响应内容");
             }
-
-            Map<String, Object> response = parseJson(responseBody);
-            if (response == null) {
-                // 非 JSON（网关登录页/反爬页等）：带回响应片段便于定位地址是否填错
-                return AiChatResponse.failure("响应不是 JSON 格式："
-                        + snippet(responseBody) + "（请检查接口地址是否为 Anthropic 兼容入口）");
-            }
-
-            Object err = response.get("error");
-            if (err instanceof Map<?, ?> errMap) {
-                Object msg = errMap.get("message");
-                return AiChatResponse.failure(msg != null ? String.valueOf(msg) : "Anthropic 接口返回错误");
-            }
-
-            // content 是块数组：思考型模型会先返回 {"type":"thinking",...} 块，
-            // 不能只取 content[0].text，需要跳过 thinking 块拼接所有 text 块
-            String text = extractText(response.get("content"));
-            if (!text.isEmpty()) {
-                return AiChatResponse.builder()
-                        .success(true).content(text)
-                        .durationMs(System.currentTimeMillis() - startTime)
-                        .rawResponse(responseBody).build();
-            }
-            if ("message".equals(response.get("type")) || response.get("content") instanceof List<?>) {
-                return AiChatResponse.failure("模型返回了空文本（可能是思考型模型，最大 Token 数设置过小）");
-            }
-
-            return AiChatResponse.failure("无法识别的 Anthropic 响应：" + snippet(responseBody));
+            return toChatResponse(responseBody, startTime);
         } catch (Exception e) {
             log.error("Anthropic API 调用失败: {}", e.getMessage(), e);
             return AiChatResponse.failure(e.getMessage());
         }
+    }
+
+    /** 请求体：model/max_tokens 必填，temperature/system 非空才附 */
+    private Map<String, Object> buildRequestBody(AiChatRequest request) {
+        String model = request.getModel() != null ? request.getModel() : getDefaultModel();
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", model);
+
+        Integer maxTokens = effectiveMaxTokens(request);
+        body.put("max_tokens", maxTokens != null ? maxTokens : DEFAULT_MAX_TOKENS);
+
+        if (request.getTemperature() != null) {
+            body.put("temperature", request.getTemperature());
+        }
+        if (request.getSystemPrompt() != null && !request.getSystemPrompt().isEmpty()) {
+            body.put("system", request.getSystemPrompt());
+        }
+        body.put("messages", List.of(Map.of("role", "user", "content", request.getUserPrompt())));
+        return body;
+    }
+
+    /** 鉴权头：两种都带，官方走 x-api-key，方舟等网关走 Authorization: Bearer */
+    private Map<String, String> buildAuthHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        String apiKey = getDecryptedApiKey();
+        if (apiKey != null && !apiKey.isEmpty()) {
+            headers.put("x-api-key", apiKey);
+            headers.put("Authorization", "Bearer " + apiKey);
+        }
+        headers.put("anthropic-version", "2023-06-01");
+        return headers;
+    }
+
+    /** 解析响应体：非 JSON / error 对象 / text 块 / 空文本 / 无法识别各归其位 */
+    private AiChatResponse toChatResponse(String responseBody, long startTime) {
+        Map<String, Object> response = parseJson(responseBody);
+        if (response == null) {
+            // 非 JSON（网关登录页/反爬页等）：带回响应片段便于定位地址是否填错
+            return AiChatResponse.failure("响应不是 JSON 格式："
+                    + snippet(responseBody) + "（请检查接口地址是否为 Anthropic 兼容入口）");
+        }
+
+        Object err = response.get("error");
+        if (err instanceof Map<?, ?> errMap) {
+            Object msg = errMap.get("message");
+            return AiChatResponse.failure(msg != null ? String.valueOf(msg) : "Anthropic 接口返回错误");
+        }
+
+        // content 是块数组：思考型模型会先返回 {"type":"thinking",...} 块，
+        // 不能只取 content[0].text，需要跳过 thinking 块拼接所有 text 块
+        String text = extractText(response.get("content"));
+        if (!text.isEmpty()) {
+            return AiChatResponse.builder()
+                    .success(true).content(text)
+                    .durationMs(System.currentTimeMillis() - startTime)
+                    .rawResponse(responseBody).build();
+        }
+        if ("message".equals(response.get("type")) || response.get("content") instanceof List<?>) {
+            return AiChatResponse.failure("模型返回了空文本（可能是思考型模型，最大 Token 数设置过小）");
+        }
+
+        return AiChatResponse.failure("无法识别的 Anthropic 响应：" + snippet(responseBody));
     }
 
     /** 拼接所有 type=text 内容块，跳过 thinking 块（思考型模型/ark auto） */

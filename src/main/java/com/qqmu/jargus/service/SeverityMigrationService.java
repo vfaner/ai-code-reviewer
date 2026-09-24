@@ -67,43 +67,11 @@ public class SeverityMigrationService {
         int realigned = 0;
         int rankFixed = 0;
         for (ScanIssue issue : all) {
-            String oldLevel = issue.getIssueLevel();
-            String ruleCode = issue.getRuleCode();
-            boolean legacy = "BUG".equals(oldLevel) || "WARNING".equals(oldLevel) || "INFO".equals(oldLevel);
-            IssueLevel target;
-            boolean levelChanged;
-            if (legacy) {
-                target = legacyGrade(oldLevel, ruleCode);
-                levelChanged = !target.getCode().equals(oldLevel);
-            } else {
-                // 已迁移 / 新扫描行：默认级别保持，仅保证 severity 秩一致；
-                // 若规则码在目录精确表且级别与目录漂移（目录后续调过级），按目录重对齐。
-                // AI 行跳过（级别由模型输出）；只认精确表，前缀兜底会错杀 DEP_VULN_* 动态级别
-                target = IssueLevel.fromCode(oldLevel);
-                levelChanged = false;
-                if (!Boolean.TRUE.equals(issue.getIsAiGenerated())) {
-                    IssueLevel catalog = SeverityCatalog.exactGrade(ruleCode);
-                    if (catalog != null && catalog != target) {
-                        target = catalog;
-                        levelChanged = true;
-                    }
-                }
-            }
-            int rank = SeverityCatalog.rank(target);
-            boolean rankChanged = issue.getSeverity() == null || issue.getSeverity() != rank;
-            if (levelChanged || rankChanged) {
-                scanIssueMapper.update(null, new UpdateWrapper<ScanIssue>()
-                        .eq("id", issue.getId())
-                        .set("issue_level", target.getCode())
-                        .set("severity", rank));
-                if (levelChanged) {
-                    if (legacy) {
-                        issueMigrated++;
-                    } else {
-                        realigned++;
-                    }
-                } else {
-                    rankFixed++;
+            switch (migrateOneIssue(issue)) {
+                case LEGACY_MIGRATED -> issueMigrated++;
+                case REALIGNED -> realigned++;
+                case RANK_FIXED -> rankFixed++;
+                default -> {
                 }
             }
         }
@@ -124,6 +92,53 @@ public class SeverityMigrationService {
             log.info("五级严重度迁移: 问题改级 {} 条，目录重对齐 {} 条，秩校正 {} 条，规则 {} 条，任务 {} 个，清理报告缓存 {} 份",
                     issueMigrated, realigned, rankFixed, rulesMigrated, tasks.size(), cacheDeleted);
         }
+    }
+
+    /** 单条问题的迁移结果（用于 backfill 计数） */
+    private enum MigrationOutcome {
+        NONE, LEGACY_MIGRATED, REALIGNED, RANK_FIXED
+    }
+
+    /**
+     * 逐条迁移：legacy 三级码按目录改级；已迁移行仅做目录重对齐与 severity 秩校正；
+     * 需要落库时直接更新，并返回迁移结果。
+     */
+    private MigrationOutcome migrateOneIssue(ScanIssue issue) {
+        String oldLevel = issue.getIssueLevel();
+        String ruleCode = issue.getRuleCode();
+        boolean legacy = "BUG".equals(oldLevel) || "WARNING".equals(oldLevel) || "INFO".equals(oldLevel);
+        IssueLevel target;
+        boolean levelChanged;
+        if (legacy) {
+            target = legacyGrade(oldLevel, ruleCode);
+            levelChanged = !target.getCode().equals(oldLevel);
+        } else {
+            // 已迁移 / 新扫描行：默认级别保持，仅保证 severity 秩一致；
+            // 若规则码在目录精确表且级别与目录漂移（目录后续调过级），按目录重对齐。
+            // AI 行跳过（级别由模型输出）；只认精确表，前缀兜底会错杀 DEP_VULN_* 动态级别
+            target = IssueLevel.fromCode(oldLevel);
+            levelChanged = false;
+            if (!Boolean.TRUE.equals(issue.getIsAiGenerated())) {
+                IssueLevel catalog = SeverityCatalog.exactGrade(ruleCode);
+                if (catalog != null && catalog != target) {
+                    target = catalog;
+                    levelChanged = true;
+                }
+            }
+        }
+        int rank = SeverityCatalog.rank(target);
+        boolean rankChanged = issue.getSeverity() == null || issue.getSeverity() != rank;
+        if (!levelChanged && !rankChanged) {
+            return MigrationOutcome.NONE;
+        }
+        scanIssueMapper.update(null, new UpdateWrapper<ScanIssue>()
+                .eq("id", issue.getId())
+                .set("issue_level", target.getCode())
+                .set("severity", rank));
+        if (!levelChanged) {
+            return MigrationOutcome.RANK_FIXED;
+        }
+        return legacy ? MigrationOutcome.LEGACY_MIGRATED : MigrationOutcome.REALIGNED;
     }
 
     private int migrateReviewRules() {

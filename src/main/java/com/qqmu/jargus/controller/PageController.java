@@ -71,6 +71,8 @@ public class PageController {
     private String driverDir;
     @Value("${app.gitee-url:}")
     private String giteeUrl;
+    @Value("${app.website-url:}")
+    private String websiteUrl;
     @Value("${app.contact.qq:}")
     private String contactQq;
     @Value("${app.contact.wechat:}")
@@ -325,6 +327,7 @@ public class PageController {
         model.addAttribute("now", LocalDateTime.now());
         model.addAttribute("versionInfo", versionService.snapshot());
         model.addAttribute("giteeUrl", giteeUrl);
+        model.addAttribute("websiteUrl", websiteUrl);
         model.addAttribute("contactQq", contactQq);
         model.addAttribute("contactWechat", contactWechat);
         return "settings";
