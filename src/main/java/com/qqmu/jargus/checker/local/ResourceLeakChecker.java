@@ -13,7 +13,9 @@ import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.TryStmt;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -27,11 +29,16 @@ import java.util.Set;
  * - Scanner
  *
  * 优先推荐使用 try-with-resources。
+ *
+ * 类型判定：类名后缀启发筛出候选后，能经 import/全限定名解析的类型仅当落在已知资源包
+ * （java.io/java.sql/java.net/java.nio/java.util.zip/javax.sql 及 java.util.Scanner）内
+ * 才算资源——同名不同源的类型（如 JavaParser AST 的 Statement、java.util.stream 的 Stream）
+ * 不实现 Closeable，纯后缀误判属误报高发区（R48）；解析不到的（通配符导入等）保守视为资源。
  */
 @Component
 public class ResourceLeakChecker extends AbstractLocalChecker {
 
-    /** 资源类型（类名后缀） */
+    /** 资源类型（类名后缀，仅在无法通过 import 解析时作为启发式兜底） */
     private static final Set<String> RESOURCE_TYPE_SUFFIXES = Set.of(
             "InputStream", "OutputStream",
             "Reader", "Writer",
@@ -40,6 +47,13 @@ public class ResourceLeakChecker extends AbstractLocalChecker {
             "Scanner",
             "Channel", "Stream", "ZipFile"
     );
+
+    /** 真正实现 Closeable/AutoCloseable 的资源包前缀 */
+    private static final List<String> RESOURCE_PACKAGE_PREFIXES = List.of(
+            "java.io.", "java.sql.", "java.net.", "java.nio.", "java.util.zip.", "javax.sql.");
+
+    /** 资源包前缀覆盖不到的散点资源类型 */
+    private static final Set<String> RESOURCE_FQCN_EXACT = Set.of("java.util.Scanner");
 
     @Override
     public CheckerType getCheckerType() {
@@ -53,9 +67,10 @@ public class ResourceLeakChecker extends AbstractLocalChecker {
 
     @Override
     protected void doCheck(CheckContext context, CompilationUnit cu, List<CheckIssue> issues) {
+        Map<String, String> importedTypes = importedTypes(cu);
         // 检查变量声明的资源类型
         cu.findAll(VariableDeclarator.class).forEach(var -> {
-            if (isResourceType(var.getTypeAsString())) {
+            if (isResourceType(var.getTypeAsString(), importedTypes)) {
                 int line = var.getBegin().map(p -> p.line).orElse(1);
 
                 // 检查是否在 try-with-resources 中
@@ -80,15 +95,64 @@ public class ResourceLeakChecker extends AbstractLocalChecker {
         });
     }
 
+    /** import 的简单名 → FQCN 映射（跳过通配符与静态导入） */
+    private Map<String, String> importedTypes(CompilationUnit cu) {
+        Map<String, String> map = new HashMap<>();
+        cu.getImports().forEach(im -> {
+            if (im.isAsterisk() || im.isStatic()) {
+                return;
+            }
+            String fqcn = im.getNameAsString();
+            int dot = fqcn.lastIndexOf('.');
+            if (dot > 0) {
+                map.put(fqcn.substring(dot + 1), fqcn);
+            }
+        });
+        return map;
+    }
+
     /**
-     * 判断类型是否是资源类型
+     * 判断类型是否是资源类型：先按类名后缀启发筛出候选（召回口径与历史一致），
+     * 再经 import/全限定名解析剔除非资源包的同名类型（JavaParser AST 的 Statement、
+     * java.util.stream 的 Stream 等，R48）；解析不到的（通配符导入等）保守视为资源。
      */
-    private boolean isResourceType(String typeName) {
+    private boolean isResourceType(String typeName, Map<String, String> importedTypes) {
         if (typeName == null || typeName.isEmpty()) return false;
         // 去掉泛型部分
         String simpleType = typeName.replaceAll("<.*>", "");
+        String simpleName = simpleType.contains(".")
+                ? simpleType.substring(simpleType.lastIndexOf('.') + 1)
+                : simpleType;
+        boolean suffixMatch = false;
         for (String suffix : RESOURCE_TYPE_SUFFIXES) {
-            if (simpleType.endsWith(suffix) || simpleType.equals(suffix)) {
+            if (simpleName.endsWith(suffix)) {
+                suffixMatch = true;
+                break;
+            }
+        }
+        if (!suffixMatch) {
+            return false;
+        }
+        String fqcn = null;
+        if (simpleType.contains(".")) {
+            // 直接书写的全限定名
+            fqcn = simpleType;
+        } else if (importedTypes != null) {
+            fqcn = importedTypes.get(simpleType);
+        }
+        if (fqcn == null) {
+            // 无法解析（通配符导入/同包类）：维持原后缀启发的保守召回
+            return true;
+        }
+        return isResourceFqcn(fqcn);
+    }
+
+    private boolean isResourceFqcn(String fqcn) {
+        if (RESOURCE_FQCN_EXACT.contains(fqcn)) {
+            return true;
+        }
+        for (String prefix : RESOURCE_PACKAGE_PREFIXES) {
+            if (fqcn.startsWith(prefix)) {
                 return true;
             }
         }

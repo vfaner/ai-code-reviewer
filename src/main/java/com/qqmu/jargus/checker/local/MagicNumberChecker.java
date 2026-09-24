@@ -6,6 +6,7 @@ import com.qqmu.jargus.checker.CheckerType;
 import com.qqmu.jargus.checker.IssueLevel;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.FieldDeclaration;
+import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.ArrayInitializerExpr;
 import com.github.javaparser.ast.expr.AssignExpr;
 import com.github.javaparser.ast.expr.BinaryExpr;
@@ -28,6 +29,8 @@ import java.util.Set;
  * 排除常见的 0, 1, -1, 2, 100 等常用数字。
  * 参与算术运算的字面量（单位换算 ×60/×1000、位运算移位掩码、取模分桶等）
  * 具有明确计算语义，不视为魔法数字（R41 收紧）。
+ * R48 误报治理：位运算掩码（&/|/^）补齐为计算语义；无参 getPriority/*Priority 方法内的
+ * 优先级秩属框架顺序令牌而非业务量，排除。
  */
 @Component
 public class MagicNumberChecker extends AbstractLocalChecker {
@@ -75,7 +78,7 @@ public class MagicNumberChecker extends AbstractLocalChecker {
         try {
             int value = expr.asInt();
             if (isMagicNumber(value) && !isInConstantContext(expr) && !isInArrayInitializer(expr)
-                    && !isInArithmeticExpression(expr)) {
+                    && !isInArithmeticExpression(expr) && !isInPriorityContext(expr)) {
                 int line = expr.getBegin().map(p -> p.line).orElse(1);
                 issues.add(createIssue(
                         IssueLevel.MINOR,
@@ -192,6 +195,22 @@ public class MagicNumberChecker extends AbstractLocalChecker {
                 || op == BinaryExpr.Operator.REMAINDER
                 || op == BinaryExpr.Operator.LEFT_SHIFT
                 || op == BinaryExpr.Operator.SIGNED_RIGHT_SHIFT
-                || op == BinaryExpr.Operator.UNSIGNED_RIGHT_SHIFT;
+                || op == BinaryExpr.Operator.UNSIGNED_RIGHT_SHIFT
+                // 位运算掩码（b & 0xF、flags | 0x10）同属计算语义（R48 补齐）
+                || op == BinaryExpr.Operator.BINARY_AND
+                || op == BinaryExpr.Operator.BINARY_OR
+                || op == BinaryExpr.Operator.XOR;
+    }
+
+    /**
+     * 是否位于优先级方法中（无参 getPriority/*Priority）：检查器/排序器的优先级秩是
+     * 框架约定的顺序令牌而非业务量，具名常量不增加信息量，不视为魔法数字（R48）。
+     */
+    private boolean isInPriorityContext(Expression expr) {
+        return expr.findAncestor(MethodDeclaration.class)
+                .map(md -> md.getParameters().isEmpty()
+                        && (md.getNameAsString().equals("getPriority")
+                            || md.getNameAsString().endsWith("Priority")))
+                .orElse(false);
     }
 }

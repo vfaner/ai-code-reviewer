@@ -64,13 +64,18 @@ public class ArchitectureChecker extends AbstractLocalChecker {
             String impPkg = fqcn.substring(0, lastDot);
             String impClass = fqcn.substring(lastDot + 1);
 
-            // 仅约束项目内部依赖：共享根包，或类名带明确分层后缀
-            Layer targetLayer = layerOfPackage(impPkg);
+            // 仅约束项目内部依赖：第三方包先行排除。类名后缀兜底只对内部包安全——
+            // Spring 的 ClassPathResource 命中 "Resource"（JAX-RS 后缀）被误判 Controller、
+            // Jackson 的 ObjectMapper 命中 "Mapper"（MyBatis 后缀）被误判 DAO，属误报高发区（R48）
             boolean sameRoot = !ownRoot.isEmpty() && impPkg.startsWith(ownRoot + ".");
+            if (!sameRoot) {
+                continue;
+            }
+            Layer targetLayer = layerOfPackage(impPkg);
             if (targetLayer == Layer.OTHER) {
                 targetLayer = layerOfClassSuffix(impClass);
             }
-            if (targetLayer == Layer.OTHER || (!sameRoot && layerOfClassSuffix(impClass) == Layer.OTHER)) {
+            if (targetLayer == Layer.OTHER) {
                 continue;
             }
             // 同层互引不在本轮规则内（controller→controller 常见于继承基类）

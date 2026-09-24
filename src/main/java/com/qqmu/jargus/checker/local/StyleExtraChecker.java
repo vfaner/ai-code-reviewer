@@ -90,6 +90,11 @@ public class StyleExtraChecker extends AbstractLocalChecker {
             if (len <= maxLength) {
                 continue;
             }
+            // 超长由单个字符串字面量（中文提示语/正则/URL 等）造成时豁免：
+            // 字面量不可折行，拆开反而损害可读性，超长责任不在代码结构（R48）
+            if (isLiteralDrivenOverlength(lines.get(i), maxLength)) {
+                continue;
+            }
             count++;
             int line = i + 1;
             CheckIssue issue = createIssue(
@@ -101,6 +106,41 @@ public class StyleExtraChecker extends AbstractLocalChecker {
             issue.setSuggestion("拆分长表达式/长参数列表为多行，或提取局部变量；统一团队行宽约定");
             issues.add(issue);
         }
+    }
+
+    /**
+     * 该行超长是否由单个字符串/字符字面量造成：把最长字面量替换为 "" 后若回到限宽内即豁免。
+     * 扫描时尊重反斜杠转义，避免把 \" 误当结尾引号。
+     */
+    private boolean isLiteralDrivenOverlength(String line, int maxLength) {
+        if (line == null) {
+            return false;
+        }
+        int longest = 0;
+        int i = 0;
+        while (i < line.length()) {
+            char quote = line.charAt(i);
+            if (quote != '"' && quote != '\'') {
+                i++;
+                continue;
+            }
+            int j = i + 1;
+            while (j < line.length()) {
+                char c = line.charAt(j);
+                if (c == '\\') {
+                    j += 2;
+                    continue;
+                }
+                if (c == quote) {
+                    j++;
+                    break;
+                }
+                j++;
+            }
+            longest = Math.max(longest, j - i);
+            i = j;
+        }
+        return longest > 0 && (line.length() - longest + 2) <= maxLength;
     }
 
     private void checkTodoComments(CheckContext context, List<CheckIssue> issues) {
