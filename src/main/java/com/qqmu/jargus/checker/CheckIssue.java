@@ -2,6 +2,7 @@ package com.qqmu.jargus.checker;
 
 import lombok.Builder;
 import lombok.Data;
+import org.springframework.lang.NonNull;
 
 /**
  * 检查结果 - 单个问题
@@ -62,8 +63,8 @@ public class CheckIssue {
      * 创建一个简单的问题
      */
     public static CheckIssue simple(
-            CheckerType checkerType,
-            IssueLevel level,
+            @NonNull CheckerType checkerType,
+            @NonNull IssueLevel level,
             String ruleCode,
             String title,
             String filePath,

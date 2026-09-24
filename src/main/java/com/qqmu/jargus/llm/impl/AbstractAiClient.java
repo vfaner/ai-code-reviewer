@@ -15,6 +15,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * AI 客户端抽象基类
@@ -32,6 +33,7 @@ public abstract class AbstractAiClient implements AiChatClient {
     private final String baseUrlTrimmed;
 
     protected AbstractAiClient(AiProviderConfig config) {
+        Objects.requireNonNull(config, "AI 提供方配置不能为空");
         this.config = config;
         this.webClient = buildWebClient(config);
         String b = config.getBaseUrl() == null ? "" : config.getBaseUrl().trim();

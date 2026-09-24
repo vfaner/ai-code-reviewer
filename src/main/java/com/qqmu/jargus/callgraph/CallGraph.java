@@ -103,10 +103,35 @@ public class CallGraph {
                 continue;
             }
 
+            // R47 兜底：仅按方法名匹配（忽略归属类）。AST 分析中子类调用父类方法、
+            // 内部类调用外部类方法的边会归属到调用方所在类，类名精确匹配会漏掉
+            // 真实调用点而误报死代码；只要项目内存在同名方法的调用点即视为已使用
+            // （宁可漏报不误报，本检查器定位是启发式提示）
+            if (isCalledByMethodName(method.getMethodName())) {
+                continue;
+            }
+
             unused.add(method);
         }
 
         return unused;
+    }
+
+    /**
+     * 检查方法是否被调用（仅按方法名匹配，忽略归属类与描述符）
+     */
+    public boolean isCalledByMethodName(String methodName) {
+        for (Map.Entry<String, Set<String>> entry : callersMap.entrySet()) {
+            String key = entry.getKey();
+            int dot = key.lastIndexOf('.');
+            int paren = key.indexOf('(');
+            if (dot >= 0 && paren > dot
+                    && key.substring(dot + 1, paren).equals(methodName)
+                    && !entry.getValue().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

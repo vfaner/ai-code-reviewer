@@ -182,6 +182,9 @@ public class SecurityChecker extends AbstractLocalChecker {
     /** 按驼峰与非字母数字边界拆词，取小写后长度 ≥4 的实义词 */
     private Set<String> significantTokens(String text) {
         Set<String> tokens = new HashSet<>();
+        if (text == null) {
+            return tokens;
+        }
         for (String part : text.split("[^A-Za-z0-9]+")) {
             for (String word : part.split("(?<=[a-z0-9])(?=[A-Z])")) {
                 if (word.length() >= 4) {

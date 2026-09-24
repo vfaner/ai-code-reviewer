@@ -47,6 +47,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 报告导出服务
@@ -104,8 +105,8 @@ public class ReportService {
             writer.setPageEvent(new PageBgEvent());
             document.open();
 
-            // 中文字体
-            BaseFont bfChinese = getChineseFont();
+            // 中文字体（getChineseFont 理论恒非空，显式断言失败快于后续 20+ 处解引用）
+            BaseFont bfChinese = Objects.requireNonNull(getChineseFont(), "PDF 中文字体初始化失败");
             /* 配色与 templates/report.html 的 CSS 保持一致 */
             Font sectionFont = new Font(bfChinese, 13, Font.BOLD, new Color(30, 58, 138));
             Font labelFont = new Font(bfChinese, 8.5f, Font.NORMAL, new Color(107, 114, 128));
@@ -755,8 +756,9 @@ public class ReportService {
             sugCell.addElement(sugBox);
             card.addCell(sugCell);
         }
-        if (notEmpty(issue.getAiSuggestion())) {
-            addAiSuggestionRows(card, issue.getAiSuggestion(), bf);
+        String aiMd = issue.getAiSuggestion();
+        if (aiMd != null && !aiMd.isEmpty()) {
+            addAiSuggestionRows(card, aiMd, bf);
         }
         // 标签胶囊行（对齐 HTML .issue-tag：灰底 r4 小标签；AI 生成用紫色变体）
         List<String[]> chips = new ArrayList<>();

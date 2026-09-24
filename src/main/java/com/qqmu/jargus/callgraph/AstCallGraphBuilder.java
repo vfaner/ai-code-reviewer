@@ -4,8 +4,11 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.ConstructorDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.MethodCallExpr;
+import com.github.javaparser.ast.expr.MethodReferenceExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
+import com.github.javaparser.ast.expr.TypeExpr;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.file.Path;
@@ -18,7 +21,8 @@ import java.nio.file.Path;
  *
  * 局限：
  * - 无法精确解析方法重载（参数类型推导不完整）
- * - 无法处理 lambda、方法引用等
+ * - lambda 体内的调用归属到宿主方法（可接受）；方法引用已收集（R47），
+ *   但无法推导其函数式接口参数个数（描述符记为 (-1)V）
  * - 无法识别通过反射的调用
  */
 @Slf4j
@@ -131,6 +135,25 @@ public class AstCallGraphBuilder {
             callGraph.addCall(edge);
         });
 
+        // 方法引用（Class::method / expr::method）同样构成使用（R47）
+        method.findAll(MethodReferenceExpr.class).forEach(ref -> {
+            int line = ref.getBegin().map(p -> p.line).orElse(0);
+            String methodName = ref.getIdentifier();
+            String calleeClass = resolveReferenceClass(ref, caller.getClassName());
+
+            CallEdge edge = CallEdge.builder()
+                    .caller(caller)
+                    .calleeClassName(calleeClass)
+                    .calleeMethodName(methodName)
+                    // 方法引用无法推导实参个数，用 -1 标记（名称匹配仍生效）
+                    .calleeDescriptor("(-1)V")
+                    .lineNumber(line)
+                    .callType(CallEdge.CallType.VIRTUAL)
+                    .build();
+
+            callGraph.addCall(edge);
+        });
+
         // 也检查对象创建（构造方法调用）
         method.findAll(ObjectCreationExpr.class).forEach(creation -> {
             int line = creation.getBegin().map(p -> p.line).orElse(0);
@@ -194,6 +217,18 @@ public class AstCallGraphBuilder {
         }
         // 没有 scope，默认是当前类（this 省略）
         return currentClass;
+    }
+
+    /**
+     * 解析方法引用的归属类：类型引用（CodeParseService::isNotMacJunk）取类型名，
+     * 表达式引用（var::method）无法静态定位，标记为未解析
+     */
+    private String resolveReferenceClass(MethodReferenceExpr ref, String currentClass) {
+        Expression scope = ref.getScope();
+        if (scope instanceof TypeExpr typeExpr) {
+            return typeExpr.getType().asString();
+        }
+        return "<scope>." + scope;
     }
 
     /**

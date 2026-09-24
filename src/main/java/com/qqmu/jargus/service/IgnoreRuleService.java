@@ -135,7 +135,7 @@ public class IgnoreRuleService {
      * 文件路径精确匹配
      */
     private boolean pathMatches(String rulePath, String relativePath, String absPath) {
-        if (rulePath == null) return false;
+        if (rulePath == null || relativePath == null || absPath == null) return false;
         // 相对路径匹配或绝对路径匹配
         return rulePath.equals(relativePath)
                 || rulePath.equals(absPath)

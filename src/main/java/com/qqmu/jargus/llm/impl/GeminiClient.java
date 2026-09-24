@@ -113,6 +113,9 @@ public class GeminiClient extends AbstractAiClient {
      */
     @SuppressWarnings("unchecked")
     private String extractText(Map<String, Object> response) {
+        if (response == null) {
+            return null;
+        }
         try {
             Object candidates = response.get("candidates");
             if (candidates instanceof List && !((List<?>) candidates).isEmpty()) {

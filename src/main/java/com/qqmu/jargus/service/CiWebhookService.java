@@ -39,6 +39,10 @@ public class CiWebhookService {
      * @return CI 扫描记录；分支不匹配时返回 null
      */
     public CiScanRecord handleWebhook(Long triggerId, Map<String, Object> payload, String platform) {
+        // 平台缺省兜底：避免下游 parseEvent/record.setPlatform 对 null 平台的隐式依赖
+        if (platform == null || platform.isBlank()) {
+            platform = "GENERIC";
+        }
         CiTriggerConfig config = triggerConfigMapper.selectById(triggerId);
         if (config == null) {
             throw new RuntimeException("触发配置不存在");

@@ -142,6 +142,12 @@ public class DatabaseConfigService {
      */
     public Map<String, Object> testConnection(Long id) {
         DatabaseConfig config = databaseConfigMapper.selectById(id);
+        if (config == null) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", false);
+            result.put("message", "数据源不存在: id=" + id);
+            return result;
+        }
         return testConnection(config);
     }
 

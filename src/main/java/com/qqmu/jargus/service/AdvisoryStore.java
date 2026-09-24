@@ -104,6 +104,9 @@ public class AdvisoryStore {
     }
 
     private static String key(String groupId, String artifactId) {
-        return groupId.trim().toLowerCase() + ":" + artifactId.trim().toLowerCase();
+        // 外部漏洞通告数据的 GAV 字段可能缺失，边界处判空避免 NPE
+        String g = groupId == null ? "" : groupId.trim().toLowerCase();
+        String a = artifactId == null ? "" : artifactId.trim().toLowerCase();
+        return g + ":" + a;
     }
 }

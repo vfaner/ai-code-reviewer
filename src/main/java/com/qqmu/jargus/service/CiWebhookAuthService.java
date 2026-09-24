@@ -95,6 +95,9 @@ public class CiWebhookAuthService {
     }
 
     private void verifyGitHubSignature(String secret, byte[] rawBody, String signature) {
+        if (secret == null || secret.isBlank()) {
+            throw new CiWebhookUnauthorizedException("无法校验 GitHub 签名：未配置 webhook secret");
+        }
         if (rawBody == null) {
             throw new CiWebhookUnauthorizedException("无法校验 GitHub 签名：请求体为空");
         }
