@@ -115,6 +115,11 @@ public class CiTriggerService {
             }
             needClear = true;
         }
+        // 关闭发信或清空收件人时，显式清掉旧 id 串（避免下次开启时带出陈旧快照）
+        if (config.getNotifyRecipientIds() == null) {
+            clearWrapper.set("notify_recipient_ids", null);
+            needClear = true;
+        }
         if (ok && needClear) {
             triggerConfigMapper.update(null, clearWrapper);
         }

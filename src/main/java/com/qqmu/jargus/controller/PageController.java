@@ -11,6 +11,8 @@ import com.qqmu.jargus.service.CiTriggerService;
 import com.qqmu.jargus.service.DatabaseConfigService;
 import com.qqmu.jargus.service.IgnoreRuleService;
 import com.qqmu.jargus.service.LlmTemplateService;
+import com.qqmu.jargus.service.MailRecipientService;
+import com.qqmu.jargus.service.MailSenderConfigService;
 import com.qqmu.jargus.service.ProjectEnvService;
 import com.qqmu.jargus.service.ProviderConfigService;
 import com.qqmu.jargus.service.QualityGateService;
@@ -63,6 +65,8 @@ public class PageController {
     private final CiTriggerService ciTriggerService;
     private final CiTokenService ciTokenService;
     private final RemoteAuthConfigService remoteAuthConfigService;
+    private final MailSenderConfigService mailSenderConfigService;
+    private final MailRecipientService mailRecipientService;
     private final VersionService versionService;
 
     @Value("${app.work-dir:./work}")
@@ -282,6 +286,29 @@ public class PageController {
         if (keyword != null && !keyword.isBlank()) q.append("keyword=").append(keyword).append("&");
         model.addAttribute("baseQuery", q.toString());
         return "review-rules";
+    }
+
+    // ── 管理员：邮件管理 ──────────────────────────────────────
+
+    @GetMapping("/mail/senders")
+    public String mailSenders(Model model) {
+        if (!admin()) return ADMIN_REDIRECT;
+        model.addAttribute("senders", mailSenderConfigService.list(1, 100, null).getRecords());
+        return "mail-senders";
+    }
+
+    @GetMapping("/mail/recipients")
+    public String mailRecipients(@RequestParam(defaultValue = "1") int page,
+                                 @RequestParam(defaultValue = "10") int size,
+                                 @RequestParam(required = false) String keyword,
+                                 Model model) {
+        if (!admin()) return ADMIN_REDIRECT;
+        IPage<?> result = mailRecipientService.list(Math.max(1, page), size, keyword);
+        model.addAttribute("pageData", result);
+        model.addAttribute("keyword", keyword);
+        model.addAttribute("baseQuery", keyword != null && !keyword.isBlank()
+                ? "?keyword=" + keyword + "&" : "?");
+        return "mail-recipients";
     }
 
     // ── 管理员：CI/CD ─────────────────────────────────────────

@@ -100,6 +100,24 @@
                 </div>
             </div>
 
+            <!--/* 邮件组：发件配置 / 收件人，仅管理员 */-->
+            <div class="nav-group" th:if="${isAdmin}"
+                 th:classappend="${#lists.contains({'mailsend','mailrecipt'}, activeNav)} ? 'is-active' : ''">
+                <button type="button" class="nav-trigger" aria-haspopup="true" aria-expanded="false">
+                    <svg class="ico"><use href="#envelope"/></svg>
+                    <span th:text="#{nav.group.email}">Email</span>
+                    <svg class="ico nav-caret"><use href="#chevron-down"/></svg>
+                </button>
+                <div class="nav-menu">
+                    <a th:href="@{/mail/senders}" th:classappend="${activeNav == 'mailsend'} ? 'active' : ''">
+                        <svg class="ico"><use href="#envelope"/></svg><span th:text="#{nav.mailSenders}">SMTP Senders</span>
+                    </a>
+                    <a th:href="@{/mail/recipients}" th:classappend="${activeNav == 'mailrecipt'} ? 'active' : ''">
+                        <svg class="ico"><use href="#people"/></svg><span th:text="#{nav.mailRecipients}">Recipients</span>
+                    </a>
+                </div>
+            </div>
+
             <!--/* 管理组：AI 厂商 / 数据库 / CI/CD / 远端认证，仅管理员 */-->
             <div class="nav-group" th:if="${isAdmin}"
                  th:classappend="${#lists.contains({'providers','databases','ci','remoteauth'}, activeNav)} ? 'is-active' : ''">
@@ -366,7 +384,13 @@
         'issues.aiProgress': /*[[#{issues.aiProgress}]]*/ '',
         'issues.aiSkipped': /*[[#{issues.aiSkipped}]]*/ '',
         'issues.deepDone': /*[[#{issues.deepDone}]]*/ '',
-        'issues.deepAllDone': /*[[#{issues.deepAllDone}]]*/ ''
+        'issues.deepAllDone': /*[[#{issues.deepAllDone}]]*/ '',
+        'mail.ms.placeholder': /*[[#{mail.ms.placeholder}]]*/ '',
+        'mail.ms.search': /*[[#{mail.ms.search}]]*/ '',
+        'mail.ms.selectAll': /*[[#{mail.ms.selectAll}]]*/ '',
+        'mail.ms.empty': /*[[#{mail.ms.empty}]]*/ '',
+        'mail.sender.enableConfirm': /*[[#{mail.sender.enableConfirm}]]*/ '',
+        'mail.sender.testSent': /*[[#{mail.sender.testSent}]]*/ ''
     };
 </script>
 <script th:src="@{/js/theme.js(v=${assetVersion})}"></script>

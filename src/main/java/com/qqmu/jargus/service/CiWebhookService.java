@@ -125,7 +125,9 @@ public class CiWebhookService {
                         null,
                         Boolean.TRUE.equals(config.getIncludeTestCode()),
                         Boolean.TRUE.equals(config.getEnableAiReview()),
-                        Boolean.TRUE.equals(config.getSkipUnitTest())
+                        Boolean.TRUE.equals(config.getSkipUnitTest()),
+                        Boolean.TRUE.equals(config.getNotifyEnabled()),
+                        config.getNotifyRecipientIds()
                 );
             } catch (Exception e) {
                 log.error("CI ZIP 解压/建任务失败: recordId={}", record.getId(), e);

@@ -65,6 +65,7 @@ public class ScanTaskService {
     private final ReviewRuleService reviewRuleService;
     private final CiTriggerService ciTriggerService;
     private final CiCallbackService ciCallbackService;
+    private final MailNotifyService mailNotifyService;
 
     @Value("${app.work-dir:./work}")
     private String workDir;
@@ -73,7 +74,8 @@ public class ScanTaskService {
      * 创建扫描任务（从粘贴的代码）
      */
     public ScanTask createFromPaste(String code, String taskName, String projectName,
-                                    boolean includeTestCode, boolean enableAiReview) {
+                                    boolean includeTestCode, boolean enableAiReview,
+                                    boolean notifyEnabled, String notifyRecipientIds) {
         // 保存到文件
         Path taskDir = createTaskDirectory();
         Path javaFile = taskDir.resolve("PastedCode.java");
@@ -90,6 +92,8 @@ public class ScanTaskService {
         task.setStatus("PENDING");
         task.setIncludeTestCode(includeTestCode);
         task.setEnableAiReview(enableAiReview);
+        task.setNotifyEnabled(notifyEnabled);
+        task.setNotifyRecipientIds(notifyEnabled ? notifyRecipientIds : null);
         task.setSkipUnitTest(true);
         task.setSnapshotPath(taskDir.toAbsolutePath().toString());
         task.setTotalFiles(0);
@@ -112,7 +116,8 @@ public class ScanTaskService {
      */
     public ScanTask createFromZip(byte[] zipData, String taskName, String projectName,
                                   boolean includeTestCode, boolean enableAiReview,
-                                  boolean skipUnitTest) {
+                                  boolean skipUnitTest,
+                                  boolean notifyEnabled, String notifyRecipientIds) {
         Path taskDir = createTaskDirectory();
         Path sourceDir = taskDir.resolve("src");
 
@@ -134,6 +139,8 @@ public class ScanTaskService {
         task.setIncludeTestCode(includeTestCode);
         task.setEnableAiReview(enableAiReview);
         task.setSkipUnitTest(skipUnitTest);
+        task.setNotifyEnabled(notifyEnabled);
+        task.setNotifyRecipientIds(notifyEnabled ? notifyRecipientIds : null);
         task.setSnapshotPath(sourceDir.toAbsolutePath().toString());
         task.setTotalFiles(0);
         task.setTotalLines(0);
@@ -297,6 +304,8 @@ public class ScanTaskService {
         }
         // CI 回调：commit status + MR/PR 自动回评（非 CI 任务无记录，直接返回；内部吞异常）
         ciCallbackService.onScanCompleted(taskId, status);
+        // 邮件通知：任务开启 notifyEnabled 时发送报告邮件（内部吞异常，绝不影响扫描结果与 CI 回写）
+        mailNotifyService.onScanCompleted(taskId, status);
     }
 
     /**

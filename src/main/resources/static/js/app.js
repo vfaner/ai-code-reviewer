@@ -493,6 +493,202 @@
     });
   });
 
+  /* ─── 带搜索的下拉多选（收件人选择） ────────────────────────
+     mount 为挂载容器；opts.placeholder 覆盖占位文案。
+     数据项 {id, name, email}；契约：setOptions 先于 set 调用。
+     返回 { get(): 'id,id,...', set(csv), setOptions(list) }。
+     chip 最多显示 2 个，超出用「+N」省略（title 列出其余），盒高固定单行不撑大。 */
+  function multiSelect(mount, opts) {
+    opts = opts || {};
+    var items = [];        // 全量选项
+    var selected = [];     // 已选 id（字符串）
+    var placeholder = opts.placeholder || t('mail.ms.placeholder');
+    var MAX_CHIPS = 2;
+
+    mount.classList.add('ms');
+    mount.innerHTML =
+      '<div class="ms-box" tabindex="0" role="button" aria-haspopup="listbox">' +
+        '<span class="ms-chips"></span>' +
+        '<span class="ms-caret">' + icon('chevron-down') + '</span>' +
+      '</div>' +
+      '<div class="ms-panel" hidden>' +
+        '<input type="text" class="input ms-search" autocomplete="off">' +
+        '<label class="ms-row ms-all"><input type="checkbox"><span></span></label>' +
+        '<div class="ms-list" role="listbox"></div>' +
+      '</div>';
+
+    var box = mount.querySelector('.ms-box');
+    var chips = mount.querySelector('.ms-chips');
+    var panel = mount.querySelector('.ms-panel');
+    var search = mount.querySelector('.ms-search');
+    var allRow = mount.querySelector('.ms-all');
+    var allBox = allRow.querySelector('input');
+    var allText = allRow.querySelector('span');
+    var list = mount.querySelector('.ms-list');
+    search.placeholder = t('mail.ms.search');
+    allText.textContent = t('mail.ms.selectAll');
+
+    function byId(id) {
+      for (var i = 0; i < items.length; i++) {
+        if (String(items[i].id) === String(id)) return items[i];
+      }
+      return null;
+    }
+
+    function isSelected(id) {
+      return selected.indexOf(String(id)) >= 0;
+    }
+
+    function renderChips() {
+      var names = [];
+      for (var i = 0; i < selected.length; i++) {
+        var it = byId(selected[i]);
+        if (it) names.push(it.name || it.email);
+      }
+      var html = '';
+      if (!names.length) {
+        html = '<span class="ms-ph">' + esc(placeholder) + '</span>';
+      } else {
+        var shown = names.slice(0, MAX_CHIPS);
+        for (var j = 0; j < shown.length; j++) {
+          html += '<span class="ms-chip" data-id="' + esc(selected[j]) + '">' + esc(shown[j]) +
+                  '<span class="ms-x">&times;</span></span>';
+        }
+        if (names.length > MAX_CHIPS) {
+          html += '<span class="ms-chip ms-chip-more" title="' + esc(names.slice(MAX_CHIPS).join(', ')) +
+                  '">+' + (names.length - MAX_CHIPS) + '</span>';
+        }
+      }
+      chips.innerHTML = html;
+    }
+
+    function filtered() {
+      var kw = search.value.trim().toLowerCase();
+      if (!kw) return items.slice();
+      return items.filter(function (it) {
+        return String(it.name || '').toLowerCase().indexOf(kw) >= 0 ||
+               String(it.email || '').toLowerCase().indexOf(kw) >= 0;
+      });
+    }
+
+    function renderList() {
+      var rows = filtered();
+      var html = '';
+      for (var i = 0; i < rows.length; i++) {
+        var it = rows[i];
+        html += '<label class="ms-row" data-id="' + esc(it.id) + '">' +
+                '<input type="checkbox"' + (isSelected(it.id) ? ' checked' : '') + '>' +
+                '<span class="ms-name">' + esc(it.name || '') + '</span>' +
+                '<span class="ms-mail">' + esc(it.email || '') + '</span>' +
+                '</label>';
+      }
+      if (!rows.length) {
+        html = '<div class="ms-empty">' + esc(t('mail.ms.empty')) + '</div>';
+      }
+      list.innerHTML = html;
+      // 全选状态 = 过滤后集合是否已全部选中
+      var all = rows.length > 0 && rows.every(function (it) { return isSelected(it.id); });
+      allBox.checked = all;
+      allRow.hidden = rows.length === 0;
+    }
+
+    function open() {
+      panel.hidden = false;
+      mount.classList.add('is-open');
+      search.value = '';
+      renderList();
+      search.focus();
+    }
+
+    function close() {
+      panel.hidden = true;
+      mount.classList.remove('is-open');
+    }
+
+    box.addEventListener('click', function (e) {
+      if (e.target.closest('.ms-x')) return; // chip 删除单独处理
+      panel.hidden ? open() : close();
+    });
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); panel.hidden ? open() : close(); }
+    });
+
+    chips.addEventListener('click', function (e) {
+      var x = e.target.closest('.ms-x');
+      if (!x) return;
+      e.stopPropagation();
+      var id = String(x.parentElement.getAttribute('data-id'));
+      selected = selected.filter(function (s) { return s !== id; });
+      renderChips();
+      renderList();
+    });
+
+    search.addEventListener('input', renderList);
+    search.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.stopPropagation(); close(); }
+    });
+
+    list.addEventListener('change', function (e) {
+      var row = e.target.closest('.ms-row');
+      if (!row) return;
+      var id = String(row.getAttribute('data-id'));
+      if (e.target.checked) {
+        if (!isSelected(id)) selected.push(id);
+      } else {
+        selected = selected.filter(function (s) { return s !== id; });
+      }
+      renderChips();
+      allBox.checked = filtered().length > 0 &&
+        filtered().every(function (it) { return isSelected(it.id); });
+    });
+
+    // 全选：作用于过滤后的集合（勾=补齐，取消=只移除过滤集内的）
+    allBox.addEventListener('change', function () {
+      var rows = filtered();
+      if (allBox.checked) {
+        rows.forEach(function (it) {
+          if (!isSelected(it.id)) selected.push(String(it.id));
+        });
+      } else {
+        var ids = rows.map(function (it) { return String(it.id); });
+        selected = selected.filter(function (s) { return ids.indexOf(s) < 0; });
+      }
+      renderChips();
+      renderList();
+    });
+
+    document.addEventListener('mousedown', function (e) {
+      if (!mount.contains(e.target)) close();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !panel.hidden) close();
+    });
+
+    renderChips();
+
+    return {
+      get: function () { return selected.join(','); },
+      set: function (csv) {
+        selected = [];
+        if (csv) {
+          String(csv).split(',').forEach(function (s) {
+            s = s.trim();
+            if (s && selected.indexOf(s) < 0) selected.push(s);
+          });
+        }
+        renderChips();
+        if (!panel.hidden) renderList();
+      },
+      setOptions: function (list_) {
+        items = (list_ || []).map(function (it) {
+          return { id: it.id, name: it.name || '', email: it.email || '' };
+        });
+        renderChips();
+        if (!panel.hidden) renderList();
+      }
+    };
+  }
+
   /* 对外工具（各页面内联脚本使用） */
   window.JargusUI = {
     t: t,
@@ -504,6 +700,7 @@
     request: request,
     openModal: openModal,
     closeModal: closeModal,
+    multiSelect: multiSelect,
     token: { get: getToken, set: setToken, clear: clearToken }
   };
 })();

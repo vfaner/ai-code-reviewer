@@ -56,6 +56,12 @@ public class CiTriggerConfig {
     /** 是否自动评论 MR/PR */
     private Boolean autoComment;
 
+    /** 扫描完成后是否发送通知邮件 */
+    private Boolean notifyEnabled;
+
+    /** 通知收件人 id 逗号串（快照于触发时拷贝到扫描任务） */
+    private String notifyRecipientIds;
+
     /** 是否启用 */
     private Boolean isEnabled;
 

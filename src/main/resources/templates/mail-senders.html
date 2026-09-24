@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'mailsend', 'mail.sender.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{mail.sender.title}">SMTP Senders</h2>
+        <p th:text="#{mail.sender.subtitle}">Only one sender can be enabled</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-primary" data-open-modal="sender-modal" onclick="openSenderForm(null)">
+            <svg class="ico"><use href="#plus-lg"/></svg>
+            <span th:text="#{mail.sender.new}">New sender</span>
+        </button>
+    </div>
+</div>
+
+<div class="alert alert-warn" th:if="${not #lists.isEmpty(senders) and #lists.size(senders.?[isEnabled]) == 0}"
+     style="margin-bottom:16px;">
+    <svg class="ico"><use href="#exclamation-triangle-fill"/></svg>
+    <span th:text="#{mail.sender.noneEnabled}">No sender enabled</span>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                <tr>
+                    <th th:text="#{mail.sender.col.name}">Name</th>
+                    <th th:text="#{mail.sender.col.server}">SMTP server</th>
+                    <th th:text="#{mail.sender.col.username}">Username</th>
+                    <th th:text="#{mail.sender.col.from}">From</th>
+                    <th th:text="#{mail.sender.col.security}">Security</th>
+                    <th th:text="#{common.status}">Status</th>
+                    <th class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="s : ${senders}">
+                    <td class="soft" th:text="${s.name}">name</td>
+                    <td class="mono small" th:text="${s.host + ':' + s.port}">host:port</td>
+                    <td class="muted" th:text="${s.username} ?: '—'">user</td>
+                    <td class="muted" th:text="${s.fromAddress}">from</td>
+                    <td>
+                        <span class="badge badge-mute"
+                              th:classappend="${s.useSsl} ? 'badge-ok' : ''"
+                              th:text="${s.useSsl} ? #{mail.sender.sec.ssl}
+                                    : (${s.useStarttls} ? #{mail.sender.sec.starttls} : #{mail.sender.sec.none})">SSL</span>
+                    </td>
+                    <td>
+                        <div class="cell-switch">
+                            <label class="switch">
+                                <input type="checkbox" th:checked="${s.isEnabled}"
+                                       th:onclick="'return toggleSender(' + ${s.id} + ',' + ${!s.isEnabled} + ')'">
+                                <span class="track"></span>
+                            </label>
+                            <span class="badge"
+                                  th:classappend="${s.isEnabled} ? 'badge-ok' : 'badge-mute'"
+                                  th:text="${s.isEnabled} ? #{mail.sender.enabled} : #{mail.sender.disabled}">on</span>
+                        </div>
+                    </td>
+                    <td class="num">
+                        <div class="row-actions">
+                            <button class="btn btn-icon" th:onclick="'openTestModal(' + ${s.id} + ')'"
+                                    th:title="#{mail.sender.test}">
+                                <svg class="ico"><use href="#envelope"/></svg>
+                            </button>
+                            <button class="btn btn-icon" th:onclick="'openSenderForm(' + ${s.id} + ')'"
+                                    th:title="#{common.edit}">
+                                <svg class="ico"><use href="#pencil"/></svg>
+                            </button>
+                            <button class="btn btn-icon is-danger"
+                                    data-api-role="action"
+                                    th:data-api="@{/api/mail/senders/{id}(id=${s.id})}"
+                                    data-method="DELETE"
+                                    th:data-confirm="#{common.deleteConfirm}"
+                                    data-reload="true"
+                                    th:title="#{common.delete}">
+                                <svg class="ico"><use href="#trash"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(senders)}">
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <div class="empty-ico"><svg class="ico"><use href="#envelope"/></svg></div>
+                            <p th:text="#{common.empty}">No data</p>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 新建/编辑发件配置 -->
+<div class="modal" id="sender-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="sender-modal"></div>
+    <div class="modal-dialog modal-lg">
+        <button type="button" class="modal-close" data-close-modal="sender-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" id="sender-modal-tag">New</span>
+            <h3 id="sender-modal-title" th:text="#{mail.sender.new}">New sender</h3>
+        </div>
+        <form id="sender-form" autocomplete="off">
+            <input type="hidden" id="sender-id">
+            <div class="grid-2">
+                <div class="field">
+                    <label for="sender-name" th:text="#{mail.sender.form.name}">Name</label>
+                    <input type="text" class="input" id="sender-name" maxlength="128" required>
+                </div>
+                <div class="field">
+                    <label for="sender-from" th:text="#{mail.sender.form.fromAddress}">From address</label>
+                    <input type="email" class="input" id="sender-from" maxlength="256" required>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="sender-host" th:text="#{mail.sender.form.host}">SMTP host</label>
+                    <input type="text" class="input mono" id="sender-host" maxlength="256" required>
+                </div>
+                <div class="field">
+                    <label for="sender-port" th:text="#{mail.sender.form.port}">Port</label>
+                    <input type="number" class="input mono" id="sender-port" min="1" max="65535" value="465" required>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="sender-username" th:text="#{mail.sender.form.username}">Username</label>
+                    <input type="text" class="input mono" id="sender-username" maxlength="256" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label for="sender-password" th:text="#{mail.sender.form.password}">Password</label>
+                    <input type="password" class="input mono" id="sender-password" maxlength="256" autocomplete="new-password">
+                    <div class="help" id="sender-pw-help" th:text="#{mail.sender.pwEnter}">Enter SMTP password</div>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="field">
+                    <label for="sender-alias" th:text="#{mail.sender.form.fromAlias}">From alias</label>
+                    <input type="text" class="input" id="sender-alias" maxlength="128">
+                </div>
+                <div class="field" style="align-self:end;">
+                    <label class="switch">
+                        <input type="checkbox" id="sender-ssl" checked>
+                        <span class="track"></span>
+                        <span class="switch-text"><strong th:text="#{mail.sender.form.useSsl}">SSL</strong></span>
+                    </label>
+                    <label class="switch">
+                        <input type="checkbox" id="sender-starttls">
+                        <span class="track"></span>
+                        <span class="switch-text"><strong th:text="#{mail.sender.form.useStarttls}">STARTTLS</strong></span>
+                    </label>
+                </div>
+            </div>
+            <div class="field">
+                <label class="switch">
+                    <input type="checkbox" id="sender-enabled">
+                    <span class="track"></span>
+                    <span class="switch-text">
+                        <strong th:text="#{mail.sender.form.enabled}">Enable</strong>
+                        <span class="help" th:text="#{mail.sender.form.enabledHint}">Others will be disabled</span>
+                    </span>
+                </label>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="sender-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="submit" class="btn btn-primary" th:text="#{common.save}">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 测试邮件 -->
+<div class="modal" id="test-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="test-modal"></div>
+    <div class="modal-dialog">
+        <button type="button" class="modal-close" data-close-modal="test-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag">Test</span>
+            <h3 th:text="#{mail.sender.testTitle}">Send test email</h3>
+        </div>
+        <form id="test-form" autocomplete="off">
+            <input type="hidden" id="test-id">
+            <div class="field">
+                <label for="test-to" th:text="#{mail.sender.testTo}">Recipient</label>
+                <input type="email" class="input" id="test-to" required>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="test-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="test-send-btn" th:text="#{mail.sender.testSend}">Send</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var UI = window.JargusUI;
+        var MSG_EDIT = /*[[#{common.edit}]]*/ 'Edit';
+        var MSG_NEW = /*[[#{mail.sender.new}]]*/ 'New';
+        var MSG_CREATE = /*[[#{common.create}]]*/ 'New';
+        var MSG_PW_ENTER = /*[[#{mail.sender.pwEnter}]]*/ '';
+        var MSG_PW_KEEP = /*[[#{mail.sender.pwKeep}]]*/ '';
+        var MSG_ENABLE_CONFIRM = UI.t('mail.sender.enableConfirm');
+        var MSG_TEST_SENT = UI.t('mail.sender.testSent');
+
+        window.openSenderForm = function (id) {
+            document.getElementById('sender-id').value = id || '';
+            document.getElementById('sender-modal-title').textContent = id ? MSG_EDIT : MSG_NEW;
+            document.getElementById('sender-modal-tag').textContent = id ? MSG_EDIT : MSG_CREATE;
+            document.getElementById('sender-form').reset();
+            document.getElementById('sender-pw-help').textContent = MSG_PW_ENTER;
+            if (!id) {
+                document.getElementById('sender-ssl').checked = true;
+                document.getElementById('sender-port').value = 465;
+                UI.openModal('sender-modal');
+                return;
+            }
+            UI.api.get('/api/mail/senders/' + id).then(function (s) {
+                document.getElementById('sender-name').value = s.name || '';
+                document.getElementById('sender-host').value = s.host || '';
+                document.getElementById('sender-port').value = s.port || 465;
+                document.getElementById('sender-username').value = s.username || '';
+                document.getElementById('sender-password').value = '';
+                document.getElementById('sender-pw-help').textContent = MSG_PW_KEEP;
+                document.getElementById('sender-from').value = s.fromAddress || '';
+                document.getElementById('sender-alias').value = s.fromAlias || '';
+                document.getElementById('sender-ssl').checked = !!s.useSsl;
+                document.getElementById('sender-starttls').checked = !!s.useStarttls;
+                document.getElementById('sender-enabled').checked = !!s.isEnabled;
+                UI.openModal('sender-modal');
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+
+        /* 启用开关：启用前确认（会自动停用其他配置） */
+        window.toggleSender = function (id, enabling) {
+            if (enabling && !window.confirm(MSG_ENABLE_CONFIRM)) return false;
+            UI.api.put('/api/mail/senders/' + id + '/toggle').then(function () {
+                location.reload();
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+                location.reload();
+            });
+            return false; // 阻止 checkbox 本地翻转，统一由 reload 呈现
+        };
+
+        document.getElementById('sender-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var id = document.getElementById('sender-id').value;
+            var pw = document.getElementById('sender-password').value;
+            // 编辑时密码留空或为掩码 = 不修改（传 null，服务端跳过）
+            if (id && (!pw || pw.indexOf('****') >= 0)) pw = null;
+            var data = {
+                name: document.getElementById('sender-name').value.trim(),
+                host: document.getElementById('sender-host').value.trim(),
+                port: parseInt(document.getElementById('sender-port').value, 10),
+                username: document.getElementById('sender-username').value.trim() || null,
+                password: pw || null,
+                fromAddress: document.getElementById('sender-from').value.trim(),
+                fromAlias: document.getElementById('sender-alias').value.trim() || null,
+                useSsl: document.getElementById('sender-ssl').checked,
+                useStarttls: document.getElementById('sender-starttls').checked,
+                isEnabled: document.getElementById('sender-enabled').checked
+            };
+            var promise = id
+                ? UI.api.put('/api/mail/senders/' + id, data)
+                : UI.api.post('/api/mail/senders', data);
+            promise.then(function () {
+                UI.toast(UI.t('common.saved'), 'ok');
+                UI.closeModal('sender-modal');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+
+        window.openTestModal = function (id) {
+            document.getElementById('test-id').value = id;
+            document.getElementById('test-to').value = '';
+            UI.openModal('test-modal');
+        };
+
+        document.getElementById('test-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var btn = document.getElementById('test-send-btn');
+            btn.disabled = true;
+            UI.api.post('/api/mail/senders/' + document.getElementById('test-id').value + '/test', {
+                to: document.getElementById('test-to').value.trim()
+            }).then(function () {
+                UI.toast(MSG_TEST_SENT, 'ok');
+                UI.closeModal('test-modal');
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            }).finally(function () {
+                btn.disabled = false;
+            });
+        });
+    })();
+</script>
+</th:block>
+</html>

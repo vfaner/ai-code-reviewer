@@ -380,6 +380,17 @@
                     <span class="switch-text" th:text="#{ci.opt.autoComment}">Auto comment results to MR/PR</span>
                 </label>
             </div>
+            <div class="field">
+                <label class="switch">
+                    <input type="checkbox" id="trig-notifyEnabled">
+                    <span class="track"></span>
+                    <span class="switch-text" th:text="#{ci.opt.notify}">Email notification</span>
+                </label>
+            </div>
+            <div class="field" id="trig-notify-field" hidden>
+                <label th:text="#{mail.opt.recipients}">Notify recipients</label>
+                <div id="trig-notify-pick"></div>
+            </div>
             <div class="form-actions">
                 <button type="button" class="btn btn-ghost" data-close-modal="trigger-modal" th:text="#{common.cancel}">Cancel</button>
                 <button type="submit" class="btn btn-primary" th:text="#{common.save}">Save</button>
@@ -594,6 +605,17 @@
             prevDefaultUrl = meta.url || null;
         };
 
+        /* 邮件通知：开关 + 收件人多选（组件页初始化即建，选项异步回填） */
+        var trigNotifyEnabled = document.getElementById('trig-notifyEnabled');
+        var trigNotifyField = document.getElementById('trig-notify-field');
+        var trigNotifyMs = UI.multiSelect(document.getElementById('trig-notify-pick'));
+        trigNotifyEnabled.addEventListener('change', function () {
+            trigNotifyField.hidden = !trigNotifyEnabled.checked;
+        });
+        UI.api.get('/api/mail/recipients/options').then(function (list) {
+            trigNotifyMs.setOptions(list || []);
+        }).catch(function () { /* 拉取失败仅影响下拉 */ });
+
         window.openTriggerForm = function (id) {
             document.getElementById('trig-id').value = id || '';
             document.getElementById('trig-modal-title').textContent =
@@ -609,6 +631,9 @@
                 document.getElementById('trig-repoUsername').value = '';
                 document.getElementById('trig-repoToken').value = '';
                 document.getElementById('trig-repoToken').placeholder = MSG_PW_ENTER;
+                trigNotifyEnabled.checked = false;
+                trigNotifyField.hidden = true;
+                trigNotifyMs.set('');
                 prevDefaultUrl = null;
                 onTriggerPlatformChange();
                 UI.openModal('trigger-modal');
@@ -637,6 +662,9 @@
                 document.getElementById('trig-includeTestCode').checked = !!t.includeTestCode;
                 document.getElementById('trig-enableAiReview').checked = !!t.enableAiReview;
                 document.getElementById('trig-autoComment').checked = !!t.autoComment;
+                trigNotifyEnabled.checked = !!t.notifyEnabled;
+                trigNotifyField.hidden = !trigNotifyEnabled.checked;
+                trigNotifyMs.set(t.notifyRecipientIds || '');
                 UI.openModal('trigger-modal');
             }).catch(function (err) {
                 UI.toast(String(err.message || err), 'danger');
@@ -661,7 +689,9 @@
                 skipUnitTest: document.getElementById('trig-skipUnitTest').checked,
                 includeTestCode: document.getElementById('trig-includeTestCode').checked,
                 enableAiReview: document.getElementById('trig-enableAiReview').checked,
-                autoComment: document.getElementById('trig-autoComment').checked
+                autoComment: document.getElementById('trig-autoComment').checked,
+                notifyEnabled: trigNotifyEnabled.checked,
+                notifyRecipientIds: trigNotifyEnabled.checked ? (trigNotifyMs.get() || null) : null
             };
             var promise = id
                 ? UI.api.put('/api/ci/triggers/' + id, data)

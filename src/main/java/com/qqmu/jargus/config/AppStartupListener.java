@@ -72,6 +72,10 @@ public class AppStartupListener {
             ensureScanTaskGradeColumns();
             // 门禁自定义配置表（旧库升级；无行时用 application.yml 默认值）
             ensureGateSettingTable();
+            // 邮件管理：发件配置 / 通知收件人两表（旧库升级）
+            ensureMailTables();
+            // 邮件管理：scan_task / ci_trigger_config 通知字段（旧库升级）
+            ensureMailNotifyColumns();
             // 历史扫描问题的修复建议回填（早期检查器未写 suggestion）
             backfillSuggestions();
             // 历史问题合并升级：同文件同规则多点合并为一条，清理 import 误报的重复代码
@@ -211,6 +215,56 @@ public class AppStartupListener {
         } catch (Exception e) {
             log.warn("检查/创建 gate_setting 表失败: {}", e.getMessage());
         }
+    }
+
+    /**
+     * 旧库升级：邮件管理两表（发件配置、通知收件人）。
+     * 列类型方言中立，H2/MySQL 通用；同一时间仅一个发件配置启用的约束由服务层保证。
+     */
+    private void ensureMailTables() {
+        try {
+            jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS mail_sender (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(128) NOT NULL,
+                    host VARCHAR(256) NOT NULL,
+                    port INT NOT NULL DEFAULT 465,
+                    username VARCHAR(256),
+                    password VARCHAR(512),
+                    from_address VARCHAR(256) NOT NULL,
+                    from_alias VARCHAR(128),
+                    use_starttls BOOLEAN DEFAULT FALSE,
+                    use_ssl BOOLEAN DEFAULT TRUE,
+                    is_enabled BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """);
+        } catch (Exception e) {
+            log.warn("检查/创建 mail_sender 表失败: {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS mail_recipient (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(128) NOT NULL,
+                    email VARCHAR(256) NOT NULL UNIQUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """);
+        } catch (Exception e) {
+            log.warn("检查/创建 mail_recipient 表失败: {}", e.getMessage());
+        }
+    }
+
+    /** 旧库升级：扫描任务与 CI 触发配置的通知发信字段 */
+    private void ensureMailNotifyColumns() {
+        ensureColumn("SCAN_TASK", "NOTIFY_ENABLED", "BOOLEAN DEFAULT FALSE");
+        ensureColumn("SCAN_TASK", "NOTIFY_RECIPIENT_IDS", "VARCHAR(512)");
+        ensureColumn("SCAN_TASK", "MAIL_STATUS", "VARCHAR(16)");
+        ensureColumn("CI_TRIGGER_CONFIG", "NOTIFY_ENABLED", "BOOLEAN DEFAULT FALSE");
+        ensureColumn("CI_TRIGGER_CONFIG", "NOTIFY_RECIPIENT_IDS", "VARCHAR(512)");
     }
 
     /** INFORMATION_SCHEMA 判列存在，缺失则 ALTER ADD（type 给 H2 语法，MySQL 下 CLOB/TIMESTAMP 均兼容） */

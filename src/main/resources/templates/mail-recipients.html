@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: page(~{::content}, ~{::scripts}, 'mailrecipt', 'mail.recipient.title')}">
+<th:block th:fragment="content">
+
+<div class="page-head">
+    <div>
+        <h2 th:text="#{mail.recipient.title}">Recipients</h2>
+        <p th:text="#{mail.recipient.subtitle}">Notification email recipients</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-primary" data-open-modal="recipient-modal" onclick="openRecipientForm(null)">
+            <svg class="ico"><use href="#plus-lg"/></svg>
+            <span th:text="#{mail.recipient.new}">New recipient</span>
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form class="toolbar" method="get" th:action="@{/mail/recipients}">
+            <input type="text" class="input" name="keyword"
+                   th:value="${keyword}" th:placeholder="#{common.keywordPlaceholder}">
+            <button type="submit" class="btn btn-ghost">
+                <svg class="ico"><use href="#search"/></svg>
+                <span th:text="#{common.search}">Search</span>
+            </button>
+            <div class="spacer"></div>
+            <span class="muted small" th:text="#{common.total(${pageData.total})}">total</span>
+        </form>
+
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                <tr>
+                    <th th:text="#{mail.recipient.col.name}">Name</th>
+                    <th th:text="#{mail.recipient.col.email}">Email</th>
+                    <th th:text="#{mail.recipient.col.created}">Created</th>
+                    <th class="num" th:text="#{common.actions}">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="r : ${pageData.records}">
+                    <td class="soft" th:text="${r.name}">name</td>
+                    <td class="mono small" th:text="${r.email}">email</td>
+                    <td class="muted small"
+                        th:text="${r.createdAt != null} ? ${#temporals.format(r.createdAt, 'yyyy-MM-dd HH:mm')} : '—'">created</td>
+                    <td class="num">
+                        <div class="row-actions">
+                            <button class="btn btn-icon" th:onclick="'openRecipientForm(' + ${r.id} + ')'"
+                                    th:title="#{common.edit}">
+                                <svg class="ico"><use href="#pencil"/></svg>
+                            </button>
+                            <button class="btn btn-icon is-danger"
+                                    data-api-role="action"
+                                    th:data-api="@{/api/mail/recipients/{id}(id=${r.id})}"
+                                    data-method="DELETE"
+                                    th:data-confirm="#{common.deleteConfirm}"
+                                    data-reload="true"
+                                    th:title="#{common.delete}">
+                                <svg class="ico"><use href="#trash"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${pageData.records.isEmpty()}">
+                    <td colspan="4">
+                        <div class="empty-state">
+                            <div class="empty-ico"><svg class="ico"><use href="#people"/></svg></div>
+                            <p th:text="#{common.empty}">No data</p>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination" th:if="${pageData.pages > 1}">
+            <div class="pagination-info" th:text="#{common.total(${pageData.total})}">total</div>
+            <div class="pagination-nav">
+                <a th:if="${pageData.current > 1}"
+                   th:href="@{|${baseQuery}page=${pageData.current - 1}&size=${pageData.size}|}">
+                    <svg class="ico"><use href="#chevron-left"/></svg>
+                </a>
+                <span th:if="${pageData.current == 1}" class="disabled">
+                    <svg class="ico"><use href="#chevron-left"/></svg>
+                </span>
+                <th:block th:each="i : ${#numbers.sequence(1, pageData.pages)}">
+                    <a th:if="${i == 1 or i == pageData.pages or (i >= pageData.current - 2 and i <= pageData.current + 2)}"
+                       th:classappend="${i == pageData.current} ? 'current' : ''"
+                       th:href="@{|${baseQuery}page=${i}&size=${pageData.size}|}"
+                       th:text="${i}">1</a>
+                    <span th:if="${(i == 2 and pageData.current > 4) or (i == pageData.pages - 1 and pageData.current < pageData.pages - 3)}"
+                          class="dots">…</span>
+                </th:block>
+                <a th:if="${pageData.current < pageData.pages}"
+                   th:href="@{|${baseQuery}page=${pageData.current + 1}&size=${pageData.size}|}">
+                    <svg class="ico"><use href="#chevron-right"/></svg>
+                </a>
+                <span th:if="${pageData.current == pageData.pages}" class="disabled">
+                    <svg class="ico"><use href="#chevron-right"/></svg>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新建/编辑收件人 -->
+<div class="modal" id="recipient-modal" aria-hidden="true">
+    <div class="modal-mask" data-close-modal="recipient-modal"></div>
+    <div class="modal-dialog">
+        <button type="button" class="modal-close" data-close-modal="recipient-modal">
+            <svg class="ico"><use href="#x-lg"/></svg>
+        </button>
+        <div class="modal-head">
+            <span class="sec-tag" id="recp-modal-tag">New</span>
+            <h3 id="recp-modal-title" th:text="#{mail.recipient.new}">New recipient</h3>
+        </div>
+        <form id="recipient-form" autocomplete="off">
+            <input type="hidden" id="recp-id">
+            <div class="field">
+                <label for="recp-name" th:text="#{mail.recipient.form.name}">Name</label>
+                <input type="text" class="input" id="recp-name" maxlength="128" required>
+            </div>
+            <div class="field">
+                <label for="recp-email" th:text="#{mail.recipient.form.email}">Email</label>
+                <input type="email" class="input mono" id="recp-email" maxlength="256" required>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-ghost" data-close-modal="recipient-modal" th:text="#{common.cancel}">Cancel</button>
+                <button type="submit" class="btn btn-primary" th:text="#{common.save}">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+</th:block>
+<th:block th:fragment="scripts">
+<script th:inline="javascript">
+    (function () {
+        var UI = window.JargusUI;
+        var MSG_EDIT = /*[[#{common.edit}]]*/ 'Edit';
+        var MSG_NEW = /*[[#{mail.recipient.new}]]*/ 'New';
+        var MSG_CREATE = /*[[#{common.create}]]*/ 'New';
+        var MSG_EMAIL_INVALID = /*[[#{mail.recipient.emailInvalid}]]*/ 'Invalid email';
+        var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+        window.openRecipientForm = function (id) {
+            document.getElementById('recp-id').value = id || '';
+            document.getElementById('recp-modal-title').textContent = id ? MSG_EDIT : MSG_NEW;
+            document.getElementById('recp-modal-tag').textContent = id ? MSG_EDIT : MSG_CREATE;
+            document.getElementById('recipient-form').reset();
+            if (!id) {
+                UI.openModal('recipient-modal');
+                return;
+            }
+            UI.api.get('/api/mail/recipients/' + id).then(function (r) {
+                document.getElementById('recp-name').value = r.name || '';
+                document.getElementById('recp-email').value = r.email || '';
+                UI.openModal('recipient-modal');
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        };
+
+        document.getElementById('recipient-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var id = document.getElementById('recp-id').value;
+            var email = document.getElementById('recp-email').value.trim();
+            if (!EMAIL_RE.test(email)) {
+                UI.toast(MSG_EMAIL_INVALID, 'danger');
+                return;
+            }
+            var data = {
+                name: document.getElementById('recp-name').value.trim(),
+                email: email
+            };
+            var promise = id
+                ? UI.api.put('/api/mail/recipients/' + id, data)
+                : UI.api.post('/api/mail/recipients', data);
+            promise.then(function () {
+                UI.toast(UI.t('common.saved'), 'ok');
+                UI.closeModal('recipient-modal');
+                setTimeout(function () { location.reload(); }, 500);
+            }).catch(function (err) {
+                UI.toast(String(err.message || err), 'danger');
+            });
+        });
+    })();
+</script>
+</th:block>
+</html>

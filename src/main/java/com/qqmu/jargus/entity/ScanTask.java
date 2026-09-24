@@ -68,6 +68,15 @@ public class ScanTask {
     /** 启用 AI 评审 */
     private Boolean enableAiReview;
 
+    /** 扫描完成后是否发送通知邮件 */
+    private Boolean notifyEnabled;
+
+    /** 通知收件人 id 逗号串（创建时快照） */
+    private String notifyRecipientIds;
+
+    /** 通知邮件状态: SENT/FAILED，null=未发信 */
+    private String mailStatus;
+
     /** AI 发现问题数 */
     private Integer aiIssueCount;
 

@@ -69,8 +69,12 @@ public class ScanTaskController {
         String projectName = (String) body.getOrDefault("projectName", "");
         boolean includeTest = Boolean.TRUE.equals(body.getOrDefault("includeTestCode", false));
         boolean enableAi = Boolean.TRUE.equals(body.getOrDefault("enableAiReview", true));
+        boolean notifyEnabled = Boolean.TRUE.equals(body.getOrDefault("notifyEnabled", false));
+        String notifyRecipientIds = body.get("notifyRecipientIds") != null
+                ? body.get("notifyRecipientIds").toString() : null;
 
-        ScanTask task = scanTaskService.createFromPaste(code, taskName, projectName, includeTest, enableAi);
+        ScanTask task = scanTaskService.createFromPaste(code, taskName, projectName, includeTest, enableAi,
+                notifyEnabled, notifyRecipientIds);
         if (!submitScan(task)) return Result.error("当前扫描任务过多（已达并发上限），请稍后重试");
         return Result.success(task);
     }
@@ -85,7 +89,9 @@ public class ScanTaskController {
             @RequestParam(required = false) String projectName,
             @RequestParam(defaultValue = "false") boolean includeTestCode,
             @RequestParam(defaultValue = "true") boolean enableAiReview,
-            @RequestParam(defaultValue = "true") boolean skipUnitTest
+            @RequestParam(defaultValue = "true") boolean skipUnitTest,
+            @RequestParam(defaultValue = "false") boolean notifyEnabled,
+            @RequestParam(required = false) String notifyRecipientIds
     ) throws IOException {
         byte[] zipData = file.getBytes();
         ScanTask task = scanTaskService.createFromZip(
@@ -94,7 +100,9 @@ public class ScanTaskController {
                 projectName,
                 includeTestCode,
                 enableAiReview,
-                skipUnitTest
+                skipUnitTest,
+                notifyEnabled,
+                notifyRecipientIds
         );
         if (!submitScan(task)) return Result.error("当前扫描任务过多（已达并发上限），请稍后重试");
         return Result.success(task);

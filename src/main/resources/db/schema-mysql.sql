@@ -116,6 +116,9 @@ CREATE TABLE IF NOT EXISTS scan_task (
     include_test_code TINYINT(1) DEFAULT 0 COMMENT '包含测试代码',
     enable_ai_review TINYINT(1) DEFAULT 1 COMMENT '启用AI评审',
     ai_issue_count INT DEFAULT 0 COMMENT 'AI发现问题数',
+    notify_enabled TINYINT(1) DEFAULT 0 COMMENT '扫描完成后发送通知邮件',
+    notify_recipient_ids VARCHAR(512) COMMENT '通知收件人 id 逗号串',
+    mail_status VARCHAR(16) COMMENT '通知邮件状态 SENT/FAILED，空=未发',
     started_at DATETIME COMMENT '开始时间',
     completed_at DATETIME COMMENT '完成时间',
     duration_seconds BIGINT DEFAULT 0 COMMENT '耗时(秒)',
@@ -233,6 +236,8 @@ CREATE TABLE IF NOT EXISTS ci_trigger_config (
     include_test_code TINYINT(1) DEFAULT 0,
     enable_ai_review TINYINT(1) DEFAULT 1,
     auto_comment TINYINT(1) DEFAULT 0 COMMENT '自动评论',
+    notify_enabled TINYINT(1) DEFAULT 0 COMMENT '扫描完成后发送通知邮件',
+    notify_recipient_ids VARCHAR(512) COMMENT '通知收件人 id 逗号串',
     is_enabled TINYINT(1) DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -289,6 +294,37 @@ CREATE TABLE IF NOT EXISTS gate_setting (
     fair_score INT NOT NULL COMMENT '一般等级下界',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '最后修改时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='质量门禁配置';
+
+-- ============================================================
+-- 表 17: mail_sender (发件配置；同一时间仅允许一条 is_enabled=1，由服务层保证)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS mail_sender (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(128) NOT NULL COMMENT '配置名称',
+    host VARCHAR(256) NOT NULL COMMENT 'SMTP 主机',
+    port INT NOT NULL DEFAULT 465 COMMENT 'SMTP 端口',
+    username VARCHAR(256) COMMENT '登录用户名（空=无鉴权）',
+    password VARCHAR(512) COMMENT '密码/授权码（AES 加密存储）',
+    from_address VARCHAR(256) NOT NULL COMMENT '发件地址',
+    from_alias VARCHAR(128) COMMENT '发件人别名',
+    use_starttls TINYINT(1) DEFAULT 0 COMMENT '使用 STARTTLS',
+    use_ssl TINYINT(1) DEFAULT 1 COMMENT '使用 SSL',
+    is_enabled TINYINT(1) DEFAULT 0 COMMENT '启用（服务层保证仅一个）',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='发件配置';
+
+-- ============================================================
+-- 表 18: mail_recipient (扫描通知邮件收件人)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS mail_recipient (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(128) NOT NULL COMMENT '姓名',
+    email VARCHAR(256) NOT NULL COMMENT '邮箱',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_mail_recipient_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='通知收件人';
 
 -- ============================================================
 -- 内置 LLM 模板种子数据（与 schema-h2.sql 保持一致，仅 OpenAI 兼容 / Anthropic 两种协议）

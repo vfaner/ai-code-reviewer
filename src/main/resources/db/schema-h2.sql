@@ -112,6 +112,9 @@ CREATE TABLE IF NOT EXISTS scan_task (
     include_test_code BOOLEAN DEFAULT FALSE,
     enable_ai_review BOOLEAN DEFAULT TRUE,
     ai_issue_count INT DEFAULT 0,
+    notify_enabled BOOLEAN DEFAULT FALSE,
+    notify_recipient_ids VARCHAR(512),
+    mail_status VARCHAR(16),
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
     duration_seconds BIGINT DEFAULT 0,
@@ -230,6 +233,8 @@ CREATE TABLE IF NOT EXISTS ci_trigger_config (
     include_test_code BOOLEAN DEFAULT FALSE,
     enable_ai_review BOOLEAN DEFAULT TRUE,
     auto_comment BOOLEAN DEFAULT FALSE,
+    notify_enabled BOOLEAN DEFAULT FALSE,
+    notify_recipient_ids VARCHAR(512),
     is_enabled BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -428,5 +433,35 @@ CREATE TABLE IF NOT EXISTS gate_setting (
     excellent_score INT NOT NULL,
     good_score INT NOT NULL,
     fair_score INT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 表 17: mail_sender (发件配置；同一时间仅允许一条 is_enabled=true，由服务层保证)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS mail_sender (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(128) NOT NULL,
+    host VARCHAR(256) NOT NULL,
+    port INT NOT NULL DEFAULT 465,
+    username VARCHAR(256),
+    password VARCHAR(512),
+    from_address VARCHAR(256) NOT NULL,
+    from_alias VARCHAR(128),
+    use_starttls BOOLEAN DEFAULT FALSE,
+    use_ssl BOOLEAN DEFAULT TRUE,
+    is_enabled BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- 表 18: mail_recipient (扫描通知邮件收件人)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS mail_recipient (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(128) NOT NULL,
+    email VARCHAR(256) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

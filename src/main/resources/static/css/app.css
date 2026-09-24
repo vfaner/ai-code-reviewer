@@ -504,6 +504,55 @@ fieldset.bare { border: 0; padding: 0; margin: 0; min-width: 0; }
 .input-group { display: flex; gap: 8px; }
 .input-group .input { flex: 1; }
 
+/* ─── 带搜索的下拉多选（.ms，收件人选择） ─────────────────── */
+.ms { position: relative; }
+.ms-box {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; height: 38px; padding: 0 10px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  cursor: pointer; overflow: hidden; user-select: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.ms.is-open .ms-box, .ms-box:focus-visible {
+  outline: none; border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent);
+}
+.ms-chips { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; overflow: hidden; }
+.ms-chip {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 140px;
+  padding: 2px 8px; font-size: 12px; line-height: 18px; white-space: nowrap;
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
+  border-radius: 999px; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0;
+}
+.ms-chip .ms-x { cursor: pointer; font-size: 13px; line-height: 1; opacity: .7; }
+.ms-chip .ms-x:hover { opacity: 1; }
+.ms-chip-more { color: var(--ink-mute); background: var(--bg-tint); border-color: var(--line); cursor: default; }
+.ms-ph { font-size: 13.5px; color: var(--ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-caret { display: flex; color: var(--ink-mute); flex-shrink: 0; }
+.ms-caret .ico { width: 14px; height: 14px; transition: transform .2s; }
+.ms.is-open .ms-caret .ico { transform: rotate(180deg); }
+.ms-panel {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 1100;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(15, 23, 42, .14));
+  padding: 8px; display: flex; flex-direction: column; gap: 6px;
+}
+.ms-panel[hidden] { display: none; }
+.ms-search { flex-shrink: 0; }
+.ms-list { max-height: 210px; overflow-y: auto; display: flex; flex-direction: column; }
+.ms-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px; font-size: 13.5px; color: var(--ink);
+  border-radius: var(--radius-sm); cursor: pointer;
+}
+.ms-row:hover { background: var(--bg-tint); }
+.ms-row input[type="checkbox"] { flex-shrink: 0; accent-color: var(--brand); }
+.ms-all { border-bottom: 1px solid var(--line); border-radius: 0; color: var(--ink-soft); font-weight: 500; }
+.ms-name { flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-mail { flex: 1; min-width: 0; text-align: right; font-size: 12px; color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-empty { padding: 16px 8px; text-align: center; font-size: 13px; color: var(--ink-mute); }
+
 /* 开关（label.switch 选择器提到与 .field label 同等特异性，避免被 display:block 覆盖导致圆点压字） */
 .switch, .field label.switch { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 15px; font-size: 13.5px; font-weight: 500; color: var(--ink-soft); }
 .switch:last-child { margin-bottom: 0; }

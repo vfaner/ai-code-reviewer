@@ -46,6 +46,7 @@
                     <th class="num" th:text="#{history.col.total}">Total</th>
                     <th class="num" th:text="#{history.col.files}">Files</th>
                     <th th:text="#{history.col.time}">Finished</th>
+                    <th th:text="#{history.col.mail}">Email</th>
                     <th class="num" th:text="#{common.actions}">Actions</th>
                 </tr>
                 </thead>
@@ -79,6 +80,12 @@
                         th:text="${t.completedAt != null} ? ${#temporals.format(t.completedAt, 'yyyy-MM-dd HH:mm')} : '—'">
                         time
                     </td>
+                    <td>
+                        <span th:if="${t.mailStatus != null}" class="badge"
+                              th:classappend="${t.mailStatus == 'SENT'} ? 'badge-ok' : 'badge-danger'"
+                              th:text="#{|mail.status.${t.mailStatus}|}">SENT</span>
+                        <span th:unless="${t.mailStatus != null}" class="muted">—</span>
+                    </td>
                     <td class="num">
                         <div class="row-actions">
                             <button type="button" class="btn btn-icon" th:if="${isAdmin}"
@@ -105,7 +112,7 @@
                     </td>
                 </tr>
                 <tr th:if="${pageData.records.isEmpty()}">
-                    <td colspan="12">
+                    <td colspan="15">
                         <div class="empty-state">
                             <div class="empty-ico"><svg class="ico"><use href="#inbox"/></svg></div>
                             <p th:text="#{common.empty}">No data</p>

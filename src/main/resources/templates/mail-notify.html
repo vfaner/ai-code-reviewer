@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<!--/* 扫描通知邮件正文（由 MailNotifyService 用 TemplateEngine 直接渲染，不走 layout）。
+       邮件客户端兼容性优先：table 布局 + 全内联样式，不引用任何外部资源。
+       变量：task / quality(可空) / topIssues / failed / attached / dateFmt */-->
+<html xmlns:th="http://www.thymeleaf.org">
+<body style="margin:0; padding:0; background:#f1f5f9;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9; padding:24px 12px;">
+    <tr>
+        <td align="center">
+            <table role="presentation" width="620" cellpadding="0" cellspacing="0"
+                   style="max-width:620px; width:100%; background:#ffffff; border-radius:12px; overflow:hidden;
+                          border:1px solid #e2e8f0; font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">
+                <!--/* 品牌头 */-->
+                <tr>
+                    <td style="background:#4f46e5; padding:18px 24px;">
+                        <span style="color:#ffffff; font-size:17px; font-weight:700; letter-spacing:.5px;">百目 JArgus</span>
+                        <span style="color:#c7d2fe; font-size:12px; margin-left:10px;"
+                              th:text="#{mail.body.title}">Code Review Notification</span>
+                    </td>
+                </tr>
+                <!--/* 状态条 */-->
+                <tr>
+                    <td style="padding:20px 24px 4px;">
+                        <span th:if="${!failed}"
+                              style="display:inline-block; padding:4px 12px; border-radius:999px; font-size:13px; font-weight:600;
+                                     background:#dcfce7; color:#15803d;"
+                              th:text="#{mail.body.success}">Scan completed</span>
+                        <span th:if="${failed}"
+                              style="display:inline-block; padding:4px 12px; border-radius:999px; font-size:13px; font-weight:600;
+                                     background:#fee2e2; color:#b91c1c;"
+                              th:text="#{mail.body.failed}">Scan failed</span>
+                    </td>
+                </tr>
+                <!--/* 任务信息 */-->
+                <tr>
+                    <td style="padding:12px 24px 4px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                               style="font-size:13px; color:#334155;">
+                            <tr>
+                                <td style="padding:5px 0; color:#64748b; width:110px;" th:text="#{mail.body.task}">Task</td>
+                                <td style="padding:5px 0; font-weight:600;" th:text="${task.taskName}">task</td>
+                            </tr>
+                            <tr th:if="${task.projectName != null and !task.projectName.isEmpty()}">
+                                <td style="padding:5px 0; color:#64748b;" th:text="#{mail.body.project}">Project</td>
+                                <td style="padding:5px 0;" th:text="${task.projectName}">project</td>
+                            </tr>
+                            <tr th:if="${quality != null}">
+                                <td style="padding:5px 0; color:#64748b;" th:text="#{mail.body.score}">Score</td>
+                                <td style="padding:5px 0;">
+                                    <span style="font-size:18px; font-weight:700; color:#4f46e5;"
+                                          th:text="${quality.score}">0</span>
+                                    <span style="margin-left:8px; font-size:12px; color:#64748b;"
+                                          th:text="#{mail.body.level} + '：' + #{|quality.${quality.level}|}">level</span>
+                                </td>
+                            </tr>
+                            <tr th:if="${!failed and task.durationSeconds != null}">
+                                <td style="padding:5px 0; color:#64748b;" th:text="#{mail.body.duration}">Duration</td>
+                                <td style="padding:5px 0;" th:text="${task.durationSeconds} + ' s'">1s</td>
+                            </tr>
+                            <tr th:if="${task.completedAt != null}">
+                                <td style="padding:5px 0; color:#64748b;" th:text="#{mail.body.finishedAt}">Finished</td>
+                                <td style="padding:5px 0;" th:text="${dateFmt.format(task.completedAt)}">time</td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!--/* 失败原因 */-->
+                <tr th:if="${failed and task.errorMessage != null}">
+                    <td style="padding:8px 24px 4px;">
+                        <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:10px 12px;
+                                    font-size:12.5px; color:#b91c1c; word-break:break-all;">
+                            <strong th:text="#{mail.body.error}">Error</strong>
+                            <span th:text="${task.errorMessage}">msg</span>
+                        </div>
+                    </td>
+                </tr>
+                <!--/* 五级计数 */-->
+                <tr th:if="${!failed and quality != null}">
+                    <td style="padding:14px 24px 4px;">
+                        <div style="font-size:13px; font-weight:600; color:#334155; margin-bottom:8px;"
+                             th:text="#{mail.body.counts}">Issue counts</div>
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="text-align:center;">
+                            <tr>
+                                <td style="width:20%; padding:8px 4px; background:#fef2f2; border-radius:8px 0 0 8px;">
+                                    <div style="font-size:17px; font-weight:700; color:#b91c1c;" th:text="${quality.blockerCount}">0</div>
+                                    <div style="font-size:11px; color:#64748b;" th:text="#{mail.body.blocker}">Blocker</div>
+                                </td>
+                                <td style="width:20%; padding:8px 4px; background:#fff7ed;">
+                                    <div style="font-size:17px; font-weight:700; color:#c2410c;" th:text="${quality.criticalCount}">0</div>
+                                    <div style="font-size:11px; color:#64748b;" th:text="#{mail.body.critical}">Critical</div>
+                                </td>
+                                <td style="width:20%; padding:8px 4px; background:#fefce8;">
+                                    <div style="font-size:17px; font-weight:700; color:#a16207;" th:text="${quality.majorCount}">0</div>
+                                    <div style="font-size:11px; color:#64748b;" th:text="#{mail.body.major}">Major</div>
+                                </td>
+                                <td style="width:20%; padding:8px 4px; background:#f0f9ff;">
+                                    <div style="font-size:17px; font-weight:700; color:#0369a1;" th:text="${quality.minorCount}">0</div>
+                                    <div style="font-size:11px; color:#64748b;" th:text="#{mail.body.minor}">Minor</div>
+                                </td>
+                                <td style="width:20%; padding:8px 4px; background:#f8fafc; border-radius:0 8px 8px 0;">
+                                    <div style="font-size:17px; font-weight:700; color:#475569;" th:text="${quality.infoCount}">0</div>
+                                    <div style="font-size:11px; color:#64748b;" th:text="#{mail.body.info}">Info</div>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <!--/* Top 问题 */-->
+                <tr th:if="${!failed and !#lists.isEmpty(topIssues)}">
+                    <td style="padding:14px 24px 4px;">
+                        <div style="font-size:13px; font-weight:600; color:#334155; margin-bottom:8px;"
+                             th:text="#{mail.body.topIssues}">Top issues</div>
+                        <ol style="margin:0; padding-left:20px; font-size:12.5px; color:#475569; line-height:1.7;">
+                            <li th:each="i : ${topIssues}">
+                                <span style="font-weight:600;"
+                                      th:classappend="'lv-' + ${#strings.toLowerCase(i.issueLevel)}"
+                                      th:text="#{|level.${i.issueLevel}|}">LEVEL</span>
+                                <span th:text="${i.title} ?: ${i.ruleCode}">title</span>
+                                <span style="color:#94a3b8;"
+                                      th:text="' @ ' + ${i.filePath} + (${i.lineStart != null} ? ':' + ${i.lineStart} : '')">loc</span>
+                            </li>
+                        </ol>
+                    </td>
+                </tr>
+                <!--/* 附件说明 */-->
+                <tr th:if="${attached}">
+                    <td style="padding:14px 24px 4px;">
+                        <div style="background:#eef2ff; border:1px solid #c7d2fe; border-radius:8px; padding:10px 12px;
+                                    font-size:12.5px; color:#4338ca;"
+                             th:text="#{mail.body.attachment}">Full PDF report attached</div>
+                    </td>
+                </tr>
+                <!--/* 页脚 */-->
+                <tr>
+                    <td style="padding:18px 24px; border-top:1px solid #e2e8f0; margin-top:12px;">
+                        <span style="font-size:11.5px; color:#94a3b8;" th:text="#{mail.body.footer}">footer</span>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

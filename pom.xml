@@ -80,6 +80,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- 邮件通知（逐发件配置手工建 JavaMailSenderImpl，不配 spring.mail.* 全局属性） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
 
         <!-- MyBatis-Plus -->
         <dependency>

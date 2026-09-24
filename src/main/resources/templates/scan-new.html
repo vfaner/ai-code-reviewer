@@ -86,6 +86,17 @@
                         <span class="switch-text" th:text="#{scan.opt.enableAiReview}">Enable AI review</span>
                     </label>
                 </div>
+                <div class="field">
+                    <label class="switch">
+                        <input type="checkbox" id="opt-notify">
+                        <span class="track"></span>
+                        <span class="switch-text" th:text="#{scan.opt.notify}">Email notification</span>
+                    </label>
+                </div>
+            </div>
+            <div class="field" id="notify-field" hidden style="max-width:420px; margin-top:4px;">
+                <label th:text="#{mail.opt.recipients}">Notify recipients</label>
+                <div id="notify-pick"></div>
             </div>
         </div>
 
@@ -148,6 +159,17 @@
             dzFile.hidden = false;
         }
 
+        // 邮件通知：开关 + 收件人多选
+        var optNotify = document.getElementById('opt-notify');
+        var notifyField = document.getElementById('notify-field');
+        var notifyMs = UI.multiSelect(document.getElementById('notify-pick'));
+        optNotify.addEventListener('change', function () {
+            notifyField.hidden = !optNotify.checked;
+        });
+        UI.api.get('/api/mail/recipients/options').then(function (list) {
+            notifyMs.setOptions(list || []);
+        }).catch(function () { /* 拉取失败仅影响下拉，可重试 */ });
+
         // 开始扫描
         var btn = document.getElementById('start-btn');
         btn.addEventListener('click', function () {
@@ -156,6 +178,8 @@
             var includeTestCode = document.getElementById('opt-include').checked;
             var enableAiReview = document.getElementById('opt-ai').checked;
             var skipUnitTest = document.getElementById('opt-skip').checked;
+            var notifyEnabled = optNotify.checked;
+            var notifyRecipientIds = notifyEnabled ? notifyMs.get() : '';
 
             if (currentTab === 'zip') {
                 if (!selectedFile) { UI.toast(UI.t('scan.fileRequired'), 'warn'); return; }
@@ -166,6 +190,8 @@
                 fd.append('includeTestCode', includeTestCode);
                 fd.append('enableAiReview', enableAiReview);
                 fd.append('skipUnitTest', skipUnitTest);
+                fd.append('notifyEnabled', notifyEnabled);
+                if (notifyEnabled && notifyRecipientIds) fd.append('notifyRecipientIds', notifyRecipientIds);
                 btn.disabled = true;
                 UI.api.upload('/api/scans/upload', fd).then(function (data) {
                     location.href = '/scan/result/' + data.id;
@@ -182,7 +208,9 @@
                     taskName: taskName || null,
                     projectName: projectName || null,
                     includeTestCode: includeTestCode,
-                    enableAiReview: enableAiReview
+                    enableAiReview: enableAiReview,
+                    notifyEnabled: notifyEnabled,
+                    notifyRecipientIds: notifyEnabled ? (notifyRecipientIds || null) : null
                 }).then(function (data) {
                     location.href = '/scan/result/' + data.id;
                 }).catch(function (err) {

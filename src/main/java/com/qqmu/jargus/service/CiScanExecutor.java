@@ -59,7 +59,9 @@ public class CiScanExecutor {
                     null,
                     Boolean.TRUE.equals(config.getIncludeTestCode()),
                     Boolean.TRUE.equals(config.getEnableAiReview()),
-                    Boolean.TRUE.equals(config.getSkipUnitTest())
+                    Boolean.TRUE.equals(config.getSkipUnitTest()),
+                    Boolean.TRUE.equals(config.getNotifyEnabled()),
+                    config.getNotifyRecipientIds()
             );
 
             ciTriggerService.attachTask(recordId, task.getId());
