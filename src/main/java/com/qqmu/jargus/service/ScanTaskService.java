@@ -1,7 +1,9 @@
 package com.qqmu.jargus.service;
 
 import com.qqmu.jargus.checker.CheckIssue;
+import com.qqmu.jargus.checker.IssueLevel;
 import com.qqmu.jargus.entity.CiScanRecord;
+import com.qqmu.jargus.entity.ReviewRule;
 import com.qqmu.jargus.entity.ScanIssue;
 import com.qqmu.jargus.entity.ScanTask;
 import com.qqmu.jargus.mapper.CiScanRecordMapper;
@@ -33,6 +35,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -59,6 +62,7 @@ public class ScanTaskService {
     private final ProjectEnvService projectEnvService;
     private final UnitTestRunner unitTestRunner;
     private final IgnoreRuleService ignoreRuleService;
+    private final ReviewRuleService reviewRuleService;
     private final CiTriggerService ciTriggerService;
     private final CiCallbackService ciCallbackService;
 
@@ -399,12 +403,22 @@ public class ScanTaskService {
      */
     private List<ScanIssue> saveIssues(Long taskId, List<CheckIssue> issues, String sourceRoot) {
         List<ScanIssue> saved = new ArrayList<>();
+        Map<String, ReviewRule> ruleMeta = loadRuleMeta();
         Map<String, List<CheckIssue>> groups = new LinkedHashMap<>();
         for (CheckIssue issue : issues) {
             groups.computeIfAbsent(issue.getFilePath() + "|" + issue.getRuleCode(),
                     k -> new ArrayList<>()).add(issue);
         }
         for (List<CheckIssue> group : groups.values()) {
+            ReviewRule meta = ruleMeta.get(group.get(0).getRuleCode());
+            // 规则总开关：停用规则的命中不落库（等同检查器未发射）
+            if (meta != null && Boolean.FALSE.equals(meta.getIsEnabled())) {
+                continue;
+            }
+            // 默认等级：定义了等级的规则行优先（opt-in 元数据，无规则行的码跟随检查器）
+            if (meta != null) {
+                applyDefaultLevel(group, meta.getDefaultLevel());
+            }
             List<CheckIssue> active = new ArrayList<>();
             List<CheckIssue> ignoredOnes = new ArrayList<>();
             for (CheckIssue issue : group) {
@@ -422,6 +436,29 @@ public class ScanTaskService {
             }
         }
         return saved;
+    }
+
+    /** 规则元数据按规则码索引（opt-in：无规则行的码跟随检查器默认） */
+    private Map<String, ReviewRule> loadRuleMeta() {
+        Map<String, ReviewRule> meta = new HashMap<>();
+        for (ReviewRule rule : reviewRuleService.listAll()) {
+            if (rule.getRuleCode() != null) {
+                meta.put(rule.getRuleCode(), rule);
+            }
+        }
+        return meta;
+    }
+
+    /** 等级覆盖：仅接受规范五级码（历史别名与非法值不生效）；severity 与 CheckIssue 构造器同源（5 - ordinal） */
+    private void applyDefaultLevel(List<CheckIssue> group, String levelCode) {
+        IssueLevel level = IssueLevel.fromCode(levelCode);
+        if (levelCode == null || !level.getCode().equals(levelCode)) {
+            return;
+        }
+        for (CheckIssue hit : group) {
+            hit.setLevel(level);
+            hit.setSeverity(5 - level.ordinal());
+        }
     }
 
     /**
