@@ -321,6 +321,9 @@
                     <button type="button" class="btn btn-icon" id="trig-secret-copy" th:title="#{common.copy}">
                         <svg class="ico"><use href="#copy"/></svg>
                     </button>
+                    <button type="button" class="btn btn-icon" id="trig-secret-eye" th:title="#{ci.form.secretShow}">
+                        <svg class="ico"><use href="#eye"/></svg>
+                    </button>
                     <button type="button" class="btn btn-ghost btn-sm" id="trig-secret-reset"
                             th:text="#{ci.resetSecret}">Reset</button>
                 </div>
@@ -437,6 +440,9 @@
                 <button type="button" class="btn btn-icon" id="created-secret-copy" th:title="#{common.copy}">
                     <svg class="ico"><use href="#copy"/></svg>
                 </button>
+                <button type="button" class="btn btn-icon" id="created-secret-eye" th:title="#{ci.form.secretShow}">
+                    <svg class="ico"><use href="#eye"/></svg>
+                </button>
             </div>
         </div>
         <div class="alert alert-info" style="margin-top:6px;">
@@ -488,6 +494,8 @@
         var MSG_RESET_CONFIRM = /*[[#{ci.resetSecret.confirm}]]*/ 'Reset?';
         var MSG_PW_KEEP = /*[[#{ci.form.tokenKeep}]]*/ 'Leave blank to keep unchanged';
         var MSG_PW_ENTER = /*[[#{ci.form.tokenEnter}]]*/ 'Enter token';
+        var MSG_SECRET_SHOW = /*[[#{ci.form.secretShow}]]*/ 'Show secret';
+        var MSG_SECRET_HIDE = /*[[#{ci.form.secretHide}]]*/ 'Hide secret';
         var MSG_HINT_GITHUB = /*[[#{ci.created.hint.github}]]*/ '';
         var MSG_HINT_GITLAB = /*[[#{ci.created.hint.gitlab}]]*/ '';
         var MSG_HINT_GITEE = /*[[#{ci.created.hint.gitee}]]*/ '';
@@ -536,6 +544,27 @@
             if (btn) window.copyText(btn.dataset.copy || '');
         });
 
+        /* 密钥展示组件：默认星号遮罩，点眼睛切换明文；真值存闭包，遮罩不影响复制与保存 */
+        function secretDisplay(codeId, eyeId) {
+            var raw = '', visible = false;
+            var codeEl = document.getElementById(codeId);
+            var eyeBtn = document.getElementById(eyeId);
+            function render() {
+                codeEl.textContent = visible ? raw : raw.replace(/[\s\S]/g, '*');
+                var useEl = eyeBtn.querySelector('use');
+                if (useEl) useEl.setAttribute('href', visible ? '#eye-slash' : '#eye');
+                eyeBtn.title = visible ? MSG_SECRET_HIDE : MSG_SECRET_SHOW;
+                eyeBtn.setAttribute('aria-label', eyeBtn.title);
+            }
+            eyeBtn.addEventListener('click', function () { visible = !visible; render(); });
+            return {
+                set: function (value, show) { raw = value || ''; visible = !!show; render(); },
+                get: function () { return raw; }
+            };
+        }
+        var trigSecret = secretDisplay('trig-secret', 'trig-secret-eye');
+        var createdSecret = secretDisplay('created-secret', 'created-secret-eye');
+
         // 各平台官方云地址与占位符；企业自建时用户改成公司内网地址
         var PLATFORM_DEFAULTS = {
             GITHUB: { url: 'https://github.com', ph: 'https://github.com' },
@@ -568,7 +597,7 @@
                 document.getElementById('trigger-form').reset();
                 document.getElementById('trig-enableAiReview').checked = true;
                 document.getElementById('trig-secret-field').hidden = true;
-                document.getElementById('trig-secret').textContent = '';
+                trigSecret.set('', false);
                 document.getElementById('trig-repoScope').value = '';
                 document.getElementById('trig-repoUsername').value = '';
                 document.getElementById('trig-repoToken').value = '';
@@ -589,9 +618,9 @@
                 document.getElementById('trig-platformUrl').value = t.platformUrl || meta.url || '';
                 document.getElementById('trig-branchFilter').value = t.branchFilter || '';
                 document.getElementById('trig-repoScope').value = t.repoScope || '';
-                // 密钥：编辑时解密回显，可复制/重置
+                // 密钥：编辑时解密回显，默认遮罩、点眼睛查看，可复制/重置
                 document.getElementById('trig-secret-field').hidden = false;
-                document.getElementById('trig-secret').textContent = t.secretToken || '';
+                trigSecret.set(t.secretToken, false);
                 // 私有库凭据：账号回显，令牌不回显（留空=不修改）
                 document.getElementById('trig-repoUsername').value = t.repoUsername || '';
                 document.getElementById('trig-repoToken').value = '';
@@ -646,7 +675,7 @@
 
         function showCreatedTrigger(d) {
             document.getElementById('created-webhook').textContent = d.webhookUrl || '';
-            document.getElementById('created-secret').textContent = d.secretToken || '';
+            createdSecret.set(d.secretToken, false);
             var hintMap = {
                 GITHUB: MSG_HINT_GITHUB, GITLAB: MSG_HINT_GITLAB,
                 GITEE: MSG_HINT_GITEE, GENERIC: MSG_HINT_GENERIC
@@ -664,10 +693,10 @@
             copyText(document.getElementById('created-webhook').textContent);
         });
         document.getElementById('created-secret-copy').addEventListener('click', function () {
-            copyText(document.getElementById('created-secret').textContent);
+            copyText(createdSecret.get());
         });
         document.getElementById('trig-secret-copy').addEventListener('click', function () {
-            copyText(document.getElementById('trig-secret').textContent);
+            copyText(trigSecret.get());
         });
         document.getElementById('trig-secret-reset').addEventListener('click', function () {
             var tid = document.getElementById('trig-id').value;
@@ -679,9 +708,9 @@
             // 接口返回明文新密钥（仅这一次）
             UI.api.post('/api/ci/triggers/' + id + '/reset-secret').then(function (secret) {
                 copyText(secret);
-                var el = document.getElementById('trig-secret');
-                if (el && !document.getElementById('trig-secret-field').hidden) {
-                    el.textContent = secret;
+                // 重置后仍保持遮罩（新密钥已自动复制到剪贴板），需核对时点眼睛
+                if (!document.getElementById('trig-secret-field').hidden) {
+                    trigSecret.set(secret, false);
                 }
             }).catch(function (err) {
                 UI.toast(String(err.message || err), 'danger');
