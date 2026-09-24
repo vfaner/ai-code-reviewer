@@ -217,6 +217,11 @@ public class CiTriggerService {
         scanRecordMapper.update(upd, new QueryWrapper<CiScanRecord>().eq("id", recordId));
     }
 
+    /** 删除单条 CI 扫描记录（记录页每行删除按钮，清理触发失败等无结果记录） */
+    public void deleteRecord(Long id) {
+        scanRecordMapper.deleteById(id);
+    }
+
     /**
      * 扫描任务结束后按 taskId 回写 CI 记录状态（普通扫描任务匹配不到行，无副作用）。
      */

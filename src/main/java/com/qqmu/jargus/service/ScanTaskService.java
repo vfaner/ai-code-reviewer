@@ -203,8 +203,8 @@ public class ScanTaskService {
     }
 
     /**
-     * 删除扫描任务：问题、报告磁盘缓存、本地留存的代码快照一并清除；
-     * 关联的 CI 扫描记录解除任务引用（保留触发历史，记录页"查看结果"按钮按 task_id 空自动隐藏）。
+     * 删除扫描任务：问题、报告磁盘缓存、本地留存的代码快照、关联的 CI 扫描记录一并清除
+     * （结果已不可查看的触发记录没有留存价值；触发失败等记录可在记录页用每行删除按钮单独清理）。
      * 只动本任务的快照目录，其他任务不受影响。
      */
     public void deleteTask(Long taskId) {
@@ -218,9 +218,7 @@ public class ScanTaskService {
         scanIssueMapper.delete(new QueryWrapper<ScanIssue>().eq("task_id", taskId));
         deleteReportCache(taskId);
         deleteOldSnapshot(task.getSnapshotPath());
-        ciScanRecordMapper.update(null, new UpdateWrapper<CiScanRecord>()
-                .set("task_id", null)
-                .eq("task_id", taskId));
+        ciScanRecordMapper.delete(new QueryWrapper<CiScanRecord>().eq("task_id", taskId));
         scanTaskMapper.deleteById(taskId);
         log.info("扫描任务已删除: taskId={}", taskId);
     }

@@ -245,6 +245,13 @@
                                 <svg class="ico"><use href="#eye"/></svg>
                                 <span th:text="#{common.view}">View</span>
                             </a>
+                            <button type="button" class="btn btn-icon" data-api-role="action"
+                                    th:data-api="'/api/ci/triggers/records/' + ${r.id}"
+                                    data-method="DELETE" data-reload="true"
+                                    th:data-confirm="#{ci.record.deleteConfirm}" th:data-ok-text="#{common.deleted}"
+                                    th:title="#{ci.record.delete}">
+                                <svg class="ico"><use href="#trash"/></svg>
+                            </button>
                         </td>
                     </tr>
                     <tr th:if="${records.isEmpty()}">

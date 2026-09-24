@@ -106,4 +106,10 @@ public class CiTriggerController {
     ) {
         return Result.success(ciTriggerService.listRecords(page, size, triggerConfigId));
     }
+
+    @DeleteMapping("/records/{id}")
+    public Result<Boolean> deleteRecord(@PathVariable Long id) {
+        ciTriggerService.deleteRecord(id);
+        return Result.success(true);
+    }
 }
