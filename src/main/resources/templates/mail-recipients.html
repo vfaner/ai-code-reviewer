@@ -143,7 +143,8 @@
         var MSG_NEW = /*[[#{mail.recipient.new}]]*/ 'New';
         var MSG_CREATE = /*[[#{common.create}]]*/ 'New';
         var MSG_EMAIL_INVALID = /*[[#{mail.recipient.emailInvalid}]]*/ 'Invalid email';
-        var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+        var MSG_REQUIRED = /*[[#{mail.recipient.required}]]*/ 'Please fill in all required fields';
+        var EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
         window.openRecipientForm = function (id) {
             document.getElementById('recp-id').value = id || '';
@@ -166,13 +167,19 @@
         document.getElementById('recipient-form').addEventListener('submit', function (e) {
             e.preventDefault();
             var id = document.getElementById('recp-id').value;
+            var nameV = document.getElementById('recp-name').value.trim();
             var email = document.getElementById('recp-email').value.trim();
+            // 姓名与邮箱均不得为空（含纯空格，原生 required 拦不住）
+            if (!nameV || !email) {
+                UI.toast(MSG_REQUIRED, 'danger');
+                return;
+            }
             if (!EMAIL_RE.test(email)) {
                 UI.toast(MSG_EMAIL_INVALID, 'danger');
                 return;
             }
             var data = {
-                name: document.getElementById('recp-name').value.trim(),
+                name: nameV,
                 email: email
             };
             var promise = id

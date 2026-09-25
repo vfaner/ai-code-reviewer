@@ -31,6 +31,9 @@ import java.util.Properties;
 @RequiredArgsConstructor
 public class MailSenderConfigService {
 
+    /** 邮箱格式（RFC 5322 简化版，域名至少一段点分）；发件邮箱与测试收件人共用 */
+    private static final String EMAIL_PATTERN = "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$";
+
     private final MailSenderMapper mailSenderMapper;
     private final MessageSource messageSource;
 
@@ -129,13 +132,15 @@ public class MailSenderConfigService {
         impl.setHost(cfg.getHost());
         if (cfg.getPort() != null) impl.setPort(cfg.getPort());
         impl.setDefaultEncoding("UTF-8");
-        if (cfg.getUsername() != null && !cfg.getUsername().isEmpty()) {
-            impl.setUsername(cfg.getUsername());
+        // SMTP 认证账号即发件邮箱本身（QQ/163/Gmail 等惯例）；填了密码才发起认证，留空走无鉴权（开放中继/本地测试槽）
+        boolean auth = cfg.getPassword() != null && !cfg.getPassword().isEmpty();
+        if (auth) {
+            impl.setUsername(cfg.getFromAddress());
             impl.setPassword(cfg.getPassword());
         }
         Properties props = impl.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");
-        props.put("mail.smtp.auth", cfg.getUsername() != null && !cfg.getUsername().isEmpty() ? "true" : "false");
+        props.put("mail.smtp.auth", auth ? "true" : "false");
         // 超时封顶：扫描线程池仅 3 槽，防死 SMTP 长时间占用
         props.put("mail.smtp.connectiontimeout", "5000");
         props.put("mail.smtp.timeout", "8000");
@@ -152,6 +157,7 @@ public class MailSenderConfigService {
 
     /** 发送测试邮件（纯文本，验证 SMTP 连通性与鉴权） */
     public void sendTest(Long senderId, String to) throws Exception {
+        if (to == null || !to.matches(EMAIL_PATTERN)) throw new RuntimeException("收件邮箱格式不正确");
         MailSender cfg = mailSenderMapper.selectById(senderId);
         if (cfg == null) throw new RuntimeException("发件配置不存在");
         if (cfg.getPassword() != null && !cfg.getPassword().isEmpty()) {
@@ -181,8 +187,8 @@ public class MailSenderConfigService {
         if (sender.getPort() == null || sender.getPort() <= 0 || sender.getPort() > 65535) {
             throw new RuntimeException("SMTP 端口不合法");
         }
-        if (sender.getFromAddress() == null || !sender.getFromAddress().matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
-            throw new RuntimeException("发件地址格式不正确");
+        if (sender.getFromAddress() == null || !sender.getFromAddress().matches(EMAIL_PATTERN)) {
+            throw new RuntimeException("发件邮箱格式不正确");
         }
     }
 

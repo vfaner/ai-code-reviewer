@@ -21,7 +21,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MailRecipientService {
 
-    private static final String EMAIL_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
+    /** 邮箱格式（RFC 5322 简化版，域名至少一段点分），与发件配置校验保持一致 */
+    private static final String EMAIL_PATTERN = "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$";
 
     private final MailRecipientMapper mailRecipientMapper;
 

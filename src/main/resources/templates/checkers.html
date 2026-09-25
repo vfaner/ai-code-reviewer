@@ -32,7 +32,7 @@
                     <th th:text="#{checkers.category}">Category</th>
                     <th th:text="#{checkers.type}">Type</th>
                     <th th:text="#{common.description}">Description</th>
-                    <th class="num" style="width:120px;" th:text="#{common.status}">Status</th>
+                    <th style="width:120px;" th:text="#{common.status}">Status</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -47,7 +47,7 @@
                               th:text="${c.isLocal != null and c.isLocal} ? #{common.local} : #{common.ai}">Local</span>
                     </td>
                     <td class="muted" th:text="${c.description} ?: '—'">desc</td>
-                    <td class="num">
+                    <td>
                         <div class="cell-switch">
                             <label class="switch" th:if="${isAdmin}">
                                 <input type="checkbox" th:checked="${c.isEnabled}"

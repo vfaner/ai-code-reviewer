@@ -444,7 +444,6 @@ CREATE TABLE IF NOT EXISTS mail_sender (
     name VARCHAR(128) NOT NULL,
     host VARCHAR(256) NOT NULL,
     port INT NOT NULL DEFAULT 465,
-    username VARCHAR(256),
     password VARCHAR(512),
     from_address VARCHAR(256) NOT NULL,
     from_alias VARCHAR(128),

@@ -26,13 +26,10 @@ public class MailSender {
     /** SMTP 端口 */
     private Integer port;
 
-    /** 登录用户名（空=无鉴权 SMTP） */
-    private String username;
-
-    /** 密码/授权码（AES 加密存储，编辑留空或掩码表示不修改） */
+    /** 密码/授权码（AES 加密存储，编辑留空或掩码表示不修改；空=无鉴权 SMTP） */
     private String password;
 
-    /** 发件地址 */
+    /** 发件邮箱（完整地址，同时作为 SMTP 认证账号） */
     private String fromAddress;
 
     /** 发件人别名（收件箱显示名） */

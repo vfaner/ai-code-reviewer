@@ -30,7 +30,6 @@
                 <tr>
                     <th th:text="#{mail.sender.col.name}">Name</th>
                     <th th:text="#{mail.sender.col.server}">SMTP server</th>
-                    <th th:text="#{mail.sender.col.username}">Username</th>
                     <th th:text="#{mail.sender.col.from}">From</th>
                     <th th:text="#{mail.sender.col.security}">Security</th>
                     <th th:text="#{common.status}">Status</th>
@@ -41,7 +40,6 @@
                 <tr th:each="s : ${senders}">
                     <td class="soft" th:text="${s.name}">name</td>
                     <td class="mono small" th:text="${s.host + ':' + s.port}">host:port</td>
-                    <td class="muted" th:text="${s.username} ?: '—'">user</td>
                     <td class="muted" th:text="${s.fromAddress}">from</td>
                     <td>
                         <span class="badge badge-mute"
@@ -84,7 +82,7 @@
                     </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(senders)}">
-                    <td colspan="7">
+                    <td colspan="6">
                         <div class="empty-state">
                             <div class="empty-ico"><svg class="ico"><use href="#envelope"/></svg></div>
                             <p th:text="#{common.empty}">No data</p>
@@ -132,20 +130,16 @@
             </div>
             <div class="grid-2">
                 <div class="field">
-                    <label for="sender-username" th:text="#{mail.sender.form.username}">Username</label>
-                    <input type="text" class="input mono" id="sender-username" maxlength="256" autocomplete="off">
-                </div>
-                <div class="field">
                     <label for="sender-password" th:text="#{mail.sender.form.password}">Password</label>
                     <input type="password" class="input mono" id="sender-password" maxlength="256" autocomplete="new-password">
                     <div class="help" id="sender-pw-help" th:text="#{mail.sender.pwEnter}">Enter SMTP password</div>
                 </div>
-            </div>
-            <div class="grid-2">
                 <div class="field">
                     <label for="sender-alias" th:text="#{mail.sender.form.fromAlias}">From alias</label>
-                    <input type="text" class="input" id="sender-alias" maxlength="128">
+                    <input type="text" class="input" id="sender-alias" maxlength="128" required>
                 </div>
+            </div>
+            <div class="grid-2">
                 <div class="field" style="align-self:end;">
                     <label class="switch">
                         <input type="checkbox" id="sender-ssl" checked>
@@ -158,16 +152,16 @@
                         <span class="switch-text"><strong th:text="#{mail.sender.form.useStarttls}">STARTTLS</strong></span>
                     </label>
                 </div>
-            </div>
-            <div class="field">
-                <label class="switch">
-                    <input type="checkbox" id="sender-enabled">
-                    <span class="track"></span>
-                    <span class="switch-text">
-                        <strong th:text="#{mail.sender.form.enabled}">Enable</strong>
-                        <span class="help" th:text="#{mail.sender.form.enabledHint}">Others will be disabled</span>
-                    </span>
-                </label>
+                <div class="field" style="align-self:end;">
+                    <label class="switch">
+                        <input type="checkbox" id="sender-enabled">
+                        <span class="track"></span>
+                        <span class="switch-text">
+                            <strong th:text="#{mail.sender.form.enabled}">Enable</strong>
+                            <span class="help" th:text="#{mail.sender.form.enabledHint}">Others will be disabled</span>
+                        </span>
+                    </label>
+                </div>
             </div>
             <div class="form-actions">
                 <button type="button" class="btn btn-ghost" data-close-modal="sender-modal" th:text="#{common.cancel}">Cancel</button>
@@ -212,6 +206,9 @@
         var MSG_CREATE = /*[[#{common.create}]]*/ 'New';
         var MSG_PW_ENTER = /*[[#{mail.sender.pwEnter}]]*/ '';
         var MSG_PW_KEEP = /*[[#{mail.sender.pwKeep}]]*/ '';
+        var MSG_EMAIL_INVALID = /*[[#{mail.sender.emailInvalid}]]*/ 'Invalid email';
+        var MSG_REQUIRED = /*[[#{mail.sender.required}]]*/ 'Please fill in all required fields';
+        var EMAIL_RE = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
         var MSG_ENABLE_CONFIRM = UI.t('mail.sender.enableConfirm');
         var MSG_TEST_SENT = UI.t('mail.sender.testSent');
 
@@ -231,7 +228,6 @@
                 document.getElementById('sender-name').value = s.name || '';
                 document.getElementById('sender-host').value = s.host || '';
                 document.getElementById('sender-port').value = s.port || 465;
-                document.getElementById('sender-username').value = s.username || '';
                 document.getElementById('sender-password').value = '';
                 document.getElementById('sender-pw-help').textContent = MSG_PW_KEEP;
                 document.getElementById('sender-from').value = s.fromAddress || '';
@@ -263,14 +259,27 @@
             var pw = document.getElementById('sender-password').value;
             // 编辑时密码留空或为掩码 = 不修改（传 null，服务端跳过）
             if (id && (!pw || pw.indexOf('****') >= 0)) pw = null;
+            var nameV = document.getElementById('sender-name').value.trim();
+            var hostV = document.getElementById('sender-host').value.trim();
+            var portV = document.getElementById('sender-port').value;
+            var from = document.getElementById('sender-from').value.trim();
+            var aliasV = document.getElementById('sender-alias').value.trim();
+            // 必填项均不得为空；编辑时密码留空 = 保留原密码，故密码仅新建时必填
+            if (!nameV || !hostV || !portV || !from || !aliasV || (!id && !pw)) {
+                UI.toast(MSG_REQUIRED, 'danger');
+                return;
+            }
+            if (!EMAIL_RE.test(from)) {
+                UI.toast(MSG_EMAIL_INVALID, 'danger');
+                return;
+            }
             var data = {
-                name: document.getElementById('sender-name').value.trim(),
-                host: document.getElementById('sender-host').value.trim(),
-                port: parseInt(document.getElementById('sender-port').value, 10),
-                username: document.getElementById('sender-username').value.trim() || null,
+                name: nameV,
+                host: hostV,
+                port: parseInt(portV, 10),
                 password: pw || null,
-                fromAddress: document.getElementById('sender-from').value.trim(),
-                fromAlias: document.getElementById('sender-alias').value.trim() || null,
+                fromAddress: from,
+                fromAlias: aliasV,
                 useSsl: document.getElementById('sender-ssl').checked,
                 useStarttls: document.getElementById('sender-starttls').checked,
                 isEnabled: document.getElementById('sender-enabled').checked

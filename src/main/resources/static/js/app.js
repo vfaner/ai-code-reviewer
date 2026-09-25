@@ -498,33 +498,58 @@
      数据项 {id, name, email}；契约：setOptions 先于 set 调用。
      返回 { get(): 'id,id,...', set(csv), setOptions(list) }。
      chip 最多显示 2 个，超出用「+N」省略（title 列出其余），盒高固定单行不撑大。 */
+  var msSeq = 0;
+
+  /* 可搜索多选：点击输入框弹出弹窗搜索勾选，确认后回填 chip 栏。
+     弹窗挂到 body 下，不受表单/模态等祖先容器 overflow 与堆叠上下文裁切。 */
   function multiSelect(mount, opts) {
     opts = opts || {};
     var items = [];        // 全量选项
-    var selected = [];     // 已选 id（字符串）
+    var selected = [];     // 已确认选中的 id（字符串）
+    var tmp = [];          // 弹窗内暂存勾选（确认才回填，取消即丢弃）
     var placeholder = opts.placeholder || t('mail.ms.placeholder');
     var MAX_CHIPS = 2;
+    msSeq += 1;
+    var modalId = 'ms-modal-' + msSeq;
 
     mount.classList.add('ms');
     mount.innerHTML =
-      '<div class="ms-box" tabindex="0" role="button" aria-haspopup="listbox">' +
+      '<div class="ms-box" tabindex="0" role="button" aria-haspopup="dialog">' +
         '<span class="ms-chips"></span>' +
-        '<span class="ms-caret">' + icon('chevron-down') + '</span>' +
-      '</div>' +
-      '<div class="ms-panel" hidden>' +
-        '<input type="text" class="input ms-search" autocomplete="off">' +
-        '<label class="ms-row ms-all"><input type="checkbox"><span></span></label>' +
-        '<div class="ms-list" role="listbox"></div>' +
+        '<span class="ms-caret">' + iconHtml('chevron-down') + '</span>' +
       '</div>';
+
+    var modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = modalId;
+    modal.setAttribute('aria-hidden', 'true');
+    modal.innerHTML =
+      '<div class="modal-mask"></div>' +
+      '<div class="modal-dialog">' +
+        '<button type="button" class="modal-close">' + iconHtml('x-lg') + '</button>' +
+        '<div class="modal-head">' +
+          '<span class="sec-tag">' + esc(placeholder) + '</span>' +
+          '<h3>' + esc(placeholder) + '</h3>' +
+        '</div>' +
+        '<div class="ms-modal-body">' +
+          '<input type="text" class="input ms-search" autocomplete="off">' +
+          '<label class="ms-row ms-all"><input type="checkbox"><span></span></label>' +
+          '<div class="ms-list" role="listbox"></div>' +
+        '</div>' +
+        '<div class="form-actions">' +
+          '<button type="button" class="btn btn-ghost ms-cancel">' + esc(t('common.cancel')) + '</button>' +
+          '<button type="button" class="btn btn-primary ms-ok">' + esc(t('common.confirm')) + '</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(modal);
 
     var box = mount.querySelector('.ms-box');
     var chips = mount.querySelector('.ms-chips');
-    var panel = mount.querySelector('.ms-panel');
-    var search = mount.querySelector('.ms-search');
-    var allRow = mount.querySelector('.ms-all');
+    var search = modal.querySelector('.ms-search');
+    var allRow = modal.querySelector('.ms-all');
     var allBox = allRow.querySelector('input');
     var allText = allRow.querySelector('span');
-    var list = mount.querySelector('.ms-list');
+    var list = modal.querySelector('.ms-list');
     search.placeholder = t('mail.ms.search');
     allText.textContent = t('mail.ms.selectAll');
 
@@ -535,9 +560,9 @@
       return null;
     }
 
-    function isSelected(id) {
-      return selected.indexOf(String(id)) >= 0;
-    }
+    function isPicked(id) { return tmp.indexOf(String(id)) >= 0; }
+
+    function isOpen() { return modal.classList.contains('open'); }
 
     function renderChips() {
       var names = [];
@@ -577,7 +602,7 @@
       for (var i = 0; i < rows.length; i++) {
         var it = rows[i];
         html += '<label class="ms-row" data-id="' + esc(it.id) + '">' +
-                '<input type="checkbox"' + (isSelected(it.id) ? ' checked' : '') + '>' +
+                '<input type="checkbox"' + (isPicked(it.id) ? ' checked' : '') + '>' +
                 '<span class="ms-name">' + esc(it.name || '') + '</span>' +
                 '<span class="ms-mail">' + esc(it.email || '') + '</span>' +
                 '</label>';
@@ -587,30 +612,25 @@
       }
       list.innerHTML = html;
       // 全选状态 = 过滤后集合是否已全部选中
-      var all = rows.length > 0 && rows.every(function (it) { return isSelected(it.id); });
-      allBox.checked = all;
+      allBox.checked = rows.length > 0 && rows.every(function (it) { return isPicked(it.id); });
       allRow.hidden = rows.length === 0;
     }
 
     function open() {
-      panel.hidden = false;
-      mount.classList.add('is-open');
+      tmp = selected.slice();
       search.value = '';
       renderList();
-      search.focus();
+      openModal(modalId); // 自动聚焦落到搜索框
     }
 
-    function close() {
-      panel.hidden = true;
-      mount.classList.remove('is-open');
-    }
+    function close() { closeModal(modalId); }
 
     box.addEventListener('click', function (e) {
       if (e.target.closest('.ms-x')) return; // chip 删除单独处理
-      panel.hidden ? open() : close();
+      open();
     });
     box.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); panel.hidden ? open() : close(); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
     });
 
     chips.addEventListener('click', function (e) {
@@ -620,26 +640,30 @@
       var id = String(x.parentElement.getAttribute('data-id'));
       selected = selected.filter(function (s) { return s !== id; });
       renderChips();
-      renderList();
+    });
+
+    modal.querySelector('.modal-mask').addEventListener('click', close);
+    modal.querySelector('.modal-close').addEventListener('click', close);
+    modal.querySelector('.ms-cancel').addEventListener('click', close);
+    modal.querySelector('.ms-ok').addEventListener('click', function () {
+      selected = tmp.slice();
+      renderChips();
+      close();
     });
 
     search.addEventListener('input', renderList);
-    search.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { e.stopPropagation(); close(); }
-    });
 
     list.addEventListener('change', function (e) {
       var row = e.target.closest('.ms-row');
       if (!row) return;
       var id = String(row.getAttribute('data-id'));
       if (e.target.checked) {
-        if (!isSelected(id)) selected.push(id);
+        if (!isPicked(id)) tmp.push(id);
       } else {
-        selected = selected.filter(function (s) { return s !== id; });
+        tmp = tmp.filter(function (s) { return s !== id; });
       }
-      renderChips();
       allBox.checked = filtered().length > 0 &&
-        filtered().every(function (it) { return isSelected(it.id); });
+        filtered().every(function (it) { return isPicked(it.id); });
     });
 
     // 全选：作用于过滤后的集合（勾=补齐，取消=只移除过滤集内的）
@@ -647,21 +671,13 @@
       var rows = filtered();
       if (allBox.checked) {
         rows.forEach(function (it) {
-          if (!isSelected(it.id)) selected.push(String(it.id));
+          if (!isPicked(it.id)) tmp.push(String(it.id));
         });
       } else {
         var ids = rows.map(function (it) { return String(it.id); });
-        selected = selected.filter(function (s) { return ids.indexOf(s) < 0; });
+        tmp = tmp.filter(function (s) { return ids.indexOf(s) < 0; });
       }
-      renderChips();
       renderList();
-    });
-
-    document.addEventListener('mousedown', function (e) {
-      if (!mount.contains(e.target)) close();
-    });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && !panel.hidden) close();
     });
 
     renderChips();
@@ -677,14 +693,14 @@
           });
         }
         renderChips();
-        if (!panel.hidden) renderList();
+        if (isOpen()) renderList();
       },
       setOptions: function (list_) {
         items = (list_ || []).map(function (it) {
           return { id: it.id, name: it.name || '', email: it.email || '' };
         });
         renderChips();
-        if (!panel.hidden) renderList();
+        if (isOpen()) renderList();
       }
     };
   }
