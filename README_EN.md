@@ -2,7 +2,7 @@
 
 [中文](README.md) | [English](README_EN.md)
 
-> Hundred eyes, nothing escapes — an out-of-the-box Java code quality review platform: a local static analysis engine + optional AI semantic review + SonarQube-style five-grade scoring and quality gates.
+> Hundred eyes, nothing escapes — an out-of-the-box Java code quality review platform: a local static analysis engine + optional AI semantic review + SonarQube-style five-grade scoring and quality gates + end-to-end CI/CD wiring + report delivery by email.
 > Shipped as a single JAR / single Docker image with an embedded database — zero external dependencies, fully offline capable, with first-class Chinese UI, rules and reports.
 
 ---
@@ -55,8 +55,9 @@ This project is built as an **all-in-one review platform**: one JAR or one conta
 - Line-level ignore + rule-level ignore (by rule code / file path / glob / line number), with reasons recorded
 - Checkers and rule thresholds can be toggled and tuned in the UI
 
-**6. Reports & CI/CD**
+**6. Reports, email delivery & CI/CD**
 - One-click HTML / PDF export with embedded CJK fonts: score, gate verdict, category statistics, every issue with suggestions
+- Email management: multiple SMTP senders (SSL / STARTTLS, one-click test mail, AES-encrypted credentials) plus a recipient list; tick "Email notification" on a scan or CI trigger and the finished report (HTML summary body + PDF attachment) is mailed automatically — failures are notified too, and delivery status shows up in scan history
 - Webhook-triggered scans (GitHub / GitLab / Gitee / generic); on completion the platform writes back commit statuses and MR/PR comments (score + gate + top issues) so pipelines can block on the gate verdict
 - CI access token management and scan record traceability
 
@@ -87,7 +88,7 @@ Databases are switched visually in the UI with automatic schema creation/migrati
 | Persistence | MyBatis-Plus 3.5.5 · H2 2.2 (embedded default) · MySQL / PostgreSQL / Oracle / DM / Kingbase / openGauss drivers · dynamic multi-datasource |
 | Static analysis | JavaParser 3.25 (AST + symbol solving) · ASM 9.6 (bytecode) · custom CPD-style duplicate-code fingerprinting |
 | AI integration | Spring WebFlux HTTP client · OpenAI-compatible / Anthropic dual-protocol adapter |
-| Reports | OpenPDF 1.3 (vector CJK PDF) · Thymeleaf HTML reports |
+| Reports & email | OpenPDF 1.3 (vector CJK PDF) · Thymeleaf HTML reports · Spring Mail (SMTP / SSL / STARTTLS) |
 | Version control | JGit 6.8 (repository cloning) |
 | Security | JWT · spring-security-crypto (BCrypt) · AES config encryption · OAuth2 remote auth |
 | Frontend | Thymeleaf SSR · vanilla JavaScript · CSS-variable design tokens · inline SVG sprite · zero CDN |
@@ -97,65 +98,89 @@ Databases are switched visually in the UI with automatic schema creation/migrati
 
 All screenshots are taken from real running pages; image assets live in the [`images/`](images) directory.
 
+### Overview & UI
+
 **Dashboard** — task stats, quality score and technical debt overview
 
-![Dashboard](images/ai_code_reviewer_kanban.png)
+![Dashboard](images/jargus_kanban.png)
 
-**New Scan** — launch ZIP / Git / Webhook scan tasks
+**Dark Mode** — dark / light theme toggle
 
-![New Scan](images/ai_code_reviewer_daimasaomiao.png)
-
-**Scan History** — task list and status transitions
-
-![Scan History](images/ai_code_reviewer_saomiaolishi.png)
-
-**Scan Result** — five-level issue stats and category summary
-
-![Scan Result](images/ai_code_reviewer_result.png)
-
-**Export Result** — screenshot of the exported HTML report: score, gate verdict, code context, fix suggestions and AI-enhanced advice
-
-![Export Result](images/ai_code_reviewer_result_detail.png)
-
-**AI Provider Settings** — built-in provider templates, dual-protocol access
-
-![AI Provider Settings](images/ai_code_reviewer_ai.png)
-
-**Checker Settings** — enable/disable checkers and tune parameters
-
-![Checker Settings](images/ai_code_reviewer_jianchapeizhi.png)
-
-**Review Rules** — default severity per rule
-
-![Review Rules](images/ai_code_reviewer_pingshenguize.png)
-
-**Quality Gate** — thresholds and gate verdicts
-
-![Quality Gate](images/ai_code_reviewer_zhiliangmenjin.png)
-
-**Ignore Rules** — path- and rule-level ignores
-
-![Ignore Rules](images/ai_code_reviewer_hulue.png)
-
-**Database Settings** — embedded metadata and dynamic external datasources
-
-![Database Settings](images/ai_code_reviewer_db.png)
-
-**CI/CD Integration** — pipeline hookup
-
-![CI/CD Integration](images/ai_code_reviewer_cicd.png)
-
-**Remote Auth** — enterprise OA / SSO hookup
-
-![Remote Auth](images/ai_code_reviewer_oa.png)
+![Dark Mode](images/jargus_kanban_anye.png)
 
 **English UI** — zh / en switch
 
-![English UI](images/ai_code_reviewer_english.png)
+![English UI](images/jargus_kanban_en.png)
 
-**Dark Mode** — dark theme toggle
+### Scan & Governance
 
-![Dark Mode](images/ai_code_reviewer_anye.png)
+**New Scan** — ZIP upload / code paste, scan options and email notification
+
+![New Scan](images/jargus_saomiao.png)
+
+**Scan History** — task list, status transitions and mail delivery state
+
+![Scan History](images/jargus_lishi.png)
+
+**Checker Settings** — enable/disable checkers and tune parameters
+
+![Checker Settings](images/jargus_jianchaqi.png)
+
+**Review Rules** — default severity per rule
+
+![Review Rules](images/jargus_guize.png)
+
+**Ignore Rules** — path- and rule-level ignores
+
+![Ignore Rules](images/jargus_hulve.png)
+
+**Quality Gate** — thresholds and gate verdicts
+
+![Quality Gate](images/jargus_menjin.png)
+
+### AI & Email
+
+**AI Provider Settings** — built-in provider templates, dual-protocol access
+
+![AI Provider Settings](images/jargus_ai.png)
+
+**SMTP Senders** — multiple senders, one enabled at a time, test mail built in
+
+![SMTP Senders](images/jargus_fajianpeizhi.png)
+
+**Mail Recipients** — notification recipient management
+
+![Mail Recipients](images/jargus_shoujianren.png)
+
+### CI/CD & Administration
+
+**CI/CD Triggers** — trigger and access-token management
+
+![CI/CD Triggers](images/jargus_cicd.png)
+
+**New Trigger** — platform, branch filter, scan-behaviour and email toggles
+
+![New Trigger](images/jargus_cicd_add.png)
+
+**Trigger Scan Records** — status trace of every trigger run
+
+![Trigger Scan Records](images/jargus_cicd_jilu.png)
+
+**Database Settings** — embedded metadata and dynamic external datasources
+
+![Database Settings](images/jargus_db.png)
+
+**Remote Auth** — enterprise OA / SSO hookup
+
+![Remote Auth](images/jargus_oa.png)
+
+**New Remote Auth** — OAuth2 provider configuration
+
+![New Remote Auth](images/jargus_oa_add.png)
+
+**System Info** — version, repository links and contact
+
+![System Info](images/jargus_xitongxinxi.png)
 
 ## ⚡ Instant Deployment (no source code needed)
 
@@ -189,13 +214,14 @@ For source builds and Docker, see [Deployment](#-deployment) below.
 | Dependency CVEs | ✅ Built-in advisory store + optional OSV | ❌ (commercial editions) | ❌ | ❌ (needs Dependabot) |
 | Architecture rules | ✅ Built-in | Partial (plugins / paid) | ❌ | Custom queries, steep learning curve |
 | CI/CD | ✅ Webhook trigger + status write-back + MR/PR comments (GitHub / GitLab / Gitee / self-hosted) | ✅ Extra plugins & config | DIY scripts | ✅ GitHub ecosystem only |
+| Email report delivery | ✅ Auto-mails HTML summary + PDF report on scan completion | Commercial edition or extra config | ❌ | ❌ |
 | Visual reports | ✅ One-click HTML / PDF (CJK-ready) | PDF needs plugins / paid | ❌ | ❌ |
 | Offline / air-gapped | ✅ Full functionality offline (AI optional) | ✅ | ✅ | ✅ |
 | Domestic databases | ✅ DM / Kingbase / openGauss drivers bundled | ❌ | — | — |
 | Licensing cost | ✅ MIT, completely free | Community free, advanced paid | Free | Paid for private GitHub repos |
 | Language coverage | Java (deep focus) | Multi-language | Mostly Java | Multi-language |
 
-**Honest positioning**: for polyglot monorepos that need a massive rule ecosystem and long-term trend governance, SonarQube / CodeQL are more mature. This project's differentiated value is **zero-friction deployment, native Chinese, AI enhancement, and a one-stop Java workflow**: no database to install, no ops to hire, no license to buy — one command gets you the full loop of scan → score → gate → report → CI blocking. It is especially suited to small/medium Java teams, air-gapped intranets, Xinchuang (domestic-tech) projects, and teaching demos.
+**Honest positioning**: for polyglot monorepos that need a massive rule ecosystem and long-term trend governance, SonarQube / CodeQL are more mature. This project's differentiated value is **zero-friction deployment, native Chinese, AI enhancement, and a one-stop Java workflow**: no database to install, no ops to hire, no license to buy — one command gets you the full loop of scan → score → gate → report → CI blocking → email delivery. It is especially suited to small/medium Java teams, air-gapped intranets, Xinchuang (domestic-tech) projects, and teaching demos.
 
 ## 🚀 Deployment
 
@@ -284,7 +310,8 @@ Persistent paths: `/app/data` (database), `/app/work` (snapshots / reports), `/a
 2. When the scan finishes you land on the result page: score ring, five-grade distribution, gate verdict, and every issue (expandable with code context);
 3. The **Quality Gate** page shows scores and gate results for all tasks; admins can click **Customize** to tune per-grade weights and thresholds;
 4. Export **HTML / PDF** reports;
-5. For CI, create a trigger and token on the **CI/CD** page — a single `curl` webhook from your pipeline triggers the scan and writes back statuses and comments; see the [CI/CD Integration Guide](#-cicd-integration-guide) for step-by-step wiring.
+5. Optional: connect an LLM under **AI Settings** for deep review; configure an SMTP sender and recipients under **Email** and tick "Email notification" on a scan to have reports mailed automatically;
+6. For CI, create a trigger and token on the **CI/CD** page — a single `curl` webhook from your pipeline triggers the scan and writes back statuses and comments; see the [CI/CD Integration Guide](#-cicd-integration-guide) for step-by-step wiring.
 
 ## 🔌 CI/CD Integration Guide
 
@@ -303,6 +330,7 @@ No source changes, no plugins: create one trigger and push / MR events automatic
 | Repo scope (optional) | `owner/repo` (GitLab subgroups `group/project` work too); when set, only events from that repo are accepted, so other repos cannot misfire the same Webhook URL; empty = unrestricted |
 | Repo account / token | HTTPS clone credentials for **private repos** only (GitHub: account `x-access-token` + PAT; GitLab: `oauth2` + PAT); **leave empty for public repos**; tokens are AES-encrypted at rest, leaving the field blank on edit keeps the stored value |
 | Skip unit tests / Include test code / Enable AI review / Comment on MR/PR | Scan-behaviour toggles: AI review consumes model quota, commenting writes back to the platform — enable as needed |
+| Enable email / Notify recipients | When on, every triggered scan mails the finished report (HTML summary + PDF attachment) to the selected recipients; requires one enabled SMTP sender and a recipient list under **Email** first |
 
 The success dialog shows the trigger's **Webhook URL** and **Webhook secret**: **the secret is displayed in full only once** (stored encrypted), copy it now; otherwise use **Reset secret** on the trigger row later (update the platform-side config after resetting).
 
@@ -347,7 +375,8 @@ curl -X POST "<webhook-url>/upload" \
 1. Incoming events are verified in order — signature → repo scope → branch filter; only then is a scan record created and the repo **cloned asynchronously** (private repos use the stored credentials, each record gets an isolated work directory), zipped and scanned exactly like a UI-initiated scan;
 2. The **Scan records** tab shows every trigger run (PENDING → RUNNING → SUCCESS / FAILED), filterable by trigger, with a link through to the full result page;
 3. On completion a **commit status** is posted to the commit: state follows the quality-gate verdict (success / failure, description carries the score and five-grade counts), error when the scan itself fails; combine with branch protection "status checks must pass" to block merges that fail the gate;
-4. With **Comment on MR/PR** enabled and an MR/PR number in the event, a comment is posted carrying the score, gate verdict, five-grade counts, tech debt and a top-issue list, linking the full report (link base comes from `app.webhook-base-url`).
+4. With **Comment on MR/PR** enabled and an MR/PR number in the event, a comment is posted carrying the score, gate verdict, five-grade counts, tech debt and a top-issue list, linking the full report (link base comes from `app.webhook-base-url`);
+5. Triggers with **Enable email** on also mail the report to the selected recipients once the scan finishes; delivery status is visible on the **Scan History** page.
 
 > Note: Option A requires the Webhook URL to be reachable from the code platform (public mapping or a tunnel for intranet deployments); Option B's ZIP upload only needs the runner to reach this service, so it also works in fully air-gapped networks.
 
@@ -363,13 +392,13 @@ jargus/
 │   ├── dto/ entity/ mapper/   # Data model (MyBatis-Plus)
 │   ├── llm/             # Multi-vendor LLM protocol adapters
 │   ├── security/        # JWT, role aspect, user context
-│   ├── service/         # Scanning, scoring/gate, AI review, reports, CI callbacks…
+│   ├── service/         # Scanning, scoring/gate, AI review, reports, mail delivery, CI callbacks…
 │   └── util/            # Utilities
 ├── src/main/resources/
 │   ├── db/              # DDL for H2 / MySQL dialects
 │   ├── i18n/            # Chinese & English message bundles
 │   ├── security/        # Built-in CVE advisory store
-│   ├── templates/       # Thymeleaf pages (16)
+│   ├── templates/       # Thymeleaf pages (19)
 │   ├── static/          # CSS / JS / local icons (zero CDN)
 │   └── application.yml
 ├── samples/             # Sample bad code (paste it to try the product)
@@ -380,7 +409,7 @@ jargus/
 
 ## 🤝 Summary & Feedback
 
-This project started from one goal: **give small teams a complete code-quality loop at the lowest possible cost** — single-container delivery, zero external dependencies, offline-capable, Chinese-native, optional AI enhancement, fully customizable scoring gates, and end-to-end CI integration. It keeps evolving: rule sets, the advisory store and report formats will continue to grow.
+This project started from one goal: **give small teams a complete code-quality loop at the lowest possible cost** — single-container delivery, zero external dependencies, offline-capable, Chinese-native, optional AI enhancement, fully customizable scoring gates, end-to-end CI integration, and report delivery straight to the inbox. It keeps evolving: rule sets, the advisory store and report formats will continue to grow.
 
 Feedback, suggestions and issue reports are very welcome:
 

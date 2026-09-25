@@ -2,32 +2,27 @@
 
 [中文](README.md) | [English](README_EN.md)
 
-> 百目所视，无所遁形。开箱即用的 Java 代码质量评审平台：本地静态分析引擎 + 可选 AI 语义评审 + SonarQube 式五级评分与质量门禁。
+> 百目所视，无所遁形。开箱即用的 Java 代码质量评审平台：本地静态分析引擎 + 可选 AI 语义评审 + SonarQube 式五级评分与质量门禁 + CI/CD 全链路联动 + 扫描报告邮件推送。
 > 单个 JAR / 单个 Docker 镜像交付，内嵌数据库零外部依赖，完全离线可用，界面、规则、报告原生中文。
 
 ---
 
-## 📖 项目背景
+## 📖 开发背景
 
-中小团队做代码质量管控，市面上常见的方案都有明显的痛点：
+中小团队做 Java 代码质量管控，常见方案各有明显痛点：
 
-- **SonarQube 等平台太重**：需要独立的服务器、数据库和多个后台组件，社区版规则与功能受限，高级能力（分支分析、PDF 报告、部分安全规则）要商业授权，中文支持差；
-- **PMD / SpotBugs / Checkstyle 只是"问题清单"**：命令行或 IDE 插件形态，没有评分体系、没有质量门禁、没有可视化报告、没有团队协作的忽略/治理机制，非技术角色看不懂；
-- **AI 编码助手各自为战**：每个工具单独配 API，无法统一管理多家大模型，也不会和静态分析结果打通；
-- **国内环境有额外诉求**：内网物理隔离、信创数据库（达梦/人大金仓/openGauss）、国产大模型、中文汇报材料。
+- **SonarQube 等平台太重**：需要独立服务器、数据库与多个后台组件，通常要专人运维；社区版功能受限，分支分析、PDF 报告、部分安全规则需商业授权；中文支持差。
+- **PMD / SpotBugs / Checkstyle 只是"问题清单"**：命令行或 IDE 插件形态，没有评分体系、质量门禁、可视化报告与团队治理机制，非技术角色看不懂。
+- **AI 编码助手各自为战**：每个工具单独配 API，无法统一管理多家大模型，也不与静态分析结果打通。
+- **国内环境有额外诉求**：内网物理隔离、信创数据库（达梦 / 人大金仓 / openGauss）、国产大模型、中文汇报材料。
 
-因此打造了这个**一体化代码评审平台**：一个 JAR 或一个容器就能跑起来，内嵌 H2 数据库开箱即用；19 个检查器覆盖安全、缺陷、风格、架构、并发、依赖六大质量域；联网时可选接入多家大模型做 AI 深度评审；评分、门禁、技术债、报告全流程中文化。
+为此打造了百目 JArgus——**一个 JAR / 一个容器**即可跑通「扫描 → 评分 → 门禁 → 报告 → CI 阻断 → 邮件推送」完整闭环：内嵌 H2 数据库开箱即用；19 个检查器覆盖安全、缺陷、风格、架构、并发、依赖六大质量域；联网时可选接入多家大模型做 AI 深度评审；评分、门禁、技术债、报告全流程中文化。
 
 ## ✨ 项目介绍
 
-### 核心功能
+**多种接入方式** — 上传 ZIP 压缩包、直接粘贴代码；CI 场景自动 Git 克隆（GitHub / GitLab / Gitee / 自建平台，支持私有仓库凭据）；自动检测 JDK 版本、构建工具、框架与依赖树；代码快照留存，问题可回溯到带行号高亮的源码上下文。
 
-**1. 多种代码接入方式**
-- 上传 ZIP 压缩包、直接粘贴代码片段；CI 场景下自动 Git 克隆（GitHub / GitLab / Gitee / 自建平台，支持私有仓库凭据）
-- 自动环境检测：JDK 版本、构建工具、框架、依赖树、根包结构；可选执行单元测试
-- 代码快照留存，问题可回溯到源码上下文（带行号与问题行高亮）
-
-**2. 本地静态分析引擎（完全离线，19 个内置检查器）**
+**本地静态分析引擎** — 完全离线，19 个内置检查器覆盖六大质量域：
 
 | 质量域 | 覆盖内容 |
 |--------|----------|
@@ -35,51 +30,27 @@
 | 安全（SAST） | SQL 注入、命令注入、不安全反序列化、硬编码密钥、弱加密、弱随机数、XXE、SSRF、路径穿越 |
 | 架构约束 | 控制器跨层直连 DAO、下层反向依赖上层、实体泄漏到接口层 |
 | 并发 | 单例共享可变状态、静态 SimpleDateFormat、双重检查锁缺 volatile |
-| 风格 / 冗余 | 命名规范、魔法数字、通配符导入、超长行、TODO 注释、未使用方法、重复代码块（CPD 式 Token 指纹，自动排除 getter/setter 与构造方法等样板，误报少） |
+| 风格 / 冗余 | 命名规范、魔法数字、通配符导入、超长行、TODO 注释、未使用方法、重复代码块（CPD 式 Token 指纹，自动排除 getter/setter 等样板，误报少） |
 | 依赖漏洞 | 解析 pom.xml / build.gradle，与内置 CVE 漏洞库比对（可选 OSV 在线增强） |
 | 质量 / 性能 / 框架 | 圈复杂度、方法/文件长度、性能问题、Spring 最佳实践 |
 
-**3. AI 深度评审（可选，不配 AI 也能完整使用）**
-- 多厂商大模型接入：OpenAI 兼容协议与 Anthropic 协议双通道，内置 12 个厂商模板（阿里百炼、火山方舟、DeepSeek、Kimi、智谱、百度千帆、Gemini、Claude、Ollama / vLLM / LocalAI 本地私有部署等），API Key AES 加密存储
-- 单条问题「AI 增强建议」：问题分析 / 修复方案 / 修复代码三段式，严格限定在问题行范围内
-- 一键「AI 深度评审」批量补齐全部未增强问题，进度实时可视
+**AI 深度评审（可选，不配 AI 也能完整使用）** — OpenAI 兼容 / Anthropic 双协议，内置 12 个厂商模板（阿里百炼、火山方舟、DeepSeek、Kimi、智谱、百度千帆、Gemini、Claude、Ollama / vLLM / LocalAI 本地私有部署等），API Key AES 加密存储；单条问题「AI 增强建议」（问题分析 / 修复方案 / 修复代码三段式），也可一键批量深度评审，进度实时可视。
 
-**4. 五级评分与质量门禁（对标 SonarQube）**
-- 五级严重度：阻断 BLOCKER（-25）/ 严重 CRITICAL（-15）/ 主要 MAJOR（-5）/ 次要 MINOR（-1）/ 提示 INFO（0 分仅展示）
-- 评分 = 100 − Σ(数量 × 扣分)，评级 优秀 / 良好 / 一般 / 较差
-- 门禁 = 阻断清零（可配上限）+ 评分达线；**每级扣分值、通过线、评级分界均可在页面上自定义，保存即时生效，无需重启、无需重扫**
-- 技术债估算：按规则目录折算修复分钟数
+**五级评分与质量门禁（对标 SonarQube）** — 阻断 BLOCKER（-25）/ 严重 CRITICAL（-15）/ 主要 MAJOR（-5）/ 次要 MINOR（-1）/ 提示 INFO（0 分仅展示）；评分 = 100 − Σ(数量 × 扣分)，评级 优秀 / 良好 / 一般 / 较差；门禁 = 阻断清零（可配上限）+ 评分达线；**每级扣分、通过线、评级分界均可页面自定义，保存即时生效，无需重启重扫**；附技术债估算（按规则目录折算修复分钟数）。
 
-**5. 问题治理**
-- 同文件同规则问题自动聚合为一条（多处位置合并展示），不刷屏
-- 行级忽略 + 规则级忽略（按规则码 / 文件路径 / glob / 行号），忽略原因留痕
-- 检查器与规则阈值均可在页面配置启停
+**问题治理** — 同文件同规则问题自动聚合为一条，不刷屏；行级忽略 + 规则级忽略（按规则码 / 文件路径 / glob / 行号），忽略原因留痕；检查器启停与规则阈值页面可配。
 
-**6. 报告与 CI/CD**
-- HTML / PDF 报告一键导出，内嵌中文字体，含评分、门禁结论、分类统计、逐条问题与建议
-- Webhook 触发扫描（GitHub / GitLab / Gitee / 通用），扫描完成自动回写 commit status、MR/PR 评论（评分 + 门禁 + Top 问题），流水线按门禁结论阻断
-- CI 访问令牌管理、扫描记录追溯
+**报告与邮件推送** — HTML / PDF 中文报告一键导出（内嵌中文字体，含评分、门禁结论、分类统计与逐条建议）；多 SMTP 发件配置（SSL / STARTTLS、一键测试发信、授权码 AES 加密）与收件人管理；扫描或 CI 触发器勾选「邮件通知」后，扫描完成自动推送 **HTML 摘要正文 + PDF 报告附件**，失败也发通知，扫描历史显示送达状态。
 
-**7. 认证与权限**
-- JWT 本地账号 + 远端 OAuth2 单点登录（对接企业 OA），管理员 / 只读双角色
-- 数据库密码、API Key、仓库令牌等敏感配置全部 AES 加密落库
+**CI/CD 集成** — Webhook 触发扫描（GitHub / GitLab / Gitee / 通用，按平台约定自动校验 HMAC 签名），完成后自动回写 commit status 与 MR/PR 评论（评分 + 门禁 + Top 问题），流水线按门禁结论阻断合并；访问令牌管理、触发记录追溯。详见 [CI/CD 集成指南](#-cicd-集成指南)。
 
-**8. 界面与国际化**
-- Thymeleaf 服务端渲染，无 Vue / npm / Node 构建链，零 CDN 全本地化资源（内网可用）
-- 中英文双语切换、深色 / 浅色主题、响应式布局（PC / 平板 / 手机）
+**认证与安全** — JWT 本地账号 + 远端 OAuth2 单点登录（对接企业 OA），管理员 / 只读双角色；数据库密码、API Key、仓库令牌、SMTP 授权码等敏感配置全部 AES 加密落库；SQL 全参数化，ZIP 解压含 Zip Slip 防护。
 
-**9. 多数据库支持**
+**界面与国际化** — Thymeleaf 服务端渲染，无 Vue / npm / Node 构建链，零 CDN 全本地化资源（内网可用）；中英双语切换、深色 / 浅色主题、响应式布局（PC / 平板 / 手机）。
 
-| 数据库 | 说明 |
-|--------|------|
-| H2（内嵌） | 默认，开箱即用，零安装 |
-| MySQL / PostgreSQL / Oracle | 内置驱动 |
-| 达梦 DM / 人大金仓 / openGauss | 信创场景，驱动随包内置 |
-| 自定义 JDBC | 页面上传驱动 JAR 即可接入任意数据库 |
+**多数据库支持** — H2（内嵌默认，零安装）/ MySQL / PostgreSQL / Oracle 驱动内置；信创场景达梦 DM / 人大金仓 / openGauss 驱动随包内置；任意数据库可页面上传 JDBC 驱动接入；可视化切换、自动建表迁移、连通性测试。
 
-页面可视化切换数据库，自动建表 / 迁移，支持连通性测试。
-
-### 技术栈
+## 🧰 技术栈
 
 | 层次 | 技术选型 |
 |------|----------|
@@ -87,7 +58,7 @@
 | 持久层 | MyBatis-Plus 3.5.5 · H2 2.2（内嵌默认）· MySQL / PostgreSQL / Oracle / 达梦 / 金仓 / openGauss 驱动 · 动态多数据源 |
 | 静态分析 | JavaParser 3.25（AST + 符号求解）· ASM 9.6（字节码）· 自研 CPD 式重复代码指纹 |
 | AI 接入 | Spring WebFlux HTTP 客户端 · OpenAI 兼容 / Anthropic 双协议适配层 |
-| 报告 | OpenPDF 1.3（矢量中文 PDF）· Thymeleaf HTML 报告 |
+| 报告与邮件 | OpenPDF 1.3（矢量中文 PDF）· Thymeleaf HTML 报告 · Spring Mail（SMTP / SSL / STARTTLS） |
 | 版本控制 | JGit 6.8（仓库克隆） |
 | 安全 | JWT · spring-security-crypto（BCrypt）· AES 配置加密 · OAuth2 远端认证 |
 | 前端 | Thymeleaf SSR · 原生 JavaScript · CSS 变量设计令牌 · 内联 SVG 图标精灵 · 零 CDN |
@@ -95,87 +66,91 @@
 
 ## 🖼️ 效果预览
 
-以下截图均取自真实运行页面，图片资产位于仓库 [`images/`](images) 目录。
+截图均取自真实运行页面，图片资产位于仓库 [`images/`](images) 目录。
+
+### 总览与界面
 
 **仪表盘** — 任务统计、质量评分与技术债总览
 
-![仪表盘](images/ai_code_reviewer_kanban.png)
+![仪表盘](images/jargus_kanban.png)
 
-**代码扫描** — 发起 ZIP / Git / Webhook 扫描任务
+**暗色主题** — 深色 / 浅色一键切换
 
-![代码扫描](images/ai_code_reviewer_daimasaomiao.png)
+![暗色主题](images/jargus_kanban_anye.png)
 
-**扫描历史** — 任务列表与状态流转
+**英文界面** — 中 / 英双语
 
-![扫描历史](images/ai_code_reviewer_saomiaolishi.png)
+![英文界面](images/jargus_kanban_en.png)
 
-**扫描结果** — 五级问题统计与分类汇总
+### 扫描与治理
 
-![扫描结果](images/ai_code_reviewer_result.png)
+**新建扫描** — ZIP 上传 / 代码粘贴，扫描选项与邮件通知
 
-**导出结果** — 导出的 HTML 报告截图：评分、门禁结论、代码上下文、修复建议与 AI 增强建议
+![新建扫描](images/jargus_saomiao.png)
 
-![导出结果](images/ai_code_reviewer_result_detail.png)
+**扫描历史** — 任务列表、状态流转与邮件送达状态
 
-**AI 厂商配置** — 内置厂商模板与双协议接入
-
-![AI 厂商配置](images/ai_code_reviewer_ai.png)
+![扫描历史](images/jargus_lishi.png)
 
 **检查器配置** — 检查器启停与参数调整
 
-![检查器配置](images/ai_code_reviewer_jianchapeizhi.png)
+![检查器配置](images/jargus_jianchaqi.png)
 
 **评审规则** — 规则默认等级与维护
 
-![评审规则](images/ai_code_reviewer_pingshenguize.png)
-
-**质量门禁** — 阈值配置与门禁判定
-
-![质量门禁](images/ai_code_reviewer_zhiliangmenjin.png)
+![评审规则](images/jargus_guize.png)
 
 **忽略规则** — 路径与规则级忽略配置
 
-![忽略规则](images/ai_code_reviewer_hulue.png)
+![忽略规则](images/jargus_hulve.png)
+
+**质量门禁** — 阈值配置与门禁判定
+
+![质量门禁](images/jargus_menjin.png)
+
+### AI 与邮件
+
+**AI 厂商配置** — 内置厂商模板与双协议接入
+
+![AI 厂商配置](images/jargus_ai.png)
+
+**发件配置** — 多 SMTP 发件邮箱，同一时间启用一个，支持测试发信
+
+![发件配置](images/jargus_fajianpeizhi.png)
+
+**邮件收件人** — 通知收件人管理
+
+![邮件收件人](images/jargus_shoujianren.png)
+
+### CI/CD 与系统管理
+
+**CI/CD 触发器** — 触发器与访问令牌管理
+
+![CI/CD 触发器](images/jargus_cicd.png)
+
+**新建触发器** — 平台、分支过滤、扫描行为与发信开关
+
+![新建触发器](images/jargus_cicd_add.png)
+
+**触发扫描记录** — 每次触发的状态流转追溯
+
+![触发扫描记录](images/jargus_cicd_jilu.png)
 
 **数据库配置** — 内嵌元数据与动态外接数据源
 
-![数据库配置](images/ai_code_reviewer_db.png)
-
-**CI/CD 集成** — 流水线接入配置
-
-![CI/CD 集成](images/ai_code_reviewer_cicd.png)
+![数据库配置](images/jargus_db.png)
 
 **远端认证** — 对接企业 OA / 统一登录
 
-![远端认证](images/ai_code_reviewer_oa.png)
+![远端认证](images/jargus_oa.png)
 
-**英文界面** — 中 / 英双语切换
+**新增远端认证** — OAuth2 认证源配置
 
-![英文界面](images/ai_code_reviewer_english.png)
+![新增远端认证](images/jargus_oa_add.png)
 
-**暗色模式** — 深色主题切换
+**系统信息** — 版本、仓库地址与联系方式
 
-![暗色模式](images/ai_code_reviewer_anye.png)
-
-## ⚡ 极速部署（无需源码）
-
-无需克隆源码、无需安装 Maven，直接下载 Release 附带的**可运行 Jar**（GitHub 与 Gitee 的 Release 为同一个包）：
-
-- GitHub Releases：<https://github.com/vfaner/jargus/releases>
-- Gitee Releases：<https://gitee.com/super_rgh/jargus/releases>
-
-仅需 **JDK / JRE 17+**：
-
-```bash
-java -jar jargus-2.0.0.jar
-```
-
-- 首次启动自动在当前目录初始化内嵌 H2 数据库（`data/`）、扫描快照与报告（`work/`）、日志（`logs/`），无需外接数据库
-- 启动后访问 <http://localhost:8080>，默认账号 `admin / 123456`（登录后请尽快修改密码）
-- 换端口：`java -jar jargus-2.0.0.jar --server.port=9090`
-- 生产环境建议覆盖内置密钥：`--app.jwt-secret=<新JWT密钥> --app.crypto-key=<新AES密钥>`
-
-需要源码构建或 Docker 部署见下文 [部署方法](#-部署方法)。
+![系统信息](images/jargus_xitongxinxi.png)
 
 ## ⚔️ 优势对比
 
@@ -191,43 +166,62 @@ java -jar jargus-2.0.0.jar
 | 依赖漏洞（CVE） | ✅ 内置漏洞库 + 可选 OSV 在线增强 | ❌（依赖商业版） | ❌ | ❌（需另配 Dependabot） |
 | 架构分层检查 | ✅ 内置 | 部分（需插件 / 付费） | ❌ | 可自写查询，学习成本高 |
 | CI/CD 集成 | ✅ Webhook 触发 + 状态回写 + MR/PR 评论（GitHub / GitLab / Gitee / 自建） | ✅ 需额外插件与配置 | 需自行编写脚本 | ✅ 仅限 GitHub 生态 |
+| 报告邮件推送 | ✅ 扫描完成自动发 HTML 摘要 + PDF 报告邮件 | 需商业版或额外配置 | ❌ | ❌ |
 | 可视化报告 | ✅ HTML / PDF 中文报告一键导出 | PDF 需插件 / 付费 | ❌ | ❌ |
 | 离线 / 内网运行 | ✅ 全功能离线（AI 为可选增强） | ✅ | ✅ | ✅ |
 | 信创数据库 | ✅ 达梦 / 人大金仓 / openGauss 驱动内置 | ❌ | — | — |
 | 授权费用 | ✅ MIT 完全免费 | 社区版免费，高级功能付费 | 免费 | GitHub 私有仓库需付费 |
 | 语言覆盖 | Java（深度聚焦） | 多语言 | Java 为主 | 多语言 |
 
-**客观定位**：如果你需要多语言混合仓库的海量规则生态与长期趋势治理，SonarQube / CodeQL 更成熟。本项目的差异化价值在于——**零门槛部署、中文原生、AI 增强、Java 场景一站式**：不用装数据库、不用配运维、不用买授权，一条命令获得"扫描 → 评分 → 门禁 → 报告 → CI 阻断"完整闭环，特别适合中小 Java 团队、内网隔离环境、信创项目与教学演示。
+**客观定位**：如果你需要多语言混合仓库的海量规则生态与长期趋势治理，SonarQube / CodeQL 更成熟。本项目的差异化价值在于——**零门槛部署、中文原生、AI 增强、Java 场景一站式**：不用装数据库、不用配运维、不用买授权，一条命令获得完整质量闭环，特别适合中小 Java 团队、内网隔离环境、信创项目与教学演示。
 
-## 🚀 部署方法
+## 🚀 部署教程
 
 ### 环境要求
 
 | 部署方式 | 要求 |
 |----------|------|
-| JAR 运行 | JDK 17+（构建需 Maven 3.9+） |
+| Release JAR | JDK / JRE 17+ |
+| 源码构建 | JDK 17+ · Maven 3.9+ |
 | Docker | Docker 20.10+ / Docker Compose v2 |
 
-### 方式一：JAR 部署
+### 方式一：Release JAR（无需源码，最快）
+
+从 Release 直接下载**可运行 Jar**（GitHub 与 Gitee 为同一个包）：
+
+- GitHub Releases：<https://github.com/vfaner/jargus/releases>
+- Gitee Releases：<https://gitee.com/super_rgh/jargus/releases>
 
 ```bash
-# 构建
+java -jar jargus-2.0.0.jar
+```
+
+- 首次启动自动在当前目录初始化内嵌 H2 数据库（`data/`）、扫描快照与报告（`work/`）、日志（`logs/`），无需外接数据库；
+- 访问 <http://localhost:8080>，默认账号 `admin / 123456`（登录后请尽快修改密码）；
+- 换端口：`java -jar jargus-2.0.0.jar --server.port=9090`；
+- 生产环境建议覆盖内置密钥：`--app.jwt-secret=<新JWT密钥> --app.crypto-key=<新AES密钥>`。
+
+### 方式二：源码构建
+
+```bash
+git clone https://gitee.com/super_rgh/jargus.git   # 或 github.com/vfaner/jargus
+cd jargus
 mvn package -DskipTests
 
 # 启动（工作目录下自动生成 data/ 数据库、work/ 快照与报告）
 java -jar target/jargus.jar
 ```
 
-访问 http://localhost:8080 ，默认账号（首次启动自动创建，**请立即修改密码**）：
+开发模式：`mvn spring-boot:run`（模板已关闭缓存，改完刷新即可）。
+
+默认账号（首次启动自动创建，**请立即修改密码**）：
 
 | 账号 | 密码 | 角色 |
 |------|------|------|
 | admin | 123456 | 管理员（全部功能） |
 | view | 123456 | 只读用户 |
 
-开发模式：`mvn spring-boot:run`（模板已关闭缓存，改完刷新即可）。
-
-### 方式二：Docker 部署（推荐）
+### 方式三：Docker（推荐生产环境）
 
 **docker compose 一键起：**
 
@@ -282,15 +276,15 @@ docker run -d --name jargus \
 
 ### 快速上手
 
-1. 登录后进入「新建扫描」，上传项目 ZIP 或直接粘贴代码；
-2. 扫描完成自动跳转结果页：评分环、五级问题分布、门禁结论、逐条问题（可展开代码上下文）；
-3. 「质量门禁」页查看全部任务的评分趋势与门禁结果，管理员可点「自定义分值」调整每级扣分与阈值；
-4. 「报告导出」生成 HTML / PDF；
-5. 需要 CI 联动时，在「CI/CD 集成」页创建触发器与令牌，流水线里 `curl` 推送 Webhook 即可自动扫描、回写状态与评论，详见 [CI/CD 集成指南](#-cicd-集成指南)。
+1. 登录后进入「新建扫描」，上传项目 ZIP 或直接粘贴代码（可用 `samples/SampleBadCode.java` 快速体验）；
+2. 扫描完成自动跳转结果页：评分环、五级问题分布、门禁结论、逐条问题（可展开代码上下文），一键导出 HTML / PDF 报告；
+3. 「质量门禁」页查看评分趋势与门禁结果，管理员可「自定义分值」调整每级扣分与阈值；
+4. 可选增强：「AI 配置」接入大模型开启深度评审；「邮件管理」配置发件邮箱与收件人，扫描时勾选「邮件通知」自动推送报告；
+5. CI 联动：在「CI/CD 集成」页创建触发器与令牌，流水线推送 Webhook 即可自动扫描、回写状态与评论，见下文详细指南。
 
 ## 🔌 CI/CD 集成指南
 
-无需改源码、无需装插件：在平台侧建一个触发器，push / MR 事件即自动触发扫描；扫描完成按质量门禁结论回写 commit status 与 MR/PR 评论，流水线可据此阻断合并。支持 GitHub Actions、GitLab CI、Gitee Go 与任意通用 CI。
+无需改源码、无需装插件：在平台侧建一个触发器，push / MR 事件即自动触发扫描；扫描完成按质量门禁结论回写 commit status 与 MR/PR 评论，流水线据此阻断合并。支持 GitHub Actions、GitLab CI、Gitee Go 与任意通用 CI。
 
 ### 第一步：新建触发器，拿到 Webhook 地址与密钥
 
@@ -305,6 +299,7 @@ docker run -d --name jargus \
 | 仓库范围（可选） | `owner/repo`（GitLab 子组 `group/project` 亦可）；填写后仅接受该仓库的事件，防止同一 Webhook 地址被其他仓库误触发；留空 = 不限制 |
 | 仓库账号 / 仓库令牌 | 仅**私有仓库** HTTPS 克隆需要（GitHub 账号可填 `x-access-token`、GitLab 可填 `oauth2`，令牌填 Personal Access Token）；**公开仓库留空**；令牌 AES 加密落库，编辑时留空表示不修改 |
 | 跳过单元测试 / 分析测试代码 / 启用 AI 评审 / 扫描完成回评 MR/PR | 扫描行为开关：AI 评审消耗模型额度、回评会向平台写评论，按需开启 |
+| 开启发信 / 通知收件人 | 勾选后每次触发扫描完成自动向所选收件人发送报告邮件（HTML 摘要 + PDF 附件）；需先在「邮件管理」启用一个发件邮箱并维护收件人 |
 
 创建成功的弹窗会给出该触发器的 **Webhook 地址**与 **Webhook 密钥**：**密钥仅完整展示这一次**（库中加密存储），请立即复制保存；错过可在触发器行「重置密钥」重新生成（重置后需同步更新平台侧配置）。
 
@@ -349,7 +344,8 @@ curl -X POST "<Webhook地址>/upload" \
 1. 事件到达后按「签名 → 仓库范围 → 分支过滤」顺序校验，通过才创建扫描记录；随后**异步克隆仓库**（私有库自动使用所配凭据，按记录隔离工作目录），打包 ZIP 走与页面扫描完全相同的流程；
 2. 「扫描记录」页签查看每次触发的状态流转（PENDING → RUNNING → SUCCESS / FAILED），可按触发器筛选，点击跳转扫描结果页；
 3. 扫描完成自动向对应 commit 回写 **commit status**：状态取质量门禁结论（success / failure，描述含评分与五级问题计数），扫描失败回写 error；平台侧配置分支保护「状态检查必须通过」后，门禁不达标的提交将无法合并；
-4. 勾选「扫描完成回评 MR/PR」且事件携带 MR/PR 号时，额外在该 MR/PR 下评论：评分、门禁结论、五级计数、技术债与 Top 问题清单，附完整报告链接（链接域名取自 `app.webhook-base-url`）。
+4. 勾选「扫描完成回评 MR/PR」且事件携带 MR/PR 号时，额外在该 MR/PR 下评论：评分、门禁结论、五级计数、技术债与 Top 问题清单，附完整报告链接（链接域名取自 `app.webhook-base-url`）；
+5. 勾选「开启发信」的触发器，扫描结束后同步向所选收件人推送报告邮件，送达状态在「扫描历史」页可见。
 
 > 注意：方式 A 要求 Webhook 地址能被代码平台直接访问（内网部署需公网映射或内网穿透）；方式 B 的 ZIP 上传只要求 runner 能访问本服务，全内网环境亦可使用。
 
@@ -358,20 +354,20 @@ curl -X POST "<Webhook地址>/upload" \
 ```
 jargus/
 ├── src/main/java/com/qqmu/jargus/
-│   ├── checker/         # 检查器框架与 19 个内置检查器（AST / 正则 / 扫描级）
+│   ├── checker/         # 检查器框架与内置检查器（AST / 正则 / 扫描级）
 │   ├── config/          # 启动初始化、Bean 配置
 │   ├── controller/      # 页面控制器 + REST API
 │   ├── datasource/      # 动态多数据源与方言适配
 │   ├── dto/ entity/ mapper/   # 数据模型（MyBatis-Plus）
 │   ├── llm/             # 多厂商 LLM 协议适配层
 │   ├── security/        # JWT、角色切面、用户上下文
-│   ├── service/         # 扫描、评分门禁、AI 评审、报告、CI 回调等
+│   ├── service/         # 扫描、评分门禁、AI 评审、报告、邮件通知、CI 回调等
 │   └── util/            # 工具类
 ├── src/main/resources/
 │   ├── db/              # H2 / MySQL 双方言 DDL
 │   ├── i18n/            # 中英文消息包
 │   ├── security/        # 内置 CVE 漏洞库
-│   ├── templates/       # Thymeleaf 页面（16 个）
+│   ├── templates/       # Thymeleaf 页面（19 个）
 │   ├── static/          # CSS / JS / 本地图标（零 CDN）
 │   └── application.yml
 ├── samples/             # 示例坏代码（可直接粘贴体验）
@@ -382,7 +378,7 @@ jargus/
 
 ## 🤝 总结与反馈
 
-这个项目从"让中小团队用最低成本获得完整代码质量闭环"出发，做到了：**一个容器交付、零外部依赖、离线可用、中文原生、AI 可选增强、评分门禁可自定义、CI 全链路联动**。它还在持续演进，规则库、漏洞库、报告形态都会不断扩充。
+这个项目从"让中小团队用最低成本获得完整代码质量闭环"出发，做到了：**一个容器交付、零外部依赖、离线可用、中文原生、AI 可选增强、评分门禁可自定义、CI 全链路联动、报告邮件直达**。它还在持续演进，规则库、漏洞库、报告形态都会不断扩充。
 
 欢迎使用、欢迎 Star、欢迎提出建议与问题反馈：
 
