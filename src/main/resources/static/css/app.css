@@ -160,6 +160,17 @@ code, .mono { font-family: var(--mono); font-size: .88em; }
 }
 
 /* 齿轮入口（只显图标，省地方） */
+.nav-settings {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
+  color: var(--ink-soft); font-size: 15px;
+}
+.nav-settings span { display: none; }
+.nav-settings:hover { color: var(--brand); background: var(--bg-tint); }
+.nav-settings.active {
+  color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+}
 
 /* ─── 导航下拉分组 ─────────────────────────────────────── */
 .nav-group { position: relative; display: flex; align-items: stretch; }
@@ -753,6 +764,7 @@ fieldset.bare { border: 0; padding: 0; margin: 0; min-width: 0; }
   display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
 }
 .foot-ver { display: block; margin-top: 3px; font-size: 11px; color: var(--ink-mute); }
+.foot .mx-1 { margin: 0 5px; }
 
 /* ─── 版本与更新（设置页卡片 + 头部副标题里的版本号） ───────── */
 .logo-ver { font-family: var(--mono); font-size: 10.5px; font-weight: 500; }

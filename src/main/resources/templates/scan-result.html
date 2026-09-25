@@ -893,6 +893,24 @@
         }
 
         if (deepBtn) {
+            // 深度评审状态统一以服务端为准：进入页面（含切页返回 / 刷新）时拉取实时进度，
+            // 仍在跑则恢复进度条并锁定按钮，请求失败自动重试，避免进度"跟丢"
+            function syncDeepState(retries) {
+                UI.api.get('/api/scans/' + taskId + '/ai-deep-review').then(function (p) {
+                    if (p && p.running) {
+                        deepBusy = true;
+                        deepBtn.disabled = true;
+                        setDeepUi(p);
+                        clearTimeout(deepPollTimer);
+                        deepPollTimer = setTimeout(pollDeepReview, 2000);
+                    }
+                }).catch(function () {
+                    if (retries > 0) {
+                        deepPollTimer = setTimeout(function () { syncDeepState(retries - 1); }, 2000);
+                    }
+                });
+            }
+
             deepBtn.addEventListener('click', function () {
                 if (deepBusy) return;
                 if (!window.confirm(UI.t('issues.aiDeepReviewConfirm'))) return;
@@ -904,22 +922,21 @@
                     clearTimeout(deepPollTimer);
                     deepPollTimer = setTimeout(pollDeepReview, 1500);
                 }).catch(function (err) {
+                    var msg = String(err.message || err);
+                    // 服务端防重拒绝 = 上一轮还在跑：转入进度接续，不得当失败隐藏进度条
+                    if (msg.indexOf('正在进行') >= 0) {
+                        syncDeepState(2);
+                        return;
+                    }
                     deepBusy = false;
                     deepBtn.disabled = false;
                     deepBox.style.display = 'none';
-                    UI.toast(String(err.message || err), 'danger');
+                    UI.toast(msg, 'danger');
                 });
             });
 
-            // 进入页面时若上一次评审仍在跑（如刷新后），自动接续进度
-            UI.api.get('/api/scans/' + taskId + '/ai-deep-review').then(function (p) {
-                if (p && p.running) {
-                    deepBusy = true;
-                    deepBtn.disabled = true;
-                    setDeepUi(p);
-                    deepPollTimer = setTimeout(pollDeepReview, 2000);
-                }
-            }).catch(function () {});
+            // 进入页面时若上一次评审仍在跑（如切页返回 / 刷新后），自动接续进度
+            syncDeepState(2);
         }
 
         // AI 厂商是否可用（可用才展示增强入口；管理员操作按钮在服务端也有角色校验）

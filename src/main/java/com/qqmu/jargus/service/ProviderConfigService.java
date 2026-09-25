@@ -53,9 +53,12 @@ public class ProviderConfigService {
      * 获取激活的厂商配置
      */
     public AiProviderConfig getActive() {
-        AiProviderConfig active = providerConfigMapper.selectOne(
-                new QueryWrapper<AiProviderConfig>().eq("is_active", true)
+        // 正常仅一条启用（activate 会先禁用其他），但接口直改可能留下多条启用行，
+        // selectOne 会直接抛异常，故取 id 最小的一条兜底
+        List<AiProviderConfig> actives = providerConfigMapper.selectList(
+                new QueryWrapper<AiProviderConfig>().eq("is_active", true).orderByAsc("id")
         );
+        AiProviderConfig active = actives.isEmpty() ? null : actives.get(0);
         if (active != null) {
             // 返回解密后的配置，供内部调用
             active.setApiKey(CryptoUtil.decrypt(active.getApiKey()));
