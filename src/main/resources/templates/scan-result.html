@@ -913,25 +913,29 @@
 
             deepBtn.addEventListener('click', function () {
                 if (deepBusy) return;
-                if (!window.confirm(UI.t('issues.aiDeepReviewConfirm'))) return;
-                deepBusy = true;
-                deepBtn.disabled = true;
-                setDeepUi({ running: true, total: 0, done: 0 });
-                UI.api.post('/api/scans/' + taskId + '/ai-deep-review', {}).then(function (p) {
-                    if (p) setDeepUi(p);
-                    clearTimeout(deepPollTimer);
-                    deepPollTimer = setTimeout(pollDeepReview, 1500);
-                }).catch(function (err) {
-                    var msg = String(err.message || err);
-                    // 服务端防重拒绝 = 上一轮还在跑：转入进度接续，不得当失败隐藏进度条
-                    if (msg.indexOf('正在进行') >= 0) {
-                        syncDeepState(2);
-                        return;
-                    }
-                    deepBusy = false;
-                    deepBtn.disabled = false;
-                    deepBox.style.display = 'none';
-                    UI.toast(msg, 'danger');
+                // 美化确认弹窗（发起评审非破坏性操作，确认按钮用主色）
+                UI.confirm(UI.t('issues.aiDeepReviewConfirm')).then(function (ok) {
+                    if (!ok) return;
+                    if (deepBusy) return; // 弹窗期间进度可能已由 syncDeepState 接续
+                    deepBusy = true;
+                    deepBtn.disabled = true;
+                    setDeepUi({ running: true, total: 0, done: 0 });
+                    UI.api.post('/api/scans/' + taskId + '/ai-deep-review', {}).then(function (p) {
+                        if (p) setDeepUi(p);
+                        clearTimeout(deepPollTimer);
+                        deepPollTimer = setTimeout(pollDeepReview, 1500);
+                    }).catch(function (err) {
+                        var msg = String(err.message || err);
+                        // 服务端防重拒绝 = 上一轮还在跑：转入进度接续，不得当失败隐藏进度条
+                        if (msg.indexOf('正在进行') >= 0) {
+                            syncDeepState(2);
+                            return;
+                        }
+                        deepBusy = false;
+                        deepBtn.disabled = false;
+                        deepBox.style.display = 'none';
+                        UI.toast(msg, 'danger');
+                    });
                 });
             });
 

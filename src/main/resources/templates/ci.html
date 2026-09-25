@@ -741,16 +741,18 @@
         });
 
         window.resetSecret = function (id) {
-            if (!confirm(MSG_RESET_CONFIRM)) return;
-            // 接口返回明文新密钥（仅这一次）
-            UI.api.post('/api/ci/triggers/' + id + '/reset-secret').then(function (secret) {
-                copyText(secret);
-                // 重置后仍保持遮罩（新密钥已自动复制到剪贴板），需核对时点眼睛
-                if (!document.getElementById('trig-secret-field').hidden) {
-                    trigSecret.set(secret, false);
-                }
-            }).catch(function (err) {
-                UI.toast(String(err.message || err), 'danger');
+            UI.confirm(MSG_RESET_CONFIRM, { danger: true }).then(function (ok) {
+                if (!ok) return;
+                // 接口返回明文新密钥（仅这一次）
+                UI.api.post('/api/ci/triggers/' + id + '/reset-secret').then(function (secret) {
+                    copyText(secret);
+                    // 重置后仍保持遮罩（新密钥已自动复制到剪贴板），需核对时点眼睛
+                    if (!document.getElementById('trig-secret-field').hidden) {
+                        trigSecret.set(secret, false);
+                    }
+                }).catch(function (err) {
+                    UI.toast(String(err.message || err), 'danger');
+                });
             });
         };
 

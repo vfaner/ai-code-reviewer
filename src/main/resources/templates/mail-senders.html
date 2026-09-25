@@ -243,13 +243,21 @@
 
         /* 启用开关：启用前确认（会自动停用其他配置） */
         window.toggleSender = function (id, enabling) {
-            if (enabling && !window.confirm(MSG_ENABLE_CONFIRM)) return false;
-            UI.api.put('/api/mail/senders/' + id + '/toggle').then(function () {
-                location.reload();
-            }).catch(function (err) {
-                UI.toast(String(err.message || err), 'danger');
-                location.reload();
-            });
+            var runToggle = function () {
+                UI.api.put('/api/mail/senders/' + id + '/toggle').then(function () {
+                    location.reload();
+                }).catch(function (err) {
+                    UI.toast(String(err.message || err), 'danger');
+                    location.reload();
+                });
+            };
+            if (enabling) {
+                UI.confirm(MSG_ENABLE_CONFIRM, { danger: true }).then(function (ok) {
+                    if (ok) runToggle();
+                });
+            } else {
+                runToggle();
+            }
             return false; // 阻止 checkbox 本地翻转，统一由 reload 呈现
         };
 

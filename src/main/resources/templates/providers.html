@@ -361,12 +361,14 @@
         };
 
         window.deleteProvider = function (id) {
-            if (!confirm(UI.t('common.deleteConfirm'))) return;
-            UI.api.del('/api/providers/' + id).then(function () {
-                UI.toast(UI.t('common.deleted'), 'ok');
-                setTimeout(function () { location.reload(); }, 500);
-            }).catch(function (err) {
-                UI.toast(String(err.message || err), 'danger');
+            UI.confirm(UI.t('common.deleteConfirm'), { danger: true }).then(function (ok) {
+                if (!ok) return;
+                UI.api.del('/api/providers/' + id).then(function () {
+                    UI.toast(UI.t('common.deleted'), 'ok');
+                    setTimeout(function () { location.reload(); }, 500);
+                }).catch(function (err) {
+                    UI.toast(String(err.message || err), 'danger');
+                });
             });
         };
     })();

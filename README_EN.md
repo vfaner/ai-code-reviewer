@@ -122,6 +122,18 @@ All screenshots are taken from real running pages; image assets live in the [`im
 
 ![Scan History](images/jargus_lishi.png)
 
+**Scan Result** — five-grade distribution, gate verdict and source context
+
+![Scan Result](images/jargus_result.png)
+
+**Issue Detail & AI Suggestion** — per-issue fix advice, source context and AI-enhanced suggestion (analysis, fix plan, patched code)
+
+![Issue Detail & AI Suggestion](images/jargus_result_ai.png)
+
+**Exported Report** — exported HTML report: score, gate verdict, fix suggestions and AI-enhanced advice
+
+![Exported Report](images/jargus_baobiao.png)
+
 **Checker Settings** — enable/disable checkers and tune parameters
 
 ![Checker Settings](images/jargus_jianchaqi.png)

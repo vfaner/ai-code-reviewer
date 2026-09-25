@@ -337,8 +337,10 @@
             UI.api.put('/api/quality-gate/settings', data).then(done).catch(fail);
         });
         document.getElementById('gate-reset-btn').addEventListener('click', function () {
-            if (!confirm(MSG_RESET_CONFIRM)) return;
-            UI.api.del('/api/quality-gate/settings').then(done).catch(fail);
+            UI.confirm(MSG_RESET_CONFIRM, { danger: true }).then(function (ok) {
+                if (!ok) return;
+                UI.api.del('/api/quality-gate/settings').then(done).catch(fail);
+            });
         });
     })();
 </script>

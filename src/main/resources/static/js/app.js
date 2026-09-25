@@ -171,43 +171,54 @@
       // 请求失败时再翻回去，避免"提示成功但状态不刷新就不变"的错觉
       var isSwitch = btn.tagName === 'INPUT' && btn.type === 'checkbox';
       if (!isSwitch) e.preventDefault();
-      if (btn.dataset.confirm && !window.confirm(btn.dataset.confirm)) {
-        if (isSwitch) btn.checked = !btn.checked;
+
+      var runAction = function () {
+        var original = btn.innerHTML;
+        btn.disabled = true;
+        if (!isSwitch) {
+          btn.innerHTML = '<span class="spin"></span>' +
+            (btn.dataset.busyText ? ' ' + btn.dataset.busyText : '');
+        }
+
+        var body;
+        if (btn.dataset.body) {
+          try { body = JSON.parse(btn.dataset.body); } catch (err) { body = {}; }
+        }
+        var promise = request(btn.dataset.method || 'POST', btn.dataset.api, body);
+
+        promise.then(function () {
+          toast(btn.dataset.okText || t('common.done'), 'ok');
+          if (btn.dataset.reload === 'true') {
+            setTimeout(function () { window.location.reload(); }, 700);
+            return;
+          }
+          if (btn.dataset.redirect) {
+            setTimeout(function () { window.location.href = btn.dataset.redirect; }, 700);
+            return;
+          }
+          btn.disabled = false;
+          if (!isSwitch) btn.innerHTML = original;
+        }).catch(function (err) {
+          // 开关翻回原状态，让界面与服务器保持一致
+          if (isSwitch) btn.checked = !btn.checked;
+          toast(String(err && err.message || err), 'danger');
+          btn.disabled = false;
+          if (!isSwitch) btn.innerHTML = original;
+        });
+      };
+
+      // 统一走美化确认弹窗；data-confirm 现均为删除/重置类破坏性操作，确认按钮用危险色
+      if (btn.dataset.confirm) {
+        confirmDialog(btn.dataset.confirm, { danger: true }).then(function (ok) {
+          if (!ok) {
+            if (isSwitch) btn.checked = !btn.checked;
+            return;
+          }
+          runAction();
+        });
         return;
       }
-
-      var original = btn.innerHTML;
-      btn.disabled = true;
-      if (!isSwitch) {
-        btn.innerHTML = '<span class="spin"></span>' +
-          (btn.dataset.busyText ? ' ' + btn.dataset.busyText : '');
-      }
-
-      var body;
-      if (btn.dataset.body) {
-        try { body = JSON.parse(btn.dataset.body); } catch (err) { body = {}; }
-      }
-      var promise = request(btn.dataset.method || 'POST', btn.dataset.api, body);
-
-      promise.then(function () {
-        toast(btn.dataset.okText || t('common.done'), 'ok');
-        if (btn.dataset.reload === 'true') {
-          setTimeout(function () { window.location.reload(); }, 700);
-          return;
-        }
-        if (btn.dataset.redirect) {
-          setTimeout(function () { window.location.href = btn.dataset.redirect; }, 700);
-          return;
-        }
-        btn.disabled = false;
-        if (!isSwitch) btn.innerHTML = original;
-      }).catch(function (err) {
-        // 开关翻回原状态，让界面与服务器保持一致
-        if (isSwitch) btn.checked = !btn.checked;
-        toast(String(err && err.message || err), 'danger');
-        btn.disabled = false;
-        if (!isSwitch) btn.innerHTML = original;
-      });
+      runAction();
     });
   }
 
@@ -271,57 +282,65 @@
   function bindJsonForm(form) {
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) return;
 
-      var submitBtn = form.querySelector('[type=submit]');
-      var original = submitBtn ? submitBtn.innerHTML : '';
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spin"></span> ' + (form.dataset.busyText || '');
-      }
+      var runSubmit = function () {
+        var submitBtn = form.querySelector('[type=submit]');
+        var original = submitBtn ? submitBtn.innerHTML : '';
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<span class="spin"></span> ' + (form.dataset.busyText || '');
+        }
 
-      var isMultipart = form.enctype === 'multipart/form-data';
-      var body;
-      if (isMultipart) {
-        body = new FormData(form);
-      } else {
-        body = {};
-        Array.prototype.forEach.call(form.elements, function (el) {
-          if (!el.name || el.disabled) return;
-          if (el.type === 'checkbox') {
-            body[el.name] = el.checked;
-          } else if (el.type === 'number') {
-            body[el.name] = el.value === '' ? null : Number(el.value);
-          } else {
-            body[el.name] = el.value;
-          }
-        });
-      }
-
-      var url = form.dataset.api;
-      request(form.dataset.method || 'POST', url, body)
-        .then(function (data) {
-          toast(form.dataset.okText || t('common.saved'), 'ok');
-          if (form.dataset.redirect) {
-            var target = form.dataset.redirect;
-            if (data && typeof data === 'object' && data.id != null) {
-              target = target.replace('{id}', encodeURIComponent(data.id));
+        var isMultipart = form.enctype === 'multipart/form-data';
+        var body;
+        if (isMultipart) {
+          body = new FormData(form);
+        } else {
+          body = {};
+          Array.prototype.forEach.call(form.elements, function (el) {
+            if (!el.name || el.disabled) return;
+            if (el.type === 'checkbox') {
+              body[el.name] = el.checked;
+            } else if (el.type === 'number') {
+              body[el.name] = el.value === '' ? null : Number(el.value);
+            } else {
+              body[el.name] = el.value;
             }
-            setTimeout(function () { window.location.href = target; }, 700);
-            return;
-          }
-          if (form.dataset.close) closeModal(form.dataset.close);
-          if (form.dataset.reload === 'true') {
-            setTimeout(function () { window.location.reload(); }, 700);
-            return;
-          }
-          if (!form.dataset.keepOpen) form.reset();
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = original; }
-        })
-        .catch(function (err) {
-          toast(String(err && err.message || err), 'danger');
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = original; }
-        });
+          });
+        }
+
+        var url = form.dataset.api;
+        request(form.dataset.method || 'POST', url, body)
+          .then(function (data) {
+            toast(form.dataset.okText || t('common.saved'), 'ok');
+            if (form.dataset.redirect) {
+              var target = form.dataset.redirect;
+              if (data && typeof data === 'object' && data.id != null) {
+                target = target.replace('{id}', encodeURIComponent(data.id));
+              }
+              setTimeout(function () { window.location.href = target; }, 700);
+              return;
+            }
+            if (form.dataset.close) closeModal(form.dataset.close);
+            if (form.dataset.reload === 'true') {
+              setTimeout(function () { window.location.reload(); }, 700);
+              return;
+            }
+            if (!form.dataset.keepOpen) form.reset();
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = original; }
+          })
+          .catch(function (err) {
+            toast(String(err && err.message || err), 'danger');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = original; }
+          });
+      };
+
+      if (form.dataset.confirm) {
+        confirmDialog(form.dataset.confirm, { danger: true })
+          .then(function (ok) { if (ok) runSubmit(); });
+        return;
+      }
+      runSubmit();
     });
   }
 
@@ -705,6 +724,90 @@
     };
   }
 
+  /* ─── 通用美化确认弹窗（替代原生 window.confirm） ───────────── */
+
+  var CONFIRM_MODAL_ID = 'ui-confirm-modal';
+  var confirmState = null; // { resolve, settled } 当前挂起的确认，单实例（与原生 confirm 语义一致）
+
+  function buildConfirmModal() {
+    var existing = document.getElementById(CONFIRM_MODAL_ID);
+    if (existing) return existing;
+    var modal = document.createElement('div');
+    modal.className = 'modal modal-stack';
+    modal.id = CONFIRM_MODAL_ID;
+    modal.setAttribute('aria-hidden', 'true');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.innerHTML =
+      '<div class="modal-mask"></div>' +
+      '<div class="modal-dialog modal-sm">' +
+        '<button type="button" class="modal-close" data-role="close" aria-label="Close">' + iconHtml('x-lg') + '</button>' +
+        '<div class="modal-head">' +
+          '<h3 data-role="title"></h3>' +
+          '<p data-role="message"></p>' +
+        '</div>' +
+        '<div class="form-actions">' +
+          '<button type="button" class="btn btn-ghost" data-role="cancel"></button>' +
+          '<button type="button" class="btn btn-primary" data-role="ok"></button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    function settle(val) {
+      if (!confirmState || confirmState.settled) return;
+      confirmState.settled = true;
+      var resolve = confirmState.resolve;
+      confirmState = null;
+      closeModal(CONFIRM_MODAL_ID);
+      resolve(val);
+    }
+
+    // 注入式弹窗不在 bindModals 初始化范围内，自行绑定遮罩/关闭/取消/确认
+    modal.querySelector('.modal-mask').addEventListener('click', function () { settle(false); });
+    modal.querySelector('[data-role=close]').addEventListener('click', function () { settle(false); });
+    modal.querySelector('[data-role=cancel]').addEventListener('click', function () { settle(false); });
+    modal.querySelector('[data-role=ok]').addEventListener('click', function () { settle(true); });
+
+    // ESC：捕获阶段拦截，避免全局冒泡版 closeModal 只关弹窗不 resolve 本 Promise；
+    // 仅当本弹窗在最上层时生效，按"取消"结算
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || !confirmState || confirmState.settled) return;
+      var opens = document.querySelectorAll('.modal.open');
+      if (opens.length && opens[opens.length - 1].id === CONFIRM_MODAL_ID) {
+        e.stopPropagation();
+        settle(false);
+      }
+    }, true);
+
+    return modal;
+  }
+
+  /**
+   * 美化版确认弹窗，返回 Promise<boolean>：true=确认，false=取消（关闭×/遮罩/ESC 同取消）
+   * opts: { title, okText, cancelText, danger }  danger=确认按钮用危险色（删除/重置类操作）
+   */
+  function confirmDialog(message, opts) {
+    opts = opts || {};
+    var modal = buildConfirmModal();
+    modal.querySelector('[data-role=title]').textContent = opts.title || t('common.confirmTitle');
+    modal.querySelector('[data-role=message]').textContent = message == null ? '' : String(message);
+    modal.querySelector('[data-role=cancel]').textContent = opts.cancelText || t('common.cancel');
+    var okBtn = modal.querySelector('[data-role=ok]');
+    okBtn.textContent = opts.okText || t('common.confirm');
+    okBtn.className = 'btn ' + (opts.danger ? 'btn-danger' : 'btn-primary');
+
+    return new Promise(function (resolve) {
+      // 上一个未关闭的确认先按"取消"结算，保证单实例语义
+      if (confirmState && !confirmState.settled) {
+        confirmState.settled = true;
+        confirmState.resolve(false);
+      }
+      confirmState = { resolve: resolve, settled: false };
+      openModal(CONFIRM_MODAL_ID);
+      setTimeout(function () { okBtn.focus(); }, 50);
+    });
+  }
+
   /* 对外工具（各页面内联脚本使用） */
   window.JargusUI = {
     t: t,
@@ -717,6 +820,7 @@
     openModal: openModal,
     closeModal: closeModal,
     multiSelect: multiSelect,
+    confirm: confirmDialog,
     token: { get: getToken, set: setToken, clear: clearToken }
   };
 })();

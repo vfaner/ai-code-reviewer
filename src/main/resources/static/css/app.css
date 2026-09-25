@@ -85,6 +85,29 @@ a:hover { color: var(--brand-dark); }
 
 code, .mono { font-family: var(--mono); font-size: .88em; }
 
+/* ─── 全局滚动条 ──────────────────────────────────────────
+   全站统一细滚动条：8px 宽 + 胶囊滑块（头尾椭圆）+ 七彩渐变。
+   WebKit（Chrome/Edge/Safari）走 ::-webkit-scrollbar；Firefox 仅支持
+   scrollbar-width / scrollbar-color，渐变无法表达，退化为品牌色细条。
+   需要隐藏滚动条的区域（如 .tabs 的横向兜底滚动）保留各自的 display:none。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand-light) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px; /* 胶囊形：滑块头尾呈椭圆 */
+  background: linear-gradient(180deg,
+    #f43f5e, #f97316, #facc15, #4ade80, #22d3ee, #818cf8, #c084fc);
+}
+*::-webkit-scrollbar-thumb:horizontal {
+  background: linear-gradient(90deg,
+    #f43f5e, #f97316, #facc15, #4ade80, #22d3ee, #818cf8, #c084fc);
+}
+*::-webkit-scrollbar-thumb:hover { filter: saturate(1.3) brightness(1.06); }
+*::-webkit-scrollbar-corner { background: transparent; }
+
 /* ─── 图标 ──────────────────────────────────────────────────
    引用内联 SVG 精灵表（vendor/icons.svg，由 build-icons.py 生成）。
    之所以不用图标字体：字体 CSS 里的路径是相对于样式表解析的，一旦目录结构
@@ -641,10 +664,7 @@ fieldset.bare { border: 0; padding: 0; margin: 0; min-width: 0; }
 .picker-empty { font-size: 13px; color: var(--ink-mute); padding: 14px; text-align: center; }
 
 /* 滚动条：默认样式在深色下太刺眼 */
-.picker-list::-webkit-scrollbar { width: 8px; }
-.picker-list::-webkit-scrollbar-track { background: transparent; }
-.picker-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
-.picker-list::-webkit-scrollbar-thumb:hover { background: var(--ink-mute); }
+/* 选择器列表滚动条样式由全局滚动条规则统一接管 */
 
 /* ─── 空状态 ────────────────────────────────────────────── */
 .empty { padding: 52px 24px; text-align: center; }

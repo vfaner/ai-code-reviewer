@@ -92,6 +92,18 @@
 
 ![扫描历史](images/jargus_lishi.png)
 
+**扫描结果** — 五级问题分布、门禁结论与源码上下文
+
+![扫描结果](images/jargus_result.png)
+
+**问题详情与 AI 增强建议** — 单条问题的修复建议、源码上下文与 AI 增强建议（问题分析、修复方案、修复代码）
+
+![问题详情与 AI 增强建议](images/jargus_result_ai.png)
+
+**导出报表** — 导出的 HTML 报告：评分、门禁结论、修复建议与 AI 增强建议
+
+![导出报表](images/jargus_baobiao.png)
+
 **检查器配置** — 检查器启停与参数调整
 
 ![检查器配置](images/jargus_jianchaqi.png)
