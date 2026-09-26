@@ -148,7 +148,7 @@
                 </div>
                 <div class="field">
                     <label for="prov-timeoutSeconds" th:text="#{providers.timeout}">Timeout (s)</label>
-                    <input type="number" class="input" id="prov-timeoutSeconds" min="1" max="300" value="30">
+                    <input type="number" class="input" id="prov-timeoutSeconds" min="1" max="600" value="120">
                 </div>
             </div>
             <div class="field">
@@ -241,7 +241,7 @@
 
             if (!id) {
                 document.getElementById('provider-form').reset();
-                document.getElementById('prov-timeoutSeconds').value = 30;
+                document.getElementById('prov-timeoutSeconds').value = 120;
                 document.getElementById('prov-apiKey').placeholder = MSG_KEY_ENTER;
                 maxField.hidden = true;
                 UI.openModal('provider-modal');
@@ -256,7 +256,7 @@
                 document.getElementById('prov-apiKey').value = p.apiKey || '';
                 document.getElementById('prov-apiKey').placeholder = MSG_KEY_KEEP;
                 document.getElementById('prov-defaultModel').value = p.defaultModel || '';
-                document.getElementById('prov-timeoutSeconds').value = p.timeoutSeconds || 30;
+                document.getElementById('prov-timeoutSeconds').value = p.timeoutSeconds || 120;
                 var cap = p.maxTokens ? Number(p.maxTokens) : null;
                 maxOn.checked = !!cap;
                 maxField.hidden = !cap;
@@ -285,7 +285,7 @@
                 baseUrl: document.getElementById('prov-baseUrl').value.trim(),
                 apiKey: document.getElementById('prov-apiKey').value,
                 defaultModel: document.getElementById('prov-defaultModel').value.trim(),
-                timeoutSeconds: parseInt(document.getElementById('prov-timeoutSeconds').value, 10) || 30,
+                timeoutSeconds: parseInt(document.getElementById('prov-timeoutSeconds').value, 10) || 120,
                 maxTokens: (cap && cap > 0) ? cap : null
             };
         }

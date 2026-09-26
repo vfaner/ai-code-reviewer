@@ -132,10 +132,14 @@ public class ScanTaskController {
 
     /**
      * AI 深度评审：为任务下所有问题批量生成 AI 增强修复建议（后台异步）
+     * 可选 body {"levels":"BLOCKER,CRITICAL"} 按严重度过滤增强范围
      */
     @PostMapping("/{id}/ai-deep-review")
-    public Result<AiSuggestionService.Progress> startDeepReview(@PathVariable Long id) {
-        return Result.success(aiSuggestionService.startDeepReview(id));
+    public Result<AiSuggestionService.Progress> startDeepReview(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, Object> body) {
+        Object lv = body == null ? null : body.get("levels");
+        return Result.success(aiSuggestionService.startDeepReview(id, lv == null ? null : String.valueOf(lv)));
     }
 
     /**

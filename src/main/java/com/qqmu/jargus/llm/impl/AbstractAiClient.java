@@ -45,7 +45,7 @@ public abstract class AbstractAiClient implements AiChatClient {
      * 构建 WebClient
      */
     protected WebClient buildWebClient(AiProviderConfig config) {
-        int timeoutSeconds = config.getTimeoutSeconds() != null ? config.getTimeoutSeconds() : 60;
+        int timeoutSeconds = config.getTimeoutSeconds() != null ? config.getTimeoutSeconds() : 120;
 
         return WebClient.builder()
                 .baseUrl(config.getBaseUrl())
@@ -114,7 +114,7 @@ public abstract class AbstractAiClient implements AiChatClient {
                     .retrieve()
                     .bodyToMono(String.class)
                     .block(Duration.ofSeconds(config.getTimeoutSeconds() != null
-                            ? config.getTimeoutSeconds() : 60));
+                            ? config.getTimeoutSeconds() : 120));
         } catch (WebClientResponseException wce) {
             String respBody = wce.getResponseBodyAsString(StandardCharsets.UTF_8);
             if (respBody != null) {

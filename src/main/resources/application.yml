@@ -80,6 +80,9 @@ app:
   scan:
     max-concurrent: 3
     queue-capacity: 200
+  # AI 调用并发（深度评审逐条增强 / 扫描期逐文件 AI 评审共用；触发厂商限流可调低）
+  ai:
+    review-concurrency: 3
   # 自定义驱动 JAR 目录
   driver-dir: ./lib/custom
   # 默认 AES 密钥（生产环境请修改）

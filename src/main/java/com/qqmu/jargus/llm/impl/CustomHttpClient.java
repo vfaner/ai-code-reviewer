@@ -241,7 +241,7 @@ public class CustomHttpClient extends AbstractAiClient {
         try {
             var spec = webClient.get().uri(path);
             headers.forEach(spec::header);
-            int timeout = config.getTimeoutSeconds() != null ? config.getTimeoutSeconds() : 60;
+            int timeout = config.getTimeoutSeconds() != null ? config.getTimeoutSeconds() : 120;
             return spec.retrieve()
                     .bodyToMono(String.class)
                     .block(Duration.ofSeconds(timeout));

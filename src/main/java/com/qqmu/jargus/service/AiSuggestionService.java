@@ -1,5 +1,6 @@
 package com.qqmu.jargus.service;
 
+import com.qqmu.jargus.checker.IssueLevel;
 import com.qqmu.jargus.dto.FileContext;
 import com.qqmu.jargus.entity.ScanIssue;
 import com.qqmu.jargus.entity.ScanTask;
@@ -11,40 +12,58 @@ import com.qqmu.jargus.mapper.ScanIssueMapper;
 import com.qqmu.jargus.mapper.ScanTaskMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 
 /**
  * AI 修复建议增强服务：
  * - 单条增强：在代码上下文弹窗按需调用 AI，结合真实源码给出"问题分析/修复方案/修复代码"
- * - AI 深度评审：批量为任务下所有未忽略、尚未增强的问题逐条生成增强建议（后台异步 + 进度查询）
+ * - AI 深度评审：批量为任务下所有未忽略、尚未增强的问题生成增强建议（后台异步 + 进度查询），
+ *   单条 LLM 调用提交到 aiReviewExecutor 专用线程池并发执行（默认 3 并发可配置），
+ *   协调线程独立运行，不占用扫描池槽位
  * 结果落库 scan_issue.ai_suggestion，报告与列表复用，无需重复消耗 Token。
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AiSuggestionService {
 
     /** 单次深度评审最多增强条数，防止异常大任务把 Token 额度跑空 */
     private static final int DEEP_REVIEW_LIMIT = 50;
-    /** 取问题行前后各多少行做上下文 */
-    private static final int CONTEXT_LINES = 30;
+    /** 取问题行前后各多少行做上下文（缩减输入 Token，可小幅加快模型响应） */
+    private static final int CONTEXT_LINES = 20;
 
     private final AiClientFactory aiClientFactory;
     private final ScanIssueMapper scanIssueMapper;
     private final ScanTaskMapper scanTaskMapper;
     private final ScanIssueService scanIssueService;
     private final ReportService reportService;
-    /** 自注入代理：@Async 方法必须经 Spring 代理调用，类内 this 直调不会异步 */
-    private final ObjectProvider<AiSuggestionService> selfProvider;
+    /** AI 调用专用线程池（与扫描池隔离，LLM 调用 IO 密集可安全并发） */
+    private final Executor aiReviewExecutor;
+
+    public AiSuggestionService(AiClientFactory aiClientFactory,
+                               ScanIssueMapper scanIssueMapper,
+                               ScanTaskMapper scanTaskMapper,
+                               ScanIssueService scanIssueService,
+                               ReportService reportService,
+                               @Qualifier("aiReviewExecutor") Executor aiReviewExecutor) {
+        this.aiClientFactory = aiClientFactory;
+        this.scanIssueMapper = scanIssueMapper;
+        this.scanTaskMapper = scanTaskMapper;
+        this.scanIssueService = scanIssueService;
+        this.reportService = reportService;
+        this.aiReviewExecutor = aiReviewExecutor;
+    }
 
     /** 深度评审进度：taskId → 进度（仅本节点内存态，重启后视为空闲） */
     private final Map<Long, Progress> jobs = new ConcurrentHashMap<>();
@@ -57,6 +76,14 @@ public class AiSuggestionService {
      * 单条问题的 AI 增强建议（同步调用，结果落库）
      */
     public String enhanceIssue(Long issueId) {
+        return doEnhance(issueId, true);
+    }
+
+    /**
+     * 单条增强核心流程。purgeCache=false 时由调用方统一失效报告缓存
+     * （深度评审场景逐条清理会重复做 N 次磁盘缓存删除，收尾清一次即可）
+     */
+    private String doEnhance(Long issueId, boolean purgeCache) {
         ScanIssue issue = scanIssueMapper.selectById(issueId);
         if (issue == null) {
             throw new RuntimeException("问题不存在");
@@ -91,15 +118,19 @@ public class AiSuggestionService {
         scanIssueMapper.updateById(update);
         // AI 建议落库必须让报告磁盘缓存失效：preview/download 只要缓存文件存在就直接复用，
         // 否则深度评审进行中打开过预览的任务会把"半成品"报告一直缓存下去
-        reportService.purgeReportCache(issue.getTaskId());
+        if (purgeCache) {
+            reportService.purgeReportCache(issue.getTaskId());
+        }
         log.info("AI 增强建议已生成: issueId={}, tokens={}", issueId, response.getTotalTokens());
         return text;
     }
 
     /**
-     * 启动任务级 AI 深度评审（后台异步，逐条增强）
+     * 启动任务级 AI 深度评审（后台异步，单条 LLM 调用并发执行）
+     *
+     * @param levels 逗号分隔的严重度过滤（如 "BLOCKER,CRITICAL"），空/null = 不限级别
      */
-    public Progress startDeepReview(Long taskId) {
+    public Progress startDeepReview(Long taskId, String levels) {
         ScanTask task = scanTaskMapper.selectById(taskId);
         if (task == null) {
             throw new RuntimeException("任务不存在");
@@ -113,11 +144,18 @@ public class AiSuggestionService {
             throw new RuntimeException("该任务正在进行 AI 深度评审，请等待完成");
         }
 
-        List<ScanIssue> pending = scanIssueMapper.selectList(new QueryWrapper<ScanIssue>()
+        Set<String> levelSet = parseLevels(levels);
+        QueryWrapper<ScanIssue> qw = new QueryWrapper<ScanIssue>()
                 .eq("task_id", taskId)
                 .eq("is_ignored", false)
-                .isNull("ai_suggestion")
-                .orderByAsc("issue_level", "id"));
+                .isNull("ai_suggestion");
+        if (!levelSet.isEmpty()) {
+            qw.in("issue_level", levelSet);
+        }
+        // issue_level 是字符串列，字母序 ≠ 严重度序（INFO 会排在 MAJOR 前面），
+        // 改用 severity 秩排序（BLOCKER=5 … INFO=1），保证高严重度优先增强
+        qw.orderByDesc("severity").orderByAsc("id");
+        List<ScanIssue> pending = scanIssueMapper.selectList(qw);
 
         Progress progress = new Progress();
         progress.setRunning(true);
@@ -129,14 +167,39 @@ public class AiSuggestionService {
         if (pending.isEmpty()) {
             progress.setRunning(false);
             progress.setFinishedAt(LocalDateTime.now());
-            progress.setMessage("所有问题均已生成 AI 增强建议");
+            progress.setMessage(levelSet.isEmpty()
+                    ? "所有问题均已生成 AI 增强建议"
+                    : "所选严重度下没有待增强的问题");
         }
         jobs.put(taskId, progress);
 
         if (!pending.isEmpty()) {
-            selfProvider.getObject().runDeepReview(taskId, pending.subList(0, progress.getTotal()));
+            // 协调线程独立运行（不占扫描池槽位），单条增强提交 aiReviewExecutor 并发执行
+            List<ScanIssue> batch = new ArrayList<>(pending.subList(0, progress.getTotal()));
+            Thread coordinator = new Thread(() -> runDeepReview(taskId, batch), "ai-deep-review-" + taskId);
+            coordinator.setDaemon(true);
+            coordinator.start();
         }
         return progress;
+    }
+
+    /** 解析逗号分隔的严重度过滤，仅接受合法的五级枚举名；返回空集 = 不过滤 */
+    private Set<String> parseLevels(String levels) {
+        Set<String> set = new LinkedHashSet<>();
+        if (levels == null || levels.isBlank()) {
+            return set;
+        }
+        for (String part : levels.split(",")) {
+            String t = part.trim().toUpperCase();
+            if (t.isEmpty()) continue;
+            for (IssueLevel lv : IssueLevel.values()) {
+                if (lv.name().equals(t)) {
+                    set.add(t);
+                    break;
+                }
+            }
+        }
+        return set;
     }
 
     public Progress getProgress(Long taskId) {
@@ -151,19 +214,48 @@ public class AiSuggestionService {
         return empty;
     }
 
-    @Async("scanTaskExecutor")
-    public void runDeepReview(Long taskId, List<ScanIssue> issues) {
+    /**
+     * 深度评审协调器：把每条问题作为独立任务提交 aiReviewExecutor 并发执行，
+     * 等待全部完成后统一收尾。计数在 synchronized 块内做，前端进度语义与串行版一致。
+     */
+    private void runDeepReview(Long taskId, List<ScanIssue> issues) {
         Progress progress = jobs.get(taskId);
         try {
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
             for (ScanIssue issue : issues) {
                 if (!progress.isRunning()) break; // 预留中止能力
-                try {
-                    enhanceIssue(issue.getId());
-                    progress.setDone(progress.getDone() + 1);
-                } catch (Exception e) {
-                    log.warn("AI 深度评审单条失败: issueId={}, err={}", issue.getId(), e.getMessage());
-                    progress.setFailed(progress.getFailed() + 1);
-                }
+                futures.add(CompletableFuture.runAsync(() -> {
+                    synchronized (progress) {
+                        progress.setInflight(progress.getInflight() + 1);
+                    }
+                    try {
+                        doEnhance(issue.getId(), false);
+                        synchronized (progress) {
+                            progress.setDone(progress.getDone() + 1);
+                        }
+                    } catch (Exception e) {
+                        log.warn("AI 深度评审单条失败: issueId={}, err={}", issue.getId(), e.getMessage());
+                        synchronized (progress) {
+                            progress.setFailed(progress.getFailed() + 1);
+                            // 首条失败原因留给前端终态展示（厂商超时/欠费等不必翻日志）
+                            if (progress.getLastError() == null) {
+                                String m = e.getMessage();
+                                progress.setLastError(m != null && m.length() > 160 ? m.substring(0, 160) : m);
+                            }
+                        }
+                    } finally {
+                        synchronized (progress) {
+                            progress.setInflight(progress.getInflight() - 1);
+                        }
+                    }
+                }, aiReviewExecutor));
+            }
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            // 全部落库后一次性失效报告缓存（原来每条清一次，纯浪费）
+            try {
+                reportService.purgeReportCache(taskId);
+            } catch (Exception e) {
+                log.warn("深度评审后失效报告缓存失败: taskId={}, err={}", taskId, e.getMessage());
             }
             progress.setRunning(false);
             progress.setFinishedAt(LocalDateTime.now());
@@ -243,7 +335,8 @@ public class AiSuggestionService {
 
             严格范围：本次建议的唯一目标是修复被 >> 标记的问题行。除同一方法内完成该修复所必需的配套代码（如新增的 import 或局部变量）外，
             禁止建议修改、重构或"顺手修复"任何未被标记的其他方法、其他代码行——即使它们存在相似写法或同类隐患，那些代码本次扫描并未报告问题，不在建议范围内；
-            也不要建议修改与问题行无关的业务逻辑。禁止输出 JSON、禁止复述用户给出的元数据、禁止泛泛而谈（如"加强健壮性"）。""" ;
+            也不要建议修改与问题行无关的业务逻辑。禁止输出 JSON、禁止复述用户给出的元数据、禁止泛泛而谈（如"加强健壮性"）。
+            输出务求精炼：问题分析不超过 2 句话，修复方案不超过 4 条，修复代码只含最小必要片段。""" ;
 
     /** 深度评审进度（内存态，序列化为 JSON 给前端轮询） */
     @Data
@@ -253,6 +346,10 @@ public class AiSuggestionService {
         private int done;
         private int failed;
         private int skipped;
+        /** 当前在飞的 LLM 调用数（前端轮询展示的实时并发；排队中 = total-done-failed-inflight） */
+        private int inflight;
+        /** 本轮首条失败原因（终态展示，避免用户翻日志） */
+        private String lastError;
         private LocalDateTime startedAt;
         private LocalDateTime finishedAt;
         private String message;

@@ -362,6 +362,11 @@
                 <span th:text="#{common.search}">Search</span>
             </button>
             <div class="spacer"></div>
+            <select class="select" id="deep-scope" th:if="${isAdmin}"
+                    style="display:none;max-width:190px;" th:title="#{issues.deepScope}">
+                <option value="" th:text="#{issues.deepScopeAll}">All pending issues</option>
+                <option value="BLOCKER,CRITICAL" th:text="#{issues.deepScopeHigh}">BLOCKER / CRITICAL only</option>
+            </select>
             <button class="btn btn-warn btn-sm" id="deep-review-btn" th:if="${isAdmin}" style="display:none;">
                 <svg class="ico"><use href="#stars"/></svg>
                 <span th:text="#{issues.deepReview}">AI deep review</span>
@@ -372,7 +377,7 @@
         <!-- AI 深度评审进度 -->
         <div class="deep-progress" id="deep-progress" style="display:none;">
             <div class="deep-progress-head">
-                <span class="spin"></span>
+                <span class="spin" id="deep-progress-spin"></span>
                 <span id="deep-progress-text">AI…</span>
             </div>
             <div class="deep-progress-bar"><div id="deep-progress-fill"></div></div>
@@ -855,21 +860,45 @@
 
         // 深度评审
         var deepBtn = document.getElementById('deep-review-btn');
+        var deepScope = document.getElementById('deep-scope');
         var deepBox = document.getElementById('deep-progress');
         var deepFill = document.getElementById('deep-progress-fill');
         var deepText = document.getElementById('deep-progress-text');
+        var deepSpin = document.getElementById('deep-progress-spin');
         var deepBusy = false;
+        var deepHideTimer = null;
 
+        // 进行中 / 结束两态渲染：结束（running=false）必须停转并给出完成态文案，
+        // 否则进度条会永远停在"评审中 + 转圈"（此前终态未渲染，只能靠刷新消除）
         function setDeepUi(p) {
             deepBox.style.display = '';
             var total = p.total || 0;
             var pct = total > 0 ? Math.round((p.done || 0) * 100 / total) :
                 (p.running ? 0 : 100);
             deepFill.style.width = pct + '%';
-            deepText.textContent =
-                UI.t('issues.aiProgress') + ' ' + (p.done || 0) + '/' + total +
-                (p.failed > 0 ? ' · ✗ ' + p.failed : '') +
+            var tail =
+                (p.failed > 0 ? ' · ' + UI.t('issues.deepStatFail') + ' ' + p.failed : '') +
                 (p.skipped > 0 ? ' · ' + UI.t('issues.aiSkipped') + ' ' + p.skipped : '');
+            if (p.running) {
+                deepSpin.style.display = '';
+                deepText.title = ''; // 新一轮清掉上一轮的失败原因悬停提示
+                var inflight = p.inflight || 0;
+                var queued = Math.max(0, total - (p.done || 0) - (p.failed || 0) - inflight);
+                deepText.textContent =
+                    UI.t('issues.aiProgress') +
+                    ' · ' + UI.t('issues.deepStatRunning') + ' ' + inflight +
+                    ' · ' + UI.t('issues.deepStatDone') + ' ' + (p.done || 0) + '/' + total +
+                    (queued > 0 ? ' · ' + UI.t('issues.deepStatQueue') + ' ' + queued : '') +
+                    tail;
+            } else {
+                deepSpin.style.display = 'none';
+                deepText.textContent =
+                    (p.failed > 0 ? '✗ ' : '✓ ') +
+                    (total === 0 ? UI.t('issues.deepAllDone') : UI.t('issues.deepDone')) +
+                    ' ' + (p.done || 0) + '/' + total + tail;
+                // 失败原因挂 title，悬停可见全文
+                deepText.title = p.lastError || '';
+            }
         }
 
         function pollDeepReview() {
@@ -884,8 +913,20 @@
                     var msg = (p.total === 0) ? UI.t('issues.deepAllDone') :
                         UI.t('issues.deepDone') +
                         (p.failed > 0 ? '（' + p.failed + ' ✗）' : '');
+                    // 失败原因直接进弹窗，用户不必翻日志就知道是厂商超时还是欠费
+                    if (p.failed > 0 && p.lastError) msg += '：' + p.lastError;
                     UI.toast(msg, p.failed > 0 ? 'warn' : 'ok');
                     loadIssues();
+                    clearTimeout(deepHideTimer);
+                    if (p.failed > 0) {
+                        // 有失败：终态条常驻（停转、显示失败数），不再自动收起，避免"跑了半天没反应"
+                        deepBox.style.display = '';
+                    } else {
+                        // 全部成功的完成态短暂停留后自动收起，避免终态进度条长期占位
+                        deepHideTimer = setTimeout(function () {
+                            deepBox.style.display = 'none';
+                        }, 6000);
+                    }
                 }
             }).catch(function () {
                 deepPollTimer = setTimeout(pollDeepReview, 4000);
@@ -919,8 +960,10 @@
                     if (deepBusy) return; // 弹窗期间进度可能已由 syncDeepState 接续
                     deepBusy = true;
                     deepBtn.disabled = true;
+                    clearTimeout(deepHideTimer); // 新一轮开始，取消上一轮的自动收起
                     setDeepUi({ running: true, total: 0, done: 0 });
-                    UI.api.post('/api/scans/' + taskId + '/ai-deep-review', {}).then(function (p) {
+                    var body = { levels: deepScope ? (deepScope.value || '') : '' };
+                    UI.api.post('/api/scans/' + taskId + '/ai-deep-review', body).then(function (p) {
                         if (p) setDeepUi(p);
                         clearTimeout(deepPollTimer);
                         deepPollTimer = setTimeout(pollDeepReview, 1500);
@@ -947,7 +990,10 @@
         if (status === 'SUCCESS') {
             UI.api.get('/api/issues/ai/available').then(function (res) {
                 aiAvailable = !!(res && res.available);
-                if (aiAvailable && deepBtn) deepBtn.style.display = '';
+                if (aiAvailable && deepBtn) {
+                    deepBtn.style.display = '';
+                    if (deepScope) deepScope.style.display = '';
+                }
             }).catch(function () {});
         }
 

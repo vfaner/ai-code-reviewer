@@ -34,4 +34,29 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * AI 调用专用线程池：深度评审逐条增强与扫描期逐文件 AI 评审共用。
+     *
+     * LLM 调用是 IO 密集且单次数秒到数十秒，混进 scanTaskExecutor（仅 3 槽）
+     * 会长时间占用扫描并发位，因此独立成池。并发默认 3，是对厂商限流的保守值，
+     * 触发限流（429）可通过 app.ai.review-concurrency 调低；队列打满退化为
+     * 调用者自跑（CallerRuns），只降吞吐不丢任务。
+     */
+    @Bean("aiReviewExecutor")
+    public Executor aiReviewExecutor(
+            @Value("${app.ai.review-concurrency:3}") int concurrency
+    ) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        int n = Math.max(1, concurrency);
+        executor.setCorePoolSize(n);
+        executor.setMaxPoolSize(n);
+        executor.setQueueCapacity(1000);
+        executor.setThreadNamePrefix("ai-review-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
 }

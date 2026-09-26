@@ -87,7 +87,8 @@ public class ProviderConfigService {
         if (config.getAuthType() == null) config.setAuthType("BEARER");
         if (config.getAuthHeaderName() == null) config.setAuthHeaderName("Authorization");
         if (config.getRequestMethod() == null) config.setRequestMethod("POST");
-        if (config.getTimeoutSeconds() == null) config.setTimeoutSeconds(60);
+        // 默认 120s：部分厂商（思考型模型/排队网关）单次调用可达 1 分钟以上，60s 会误判超时
+        if (config.getTimeoutSeconds() == null) config.setTimeoutSeconds(120);
         if (config.getIsCustom() == null) config.setIsCustom(false);
         if (config.getIsActive() == null) config.setIsActive(false);
         if (config.getIsEnabled() == null) config.setIsEnabled(true);
@@ -149,7 +150,7 @@ public class ProviderConfigService {
         if (config.getAuthType() == null) config.setAuthType("BEARER");
         if (config.getAuthHeaderName() == null) config.setAuthHeaderName("Authorization");
         if (config.getRequestMethod() == null) config.setRequestMethod("POST");
-        if (config.getTimeoutSeconds() == null) config.setTimeoutSeconds(60);
+        if (config.getTimeoutSeconds() == null) config.setTimeoutSeconds(120);
 
         boolean keyBlank = config.getApiKey() == null || config.getApiKey().isEmpty();
         boolean secretBlank = config.getSecretKey() == null || config.getSecretKey().isEmpty();
