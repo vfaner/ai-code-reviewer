@@ -19,9 +19,6 @@
   function getToken() {
     try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
   }
-  function setToken(token) {
-    try { localStorage.setItem(TOKEN_KEY, token); } catch (e) { /* 隐私模式 */ }
-  }
   function clearToken() {
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ignore */ }
   }
@@ -812,15 +809,12 @@
   window.JargusUI = {
     t: t,
     esc: esc,
-    icon: icon,
-    iconHtml: iconHtml,
     toast: toast,
     api: api,
-    request: request,
     openModal: openModal,
     closeModal: closeModal,
     multiSelect: multiSelect,
     confirm: confirmDialog,
-    token: { get: getToken, set: setToken, clear: clearToken }
+    token: { get: getToken, clear: clearToken }
   };
 })();

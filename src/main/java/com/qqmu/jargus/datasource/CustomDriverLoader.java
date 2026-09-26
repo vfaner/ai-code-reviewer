@@ -74,26 +74,6 @@ public class CustomDriverLoader {
     }
 
     /**
-     * 卸载驱动
-     */
-    public static synchronized void unloadDriver(String driverClass) {
-        try {
-            Driver driver = REGISTERED_DRIVERS.get(driverClass);
-            if (driver != null) {
-                DriverManager.deregisterDriver(new DriverShim(driver));
-                REGISTERED_DRIVERS.remove(driverClass);
-            }
-            URLClassLoader classLoader = LOADED_CLASSLOADERS.remove(driverClass);
-            if (classLoader != null) {
-                classLoader.close();
-            }
-            log.info("已卸载驱动: {}", driverClass);
-        } catch (Exception e) {
-            log.warn("卸载驱动失败: {}", e.getMessage());
-        }
-    }
-
-    /**
      * 驱动 Shim 类
      * 用于绕过 DriverManager 对驱动类加载器的检查
      */

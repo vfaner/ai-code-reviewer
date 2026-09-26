@@ -266,12 +266,6 @@
                 UI.toast(String(err.message || err), 'danger');
             });
         };
-        // 供行内 onclick 调用
-        window.applyTemplate = function (name) {
-            var btn = document.querySelector('.tpl-btn[data-tpl="' + name + '"]');
-            if (btn) btn.click();
-        };
-
         function collectProviderForm() {
             var idVal = document.getElementById('prov-id').value;
             var cap = maxOn.checked
