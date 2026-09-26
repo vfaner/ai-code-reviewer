@@ -362,11 +362,9 @@
                 <span th:text="#{common.search}">Search</span>
             </button>
             <div class="spacer"></div>
-            <select class="select" id="deep-scope" th:if="${isAdmin}"
-                    style="display:none;max-width:190px;" th:title="#{issues.deepScope}">
-                <option value="" th:text="#{issues.deepScopeAll}">All pending issues</option>
-                <option value="BLOCKER,CRITICAL" th:text="#{issues.deepScopeHigh}">BLOCKER / CRITICAL only</option>
-            </select>
+            <!-- 增强范围多选：一个不勾 = 全部未增强问题（默认）；五级全勾 = 等价默认，确认时自动收起 -->
+            <div id="deep-scope" th:if="${isAdmin}"
+                 style="display:none;width:190px;flex:none;" th:title="#{issues.deepScope}"></div>
             <button class="btn btn-warn btn-sm" id="deep-review-btn" th:if="${isAdmin}" style="display:none;">
                 <svg class="ico"><use href="#stars"/></svg>
                 <span th:text="#{issues.deepReview}">AI deep review</span>
@@ -861,6 +859,21 @@
         // 深度评审
         var deepBtn = document.getElementById('deep-review-btn');
         var deepScope = document.getElementById('deep-scope');
+        // 增强范围多选（五个严重度；不勾 = 全部未增强问题，即默认）
+        var DEEP_LEVELS = ['BLOCKER', 'CRITICAL', 'MAJOR', 'MINOR', 'INFO'];
+        var deepScopeMs = deepScope ? UI.multiSelect(deepScope, {
+            title: /*[[#{issues.deepScope}]]*/ '增强范围',
+            placeholder: /*[[#{issues.deepScopeAll}]]*/ '全部未增强问题',
+            onChange: function (csv) {
+                // 全级别勾选 = 等价「全部未增强」，自动收起为未选状态，保证语义只有一种表示
+                if (csv && csv.split(',').length >= DEEP_LEVELS.length) deepScopeMs.set('');
+            }
+        }) : null;
+        if (deepScopeMs) {
+            deepScopeMs.setOptions(DEEP_LEVELS.map(function (lv) {
+                return { id: lv, name: LEVEL_LABELS[lv] || lv };
+            }));
+        }
         var deepBox = document.getElementById('deep-progress');
         var deepFill = document.getElementById('deep-progress-fill');
         var deepText = document.getElementById('deep-progress-text');
@@ -962,7 +975,10 @@
                     deepBtn.disabled = true;
                     clearTimeout(deepHideTimer); // 新一轮开始，取消上一轮的自动收起
                     setDeepUi({ running: true, total: 0, done: 0 });
-                    var body = { levels: deepScope ? (deepScope.value || '') : '' };
+                    var lvCsv = deepScopeMs ? deepScopeMs.get() : '';
+                    // 兜底归一化：全级别 = 不限级别（onChange 收起已保证，双保险）
+                    if (lvCsv && lvCsv.split(',').length >= DEEP_LEVELS.length) lvCsv = '';
+                    var body = { levels: lvCsv };
                     UI.api.post('/api/scans/' + taskId + '/ai-deep-review', body).then(function (p) {
                         if (p) setDeepUi(p);
                         clearTimeout(deepPollTimer);

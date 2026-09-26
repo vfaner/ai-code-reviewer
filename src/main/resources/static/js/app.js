@@ -510,7 +510,8 @@
   });
 
   /* ─── 带搜索的下拉多选（收件人选择） ────────────────────────
-     mount 为挂载容器；opts.placeholder 覆盖占位文案。
+     mount 为挂载容器；opts.placeholder 覆盖占位文案，opts.title 覆盖弹窗标题（缺省同占位）；
+     opts.onChange(csv) 在确认 / chip 删除 / set 后回调，供调用方做归一化（如「全选=默认」收起）。
      数据项 {id, name, email}；契约：setOptions 先于 set 调用。
      返回 { get(): 'id,id,...', set(csv), setOptions(list) }。
      chip 最多显示 2 个，超出用「+N」省略（title 列出其余），盒高固定单行不撑大。 */
@@ -524,6 +525,7 @@
     var selected = [];     // 已确认选中的 id（字符串）
     var tmp = [];          // 弹窗内暂存勾选（确认才回填，取消即丢弃）
     var placeholder = opts.placeholder || t('mail.ms.placeholder');
+    var title = opts.title || placeholder;
     var MAX_CHIPS = 2;
     msSeq += 1;
     var modalId = 'ms-modal-' + msSeq;
@@ -544,8 +546,8 @@
       '<div class="modal-dialog">' +
         '<button type="button" class="modal-close">' + iconHtml('x-lg') + '</button>' +
         '<div class="modal-head">' +
-          '<span class="sec-tag">' + esc(placeholder) + '</span>' +
-          '<h3>' + esc(placeholder) + '</h3>' +
+          '<span class="sec-tag">' + esc(title) + '</span>' +
+          '<h3>' + esc(title) + '</h3>' +
         '</div>' +
         '<div class="ms-modal-body">' +
           '<input type="text" class="input ms-search" autocomplete="off">' +
@@ -656,6 +658,7 @@
       var id = String(x.parentElement.getAttribute('data-id'));
       selected = selected.filter(function (s) { return s !== id; });
       renderChips();
+      if (opts.onChange) opts.onChange(selected.join(','));
     });
 
     modal.querySelector('.modal-mask').addEventListener('click', close);
@@ -665,6 +668,7 @@
       selected = tmp.slice();
       renderChips();
       close();
+      if (opts.onChange) opts.onChange(selected.join(','));
     });
 
     search.addEventListener('input', renderList);
@@ -710,6 +714,7 @@
         }
         renderChips();
         if (isOpen()) renderList();
+        if (opts.onChange) opts.onChange(selected.join(','));
       },
       setOptions: function (list_) {
         items = (list_ || []).map(function (it) {
