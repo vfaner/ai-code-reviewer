@@ -214,26 +214,29 @@ java -jar jargus-2.0.0.jar
 
 For source builds and Docker, see [Deployment](#-deployment) below.
 
-## ⚔️ Comparison
+## 📊 Feature Comparison
 
 | Dimension | **JArgus** | SonarQube (Community) | PMD / SpotBugs / Checkstyle | CodeQL |
 |-----------|----------------------|-----------------------|------------------------------|--------|
-| Deployment | ⭐ Single JAR / container, embedded DB, up in 1 minute | Server + DB + compute engine, usually needs dedicated ops | Lightweight, but CLI / IDE only — no server or UI | Requires compiling the codebase + dedicated CLI; server only on GitHub |
-| Chinese support | ✅ Native (UI / rules / suggestions / reports) | ❌ English-first | ❌ | ❌ |
-| AI semantic review | ✅ Multi-vendor LLMs (incl. domestic & local Ollama), per-issue fix suggestions | ❌ (commercial cloud only) | ❌ | ❌ |
-| Scoring & gate | ✅ Five-grade scoring; weights / thresholds / bands customizable in UI, instant effect | ✅ Fixed rules, not customizable | ❌ Issue lists only | ❌ |
-| Duplicate code | ✅ CPD-style token fingerprints, boilerplate excluded | ✅ (partially limited) | Needs separate CPD setup | ❌ |
-| Dependency CVEs | ✅ Built-in advisory store + optional OSV | ❌ (commercial editions) | ❌ | ❌ (needs Dependabot) |
-| Architecture rules | ✅ Built-in | Partial (plugins / paid) | ❌ | Custom queries, steep learning curve |
-| CI/CD | ✅ Webhook trigger + status write-back + MR/PR comments (GitHub / GitLab / Gitee / self-hosted) | ✅ Extra plugins & config | DIY scripts | ✅ GitHub ecosystem only |
-| Email report delivery | ✅ Auto-mails HTML summary + PDF report on scan completion | Commercial edition or extra config | ❌ | ❌ |
-| Visual reports | ✅ One-click HTML / PDF (CJK-ready) | PDF needs plugins / paid | ❌ | ❌ |
-| Offline / air-gapped | ✅ Full functionality offline (AI optional) | ✅ | ✅ | ✅ |
-| Domestic databases | ✅ DM / Kingbase / openGauss drivers bundled | ❌ | — | — |
-| Licensing cost | ✅ MIT, completely free | Community free, advanced paid | Free | Paid for private GitHub repos |
-| Language coverage | Java (deep focus) | Multi-language | Mostly Java | Multi-language |
+| Deployment | Single JAR / container, embedded DB, no external service dependencies | Separate server, database and compute engine deployment | CLI / IDE plugins only — no server-side UI | Requires compiling the codebase and the dedicated CLI; hosted service on GitHub |
+| Chinese support | Native (UI / rules / suggestions / reports) | Officially English-first (community Chinese language packs exist) | Officially English | Officially English |
+| AI semantic review | Multi-vendor LLMs (incl. domestic & local Ollama), per-issue fix suggestions | Not in Community (official AI features in paid / cloud editions) | Not included | Not included (query-language based) |
+| Scoring & gate | Five-grade scoring; weights / thresholds / bands customizable in UI, instant effect | Has scoring and quality profiles; rule severities customizable; rating model follows official definitions | Issue lists only, no scoring | Query-result based, no built-in scoring |
+| Duplicate code | CPD-style token fingerprints, boilerplate excluded | Built-in CPD (cross-project duplication is a paid feature) | CPD ships with PMD; SpotBugs / Checkstyle have no duplication detection | No built-in duplication detection |
+| Dependency CVEs | Built-in advisory store + optional OSV | No built-in advisory store (third-party plugins or paid features) | No built-in advisory store | No built-in advisory store (typically paired with Dependabot) |
+| Architecture rules | Built-in | Related capabilities provided by the paid architecture rule engine | Not included | Requires hand-written QL queries |
+| CI/CD | Webhook trigger + status write-back + MR/PR comments (GitHub / GitLab / Gitee / self-hosted) | Supported via plugins and configuration | DIY scripts | Hosted edition limited to the GitHub ecosystem |
+| Email report delivery | Auto-mails HTML summary + PDF report on scan completion | Alert notifications built in; report emails require custom integration | Not included | Not included |
+| Visual reports | HTML / PDF export (CJK-ready) | Built-in web dashboard; PDF export needs plugins or paid editions | No report UI | No report UI |
+| Offline / air-gapped | Full functionality offline (AI optional) | Supported | Supported | Supported (CLI runs locally) |
+| Domestic databases | DM / Kingbase / openGauss drivers bundled | Official support limited to mainstream databases such as PostgreSQL / MySQL | N/A (no server-side storage) | N/A |
+| Licensing cost | MIT license | Community free, enterprise editions paid | Free and open source | Private-repo use requires paid GitHub Advanced Security |
+| Language coverage | Java | Multi-language | Mostly Java | Multi-language |
+| Rule ecosystem size | Built-in rules focused on common Java issues | Hundreds of built-in rules | Hundreds of rules (Java-oriented) | Standard query library and public query repository |
 
-**Honest positioning**: for polyglot monorepos that need a massive rule ecosystem and long-term trend governance, SonarQube / CodeQL are more mature. This project's differentiated value is **zero-friction deployment, native Chinese, AI enhancement, and a one-stop Java workflow**: no database to install, no ops to hire, no license to buy — one command gets you the full loop of scan → score → gate → report → CI blocking → email delivery. It is especially suited to small/medium Java teams, air-gapped intranets, Xinchuang (domestic-tech) projects, and teaching demos.
+> **Note & disclaimer**: the comparison above was compiled from each product's official public documentation and community / free editions as of **September 2026**. It describes feature differences for selection reference only and does not constitute an evaluation, endorsement, or disparagement of any product or vendor. Products evolve quickly — refer to official documentation for current capabilities. Corrections are welcome via Issue / PR and will be verified and fixed promptly.
+
+**Where each fits**: the differences above drive selection — for polyglot repositories and long-term trend governance, SonarQube / CodeQL cover more rules and historical analysis; this project's characteristics are single JAR / container deployment with an embedded database, native Chinese, optional AI enhancement and a Java-only focus, suiting small/medium Java teams, air-gapped intranets, Xinchuang (domestic-tech) projects and teaching demos.
 
 ## 🚀 Deployment
 
