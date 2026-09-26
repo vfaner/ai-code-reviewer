@@ -176,8 +176,8 @@ public class DatabaseConfigService {
                 }
             }
 
-            // 如果是自定义数据库且驱动 JAR 存在，先加载驱动
-            if (Boolean.TRUE.equals(config.getIsCustom()) && config.getDriverJarPath() != null) {
+            // 只要配置了驱动 JAR 且文件存在就先加载（自定义库、或驱动未内置的类型如神通 Oscar）
+            if (config.getDriverJarPath() != null && !config.getDriverJarPath().isBlank()) {
                 File jarFile = new File(config.getDriverJarPath());
                 if (jarFile.exists()) {
                     CustomDriverLoader.loadDriver(config.getDriverJarPath(), config.getDriverClass());
@@ -211,26 +211,63 @@ public class DatabaseConfigService {
     }
 
     /**
-     * 获取数据库类型列表
+     * 获取数据库类型列表。
+     * 内置类型：驱动 JAR 随应用打包（pom 依赖），前端只需 host/port/库名/参数；
+     * 神通 Oscar 中央仓库无驱动，需上传 JAR（jarRequired=true）；
+     * TiDB / GBase 8a 走 MySQL 协议，复用 mysql-connector-j；
+     * URL 形态特殊的类型（Oracle/SQL Server/DB2/GBase 8s）用 urlTemplate 描述
+     * （{host}/{port}/{database}/{params} 占位），前端按模板拼接与反解。
      */
     public List<Map<String, String>> getDatabaseTypes() {
         List<Map<String, String>> types = new ArrayList<>();
 
-        // 内置类型：驱动 JAR 全部随应用打包（pom 依赖），前端只需 host/port/库名/参数
+        // ---- MySQL 家族 ----
         types.add(createDbType("MySQL", "MYSQL", "com.mysql.cj.jdbc.Driver", false,
                 "3306", "jdbc:mysql://", "?"));
+        types.add(createDbType("MariaDB", "MARIADB", "org.mariadb.jdbc.Driver", false,
+                "3306", "jdbc:mariadb://", "?"));
+        types.add(createDbType("TiDB", "TIDB", "com.mysql.cj.jdbc.Driver", false,
+                "4000", "jdbc:mysql://", "?"));
+        types.add(createDbType("OceanBase", "OCEANBASE", "com.oceanbase.jdbc.Driver", false,
+                "2881", "jdbc:oceanbase://", "?"));
+        types.add(createDbType("GBase 8a", "GBASE8A", "com.mysql.cj.jdbc.Driver", false,
+                "5258", "jdbc:mysql://", "?"));
+        // ---- PostgreSQL 家族 ----
         types.add(createDbType("PostgreSQL", "POSTGRESQL", "org.postgresql.Driver", false,
                 "5432", "jdbc:postgresql://", "?"));
         types.add(createDbType("openGauss", "OPENGAUSS", "org.opengauss.Driver", false,
                 "5432", "jdbc:opengauss://", "?"));
-        types.add(createDbType("Oracle", "ORACLE", "oracle.jdbc.OracleDriver", false,
-                "1521", "jdbc:oracle:thin:@//", "?"));
-        types.add(createDbType("达梦 DM", "DM", "dm.jdbc.driver.DmDriver", false,
-                "5236", "jdbc:dm://", "?"));
         types.add(createDbType("人大金仓 KingBase", "KINGBASE", "com.kingbase8.Driver", false,
                 "54321", "jdbc:kingbase8://", "?"));
+        types.add(createDbType("瀚高 HighGo", "HIGHGO", "com.highgo.jdbc.Driver", false,
+                "5866", "jdbc:highgo://", "?"));
+        types.add(createDbType("海量 Vastbase", "VASTBASE", "cn.com.vastbase.Driver", false,
+                "5432", "jdbc:vastbase://", "?"));
+        // ---- Oracle 家族 ----
+        types.add(createDbType("Oracle", "ORACLE", "oracle.jdbc.OracleDriver", false,
+                "1521", "jdbc:oracle:thin:@//", "?")
+                .withTemplate("jdbc:oracle:thin:@//{host}:{port}/{database}"));
+        types.add(createDbType("达梦 DM", "DM", "dm.jdbc.driver.DmDriver", false,
+                "5236", "jdbc:dm://", "?"));
+        types.add(createDbType("崖山 YashanDB", "YASHANDB", "com.yashandb.jdbc.Driver", false,
+                "1688", "jdbc:yasdb://", "?"));
+        // ---- 其他内置 ----
+        types.add(createDbType("SQL Server", "SQLSERVER", "com.microsoft.sqlserver.jdbc.SQLServerDriver", false,
+                "1433", "jdbc:sqlserver://", ";")
+                .withTemplate("jdbc:sqlserver://{host}:{port};databaseName={database};{params}")
+                .withParamsHint("encrypt=false;trustServerCertificate=true"));
+        types.add(createDbType("DB2", "DB2", "com.ibm.db2.jcc.DB2Driver", false,
+                "50000", "jdbc:db2://", ":")
+                .withTemplate("jdbc:db2://{host}:{port}/{database}:{params}"));
+        types.add(createDbType("GBase 8s", "GBASE8S", "com.gbasedbt.jdbc.Driver", false,
+                "9088", "jdbc:gbasedbt-sqli://", ":")
+                .withTemplate("jdbc:gbasedbt-sqli://{host}:{port}/{database}:{params}")
+                .withParamsHint("GBASEDBTSERVER=gbase01"));
         types.add(createDbType("H2 (TCP)", "H2", "org.h2.Driver", false,
                 "9092", "jdbc:h2:tcp://", ";"));
+        // ---- 驱动未内置：需上传 JAR ----
+        types.add(createDbType("神通 Oscar", "OSCAR", "com.oscar.Driver", false,
+                "2003", "jdbc:oscar://", "?").withJarRequired());
         // 仅保留一个自定义入口：驱动不在包内时自行提供 JAR、driver class 和完整 URL
         types.add(createDbType("其他自定义", "CUSTOM", "", true,
                 "", "", ""));
@@ -238,29 +275,64 @@ public class DatabaseConfigService {
         return types;
     }
 
-    private Map<String, String> createDbType(String name, String type, String driver, boolean isCustom,
-                                             String defaultPort, String urlPrefix, String paramSep) {
-        Map<String, String> map = new LinkedHashMap<>();
-        map.put("name", name);
-        map.put("type", type);
-        map.put("driverClass", driver);
-        map.put("isCustom", String.valueOf(isCustom));
-        map.put("defaultPort", defaultPort);
-        map.put("urlPrefix", urlPrefix);
-        map.put("paramSep", paramSep);
-        return map;
+    private DbTypeBuilder createDbType(String name, String type, String driver, boolean isCustom,
+                                       String defaultPort, String urlPrefix, String paramSep) {
+        return new DbTypeBuilder(name, type, driver, isCustom, defaultPort, urlPrefix, paramSep);
+    }
+
+    /**
+     * 数据库类型描述构造器（最终产出 LinkedHashMap 供前端 JSON 使用）
+     */
+    private static class DbTypeBuilder extends LinkedHashMap<String, String> {
+        DbTypeBuilder(String name, String type, String driver, boolean isCustom,
+                      String defaultPort, String urlPrefix, String paramSep) {
+            put("name", name);
+            put("type", type);
+            put("driverClass", driver);
+            put("isCustom", String.valueOf(isCustom));
+            put("defaultPort", defaultPort);
+            put("urlPrefix", urlPrefix);
+            put("paramSep", paramSep);
+        }
+
+        /** URL 模板（{host}/{port}/{database}/{params} 占位） */
+        DbTypeBuilder withTemplate(String template) {
+            put("urlTemplate", template);
+            return this;
+        }
+
+        /** 该类型必须提供驱动 JAR（驱动未随应用打包） */
+        DbTypeBuilder withJarRequired() {
+            put("jarRequired", "true");
+            return this;
+        }
+
+        /** 连接参数示例（前端作为参数输入框 placeholder 展示） */
+        DbTypeBuilder withParamsHint(String hint) {
+            put("paramsHint", hint);
+            return this;
+        }
     }
 
     private String getDefaultDriverClass(String dbType) {
         if (dbType == null) return "";
         return switch (dbType.toUpperCase()) {
             case "H2" -> "org.h2.Driver";
-            case "MYSQL" -> "com.mysql.cj.jdbc.Driver";
+            case "MYSQL", "TIDB", "GBASE8A" -> "com.mysql.cj.jdbc.Driver";
+            case "MARIADB" -> "org.mariadb.jdbc.Driver";
+            case "OCEANBASE" -> "com.oceanbase.jdbc.Driver";
             case "ORACLE" -> "oracle.jdbc.OracleDriver";
             case "POSTGRESQL" -> "org.postgresql.Driver";
             case "OPENGAUSS" -> "org.opengauss.Driver";
             case "DM" -> "dm.jdbc.driver.DmDriver";
             case "KINGBASE" -> "com.kingbase8.Driver";
+            case "HIGHGO" -> "com.highgo.jdbc.Driver";
+            case "VASTBASE" -> "cn.com.vastbase.Driver";
+            case "YASHANDB" -> "com.yashandb.jdbc.Driver";
+            case "SQLSERVER" -> "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+            case "DB2" -> "com.ibm.db2.jcc.DB2Driver";
+            case "GBASE8S" -> "com.gbasedbt.jdbc.Driver";
+            case "OSCAR" -> "com.oscar.Driver";
             default -> "";
         };
     }

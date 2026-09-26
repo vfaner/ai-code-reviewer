@@ -36,6 +36,14 @@
         <dameng.version>8.1.3.140</dameng.version>
         <kingbase.version>9.0.0</kingbase.version>
         <opengauss.version>6.0.0-og</opengauss.version>
+        <mariadb.version>3.5.10</mariadb.version>
+        <mssql.version>12.10.2.jre11</mssql.version>
+        <db2.version>12.1.5.0</db2.version>
+        <oceanbase.version>2.4.19</oceanbase.version>
+        <highgo.version>6.2.5</highgo.version>
+        <vastbase.version>2.16.1v</vastbase.version>
+        <yashandb.version>1.10.7</yashandb.version>
+        <gbasedbt.version>3.6.5.21</gbasedbt.version>
         <openpdf.version>1.3.30</openpdf.version>
         <jgit.version>6.8.0.202311291450-r</jgit.version>
         <caffeine.version>3.1.8</caffeine.version>
@@ -140,6 +148,63 @@
             <version>${opengauss.version}</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- MariaDB（TiDB / GBase 8a 走 MySQL 协议，复用 mysql-connector-j） -->
+        <dependency>
+            <groupId>org.mariadb.jdbc</groupId>
+            <artifactId>mariadb-java-client</artifactId>
+            <version>${mariadb.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- Microsoft SQL Server -->
+        <dependency>
+            <groupId>com.microsoft.sqlserver</groupId>
+            <artifactId>mssql-jdbc</artifactId>
+            <version>${mssql.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- IBM DB2 (jcc) -->
+        <dependency>
+            <groupId>com.ibm.db2</groupId>
+            <artifactId>jcc</artifactId>
+            <version>${db2.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- OceanBase -->
+        <dependency>
+            <groupId>com.oceanbase</groupId>
+            <artifactId>oceanbase-client</artifactId>
+            <version>${oceanbase.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- 瀚高 HighGo -->
+        <dependency>
+            <groupId>com.highgo</groupId>
+            <artifactId>HgdbJdbc</artifactId>
+            <version>${highgo.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- 海量 Vastbase（v 变体 = 原生驱动 cn.com.vastbase.Driver + jdbc:vastbase://） -->
+        <dependency>
+            <groupId>cn.com.vastdata</groupId>
+            <artifactId>vastbase-jdbc</artifactId>
+            <version>${vastbase.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- 崖山 YashanDB -->
+        <dependency>
+            <groupId>com.yashandb</groupId>
+            <artifactId>yashandb-jdbc</artifactId>
+            <version>${yashandb.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- 南大通用 GBase 8s（Informix 系） -->
+        <dependency>
+            <groupId>com.gbasedbt</groupId>
+            <artifactId>jdbc</artifactId>
+            <version>${gbasedbt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- 神通 Oscar：中央仓库无驱动，走「上传驱动 JAR」方式 -->
 
         <!-- Code Parsing -->
         <dependency>

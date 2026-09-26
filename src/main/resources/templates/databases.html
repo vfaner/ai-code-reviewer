@@ -152,8 +152,8 @@
                 <input type="hidden" id="db-urlOverride" maxlength="512">
             </div>
 
-            <!-- 自定义数据库：JAR 路径/上传 + driver + 完整 URL -->
-            <div id="db-panel-custom" hidden>
+            <!-- 驱动 JAR：自定义库、以及驱动未随包内置的类型（神通 Oscar）需要提供 -->
+            <div id="db-panel-jar" hidden>
                 <div class="field">
                     <label for="db-driverJarPath">
                         <span th:text="#{databases.form.jarPath}">Driver JAR path</span>
@@ -168,7 +168,13 @@
                             <span th:text="#{databases.form.upload}">Upload JAR</span>
                         </button>
                     </div>
+                    <div class="muted small" id="db-jar-required-note" hidden
+                         th:text="#{databases.form.jarRequiredHint}">Driver JAR required</div>
                 </div>
+            </div>
+
+            <!-- 自定义数据库：driver + 完整 URL -->
+            <div id="db-panel-custom" hidden>
                 <div class="field">
                     <label for="db-customDriver" th:text="#{databases.form.driver}">Driver class</label>
                     <input type="text" class="input" id="db-customDriver" maxlength="256"
@@ -238,12 +244,16 @@
         var MSG_UPLOADED = /*[[#{databases.uploaded}]]*/ 'Driver uploaded';
         var MSG_PW_KEEP = /*[[#{databases.form.passwordKeep}]]*/ 'Leave blank to keep unchanged';
         var MSG_PW_ENTER = /*[[#{databases.form.passwordPlaceholder}]]*/ 'Enter password';
+        var MSG_PARAMS_UNSUPPORTED = /*[[#{databases.form.paramsUnsupported}]]*/ 'URL params not supported';
         var dbTypes = /*[[${dbTypes}]]*/ [];
         var typeMap = {};
         dbTypes.forEach(function (t) { typeMap[t.type] = t; });
 
         var panelBuiltin = document.getElementById('db-panel-builtin');
         var panelCustom = document.getElementById('db-panel-custom');
+        var panelJar = document.getElementById('db-panel-jar');
+        var jarNote = document.getElementById('db-jar-required-note');
+        var paramsInput = document.getElementById('db-params');
         var preview = document.getElementById('db-urlPreview');
 
         function curType() { return typeMap[document.getElementById('db-dbType').value]; }
@@ -251,17 +261,57 @@
 
         function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
-        /** 按内置类型拼 JDBC URL */
+        /** 按内置类型拼 JDBC URL（URL 形态特殊的类型走模板） */
         function buildUrl() {
             var t = curType();
             var host = document.getElementById('db-host').value.trim();
             var port = document.getElementById('db-port').value.trim();
             var database = document.getElementById('db-database').value.trim();
-            var params = document.getElementById('db-params').value.trim().replace(/^[?;]/, '');
+            var params = paramsInput.value.trim().replace(/^[?;]/, '');
+            if (t.urlTemplate) return buildFromTemplate(t.urlTemplate, host, port, database, params);
             var url = (t.urlPrefix || '') + host + (port ? ':' + port : '') +
                       (database ? '/' + database : '');
             if (params) url += (t.paramSep || '?') + params;
             return url;
+        }
+
+        /** 按模板拼 URL：占位符替换后清理空值段（如 databaseName=）与悬挂/重复分隔符 */
+        function buildFromTemplate(tpl, host, port, database, params) {
+            var url = tpl.split('{host}').join(host)
+                         .split('{port}').join(port)
+                         .split('{database}').join(database)
+                         .split('{params}').join(params);
+            url = url.replace(/([;:?&])[A-Za-z_][A-Za-z0-9_]*=(?=[;:?&]|$)/g, '$1');
+            url = url.replace(/([;:?&])\1+/g, '$1').replace(/[;:?&]+$/, '').replace(/\/+$/, '');
+            return url;
+        }
+
+        /** URL 模板 → 反解正则：占位符变捕获组；{database}（连同 databaseName= 等前缀字面量）与 {params} 均整体可选，与拼 URL 时的空值清理对称 */
+        function templateToRegex(tpl) {
+            var p = escapeRe(tpl);
+            p = p.split(escapeRe('{host}')).join('([^:/;?]*)');
+            p = p.split(escapeRe('{port}')).join('(\\d+)');
+            var dph = escapeRe('{database}');
+            var di = p.indexOf(dph);
+            if (di >= 0) {
+                var head = p.substring(0, di);
+                var tail = p.substring(di + dph.length);
+                var dm = head.match(/([;:/])([A-Za-z_][A-Za-z0-9_]*=)?$/);
+                var lit = dm ? dm[0] : '';
+                if (dm) head = head.substring(0, head.length - lit.length);
+                p = head + '(?:' + lit + '([^;:?]*))?' + tail;
+            }
+            var ph = escapeRe('{params}');
+            var idx = p.indexOf(ph);
+            if (idx >= 0) {
+                var before = p.substring(0, idx);
+                var sepMatch = before.match(/([;:?])$/);
+                if (sepMatch) before = before.substring(0, before.length - 1);
+                p = before + '(?:' + (sepMatch ? '[' + sepMatch[1] + ']' : '') + '([\\s\\S]*))?$';
+            } else {
+                p = p + '$';
+            }
+            return new RegExp('^' + p);
         }
 
         function refreshPreview() {
@@ -283,6 +333,19 @@
                 document.getElementById(id).value = '';
             });
             if (!jdbcUrl) return;
+            if (t.urlTemplate) {
+                // 模板类型：按模板反解；拆不开（用户手改过形态）则完整 URL 进隐藏域原样保留
+                var tm = jdbcUrl.match(templateToRegex(t.urlTemplate));
+                if (tm) {
+                    document.getElementById('db-host').value = tm[1] || '';
+                    document.getElementById('db-port').value = tm[2] || '';
+                    document.getElementById('db-database').value = tm[3] || '';
+                    document.getElementById('db-params').value = tm[4] || '';
+                } else {
+                    overrideEl.value = jdbcUrl;
+                }
+                return;
+            }
             if (!t.urlPrefix || jdbcUrl.indexOf(t.urlPrefix) !== 0) {
                 overrideEl.value = jdbcUrl;
                 return;
@@ -325,6 +388,23 @@
             document.getElementById('db-params').value = tail;
         }
 
+        /** JAR 面板显隐：自定义库 / 驱动未内置的类型（jarRequired）/ 已配置过 JAR 路径的记录 */
+        function updateJarPanel() {
+            var t = curType();
+            var jarRequired = !!(t && String(t.jarRequired) === 'true');
+            var jarPath = document.getElementById('db-driverJarPath').value.trim();
+            panelJar.hidden = !(isCustom() || jarRequired || jarPath);
+            jarNote.hidden = !(jarRequired && !isCustom());
+        }
+
+        /** 参数字段状态：类型专属示例作 placeholder；模板不含 {params} 的类型（如 Oracle）整体禁用 */
+        function applyParamsState() {
+            var t = curType();
+            var noParams = !isCustom() && t && t.urlTemplate && t.urlTemplate.indexOf('{params}') < 0;
+            paramsInput.disabled = noParams;
+            paramsInput.placeholder = noParams ? MSG_PARAMS_UNSUPPORTED : ((t && t.paramsHint) || '');
+        }
+
         // 记录上一个类型的默认端口：切换类型时仅自动替换“默认端口/空值”，不覆盖用户手填端口
         var prevDefaultPort = null;
         window.onDbTypeChange = function () {
@@ -348,6 +428,8 @@
                 }
             }
             prevDefaultPort = t.defaultPort || null;
+            applyParamsState();
+            updateJarPanel();
             refreshPreview();
         };
 
@@ -392,6 +474,8 @@
                 }
                 // 编辑态以当前记录端口为基准，只有它等于该类型默认端口时切换类型才自动替换
                 prevDefaultPort = curType() ? (curType().defaultPort || null) : null;
+                applyParamsState();
+                updateJarPanel();
                 UI.openModal('db-modal');
                 refreshPreview();
             }).catch(function (err) {
@@ -433,10 +517,10 @@
                 ? document.getElementById('db-customDriver').value.trim()
                 : (t.driverClass || '');
             var jdbcUrl;
-            var jarPath = null;
+            // JAR 路径对内置类型同样生效（驱动未内置的类型如神通 Oscar，或用户为内置类型替换驱动）
+            var jarPath = document.getElementById('db-driverJarPath').value.trim() || null;
             if (custom) {
                 jdbcUrl = document.getElementById('db-jdbcUrl').value.trim();
-                jarPath = document.getElementById('db-driverJarPath').value.trim() || null;
             } else {
                 var override = document.getElementById('db-urlOverride').value.trim();
                 jdbcUrl = override || buildUrl();

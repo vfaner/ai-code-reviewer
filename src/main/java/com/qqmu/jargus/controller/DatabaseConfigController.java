@@ -143,10 +143,11 @@ public class DatabaseConfigController {
 
             String uuid = UUID.randomUUID().toString().replace("-", "");
             String originalFileName = file.getOriginalFilename();
-            String ext = originalFileName != null && originalFileName.contains(".")
-                    ? originalFileName.substring(originalFileName.lastIndexOf("."))
-                    : ".jar";
-            String newFileName = uuid + ext;
+            // 仅接受 .jar 驱动文件；落盘文件名固定 uuid.jar（原始文件名不参与路径拼接，杜绝路径穿越）
+            if (originalFileName == null || !originalFileName.toLowerCase().endsWith(".jar")) {
+                return Result.error("仅支持上传 .jar 驱动文件");
+            }
+            String newFileName = uuid + ".jar";
             Path targetPath = Path.of(driverDir, newFileName);
 
             Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);

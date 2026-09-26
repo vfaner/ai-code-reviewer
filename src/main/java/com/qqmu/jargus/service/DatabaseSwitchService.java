@@ -49,13 +49,8 @@ public class DatabaseSwitchService {
         }
 
         try {
-            // 如果是自定义数据库且有驱动 JAR，先加载驱动
-            if (Boolean.TRUE.equals(target.getIsCustom()) && target.getDriverJarPath() != null) {
-                File jarFile = new File(target.getDriverJarPath());
-                if (jarFile.exists()) {
-                    CustomDriverLoader.loadDriver(target.getDriverJarPath(), target.getDriverClass());
-                }
-            }
+            // 只要配置了驱动 JAR 且文件存在就先加载（自定义库、或驱动未内置的类型如神通 Oscar）
+            loadDriverJarIfNeeded(target);
 
             // 创建临时数据源测试
             DataSource tempDs = dataSourceFactory.createDataSource(
@@ -73,11 +68,17 @@ public class DatabaseSwitchService {
             boolean schemaExists = schemaInitService.checkSchemaExists(tempDs);
 
             if (!schemaExists) {
+                SqlDialectAdapter dialect = SqlDialectAdapter.resolve(target.getDialect(), target.getDbType());
                 result.put("status", "NO_SCHEMA");
-                result.put("canSwitch", true);
                 result.put("needsInit", true);
-                result.put("message", "目标数据库中未检测到系统表，切换时将自动初始化表结构");
-                result.put("dialect", target.getDialect());
+                result.put("dialect", dialect.getDialect());
+                if (dialect.hasBuiltinDdl()) {
+                    result.put("canSwitch", true);
+                    result.put("message", "目标数据库中未检测到系统表，切换时将自动初始化表结构");
+                } else {
+                    result.put("canSwitch", false);
+                    result.put("message", "目标数据库中未检测到系统表，且该类型暂不支持自动建表，请手工执行 DDL 后重试");
+                }
             } else {
                 String version = schemaInitService.getSchemaVersion(tempDs);
                 result.put("schemaVersion", version);
@@ -119,13 +120,8 @@ public class DatabaseSwitchService {
         }
 
         try {
-            // 如果是自定义数据库且有驱动 JAR，先加载驱动
-            if (Boolean.TRUE.equals(target.getIsCustom()) && target.getDriverJarPath() != null) {
-                File jarFile = new File(target.getDriverJarPath());
-                if (jarFile.exists()) {
-                    CustomDriverLoader.loadDriver(target.getDriverJarPath(), target.getDriverClass());
-                }
-            }
+            // 只要配置了驱动 JAR 且文件存在就先加载（自定义库、或驱动未内置的类型如神通 Oscar）
+            loadDriverJarIfNeeded(target);
 
             // 创建新数据源
             DataSource newDataSource = dataSourceFactory.createDataSource(
@@ -146,8 +142,12 @@ public class DatabaseSwitchService {
                     result.put("message", "目标数据库未初始化，请确认后重试");
                     return result;
                 }
-                // 初始化表结构
-                SqlDialectAdapter dialect = SqlDialectAdapter.valueOf(target.getDialect());
+                // 初始化表结构（dialect 存量值安全解析，未知回退 dbType 推断）
+                SqlDialectAdapter dialect = SqlDialectAdapter.resolve(target.getDialect(), target.getDbType());
+                if (!dialect.hasBuiltinDdl()) {
+                    result.put("message", "该数据库类型暂不支持自动建表，请手工执行 DDL 后重试");
+                    return result;
+                }
                 boolean initSuccess = schemaInitService.initializeSchema(newDataSource, dialect);
                 if (!initSuccess) {
                     result.put("message", "表结构初始化失败");
@@ -187,5 +187,17 @@ public class DatabaseSwitchService {
         }
 
         return result;
+    }
+
+    /**
+     * 配置了驱动 JAR 路径且文件存在时加载驱动（自定义库、或驱动未内置的类型如神通 Oscar）
+     */
+    private void loadDriverJarIfNeeded(DatabaseConfig target) throws Exception {
+        if (target.getDriverJarPath() != null && !target.getDriverJarPath().isBlank()) {
+            File jarFile = new File(target.getDriverJarPath());
+            if (jarFile.exists()) {
+                CustomDriverLoader.loadDriver(target.getDriverJarPath(), target.getDriverClass());
+            }
+        }
     }
 }
